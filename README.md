@@ -15,14 +15,14 @@ AMIVARA is an **18+ dating and connection platform** built for safety, authentic
 
 | Layer | Technology |
 |---|---|
-| Mobile app | Flutter (Android first, then iOS) |
+| Mobile app | Flutter, **Android-only for the MVP** (iOS after launch) |
 | Web app & marketing site | Next.js (React, TypeScript) |
 | Admin / moderation console | Next.js (internal, behind SSO) |
 | Backend API | NestJS (Node.js, TypeScript), REST + WebSockets |
-| Database | PostgreSQL 16 + PostGIS |
+| Database | PostgreSQL 16 + PostGIS, accessed through **Prisma** ORM |
 | Cache / queues / presence | Redis |
 | Media storage | S3-compatible object storage + CDN |
-| Identity & age verification | Third-party KYC/liveness provider (see `docs/SECURITY.md`) |
+| Identity & age verification | **Smile ID** (Biometric KYC, Document Verification, SmartSelfie™ liveness) |
 | Phone OTP | SMS + WhatsApp OTP provider with local routing |
 
 ## Repository layout

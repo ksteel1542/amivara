@@ -1,0 +1,279 @@
+// AMIVARA: Prisma schema (initial structure, v0.1)
+//
+// Engine: PostgreSQL 16 + PostGIS 3
+// Scope:  User, Profile, Verification, Match, Message.
+//         Preferences, Like, Pass, Block, Report, DeviceSession, Subscription
+//         and AuditLog follow in the next iteration (see docs/DATABASE.md).
+//
+// Conventions:
+//   - camelCase in Prisma, snake_case in PostgreSQL (via @map / @@map)
+//   - UUID primary keys, timestamptz for every timestamp
+//
+// Things Prisma cannot express are added in hand-edited SQL migrations
+// (database/migrations/). See "Raw SQL requirements" at the bottom of this file.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, pgcrypto]
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  PAUSED
+  SUSPENDED
+  BANNED
+  PENDING_DELETION
+
+  @@map("user_status")
+}
+
+enum UserRole {
+  MEMBER
+  MODERATOR
+  SENIOR_MODERATOR
+  ADMIN
+
+  @@map("user_role")
+}
+
+enum Gender {
+  WOMAN
+  MAN
+  NON_BINARY
+
+  @@map("gender")
+}
+
+enum Intent {
+  RELATIONSHIP
+  FRIENDSHIP
+  CASUAL
+  NOT_SURE
+
+  @@map("intent")
+}
+
+enum VerificationType {
+  PHONE_OTP
+  BIOMETRIC_KYC // Smile ID: NIN checked against NIMC, plus a selfie match
+  DOCUMENT_VERIFICATION // Smile ID: ID document scan plus a selfie match
+  SMART_SELFIE // Smile ID: SmartSelfie liveness enrolment / authentication
+
+  @@map("verification_type")
+}
+
+enum VerificationProvider {
+  SMILE_ID
+  INTERNAL // phone OTP and manual moderator review
+
+  @@map("verification_provider")
+}
+
+enum VerificationStatus {
+  PENDING
+  PASSED
+  FAILED
+  MANUAL_REVIEW
+  EXPIRED
+
+  @@map("verification_status")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM
+
+  @@map("message_type")
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("moderation_status")
+}
+
+// ───────────────────────────── Models ─────────────────────────────
+
+model User {
+  id              String     @id @default(uuid()) @db.Uuid
+  phoneE164       String     @unique @map("phone_e164")
+  phoneVerifiedAt DateTime?  @map("phone_verified_at") @db.Timestamptz(6)
+  /// 18+ is enforced by a CHECK constraint in a SQL migration (see the bottom of this file)
+  dateOfBirth     DateTime   @map("date_of_birth") @db.Date
+  /// Set ONLY by the verification module after Smile ID returns a pass with age >= 18
+  ageVerified     Boolean    @default(false) @map("age_verified")
+  ageVerifiedAt   DateTime?  @map("age_verified_at") @db.Timestamptz(6)
+  status          UserStatus @default(ACTIVE)
+  role            UserRole   @default(MEMBER)
+  lastActiveAt    DateTime?  @map("last_active_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  profile       Profile?
+  verifications Verification[]
+  matchesAsA    Match[]        @relation("MatchUserA")
+  matchesAsB    Match[]        @relation("MatchUserB")
+  unmatchedByMe Match[]        @relation("MatchUnmatchedBy")
+  sentMessages  Message[]      @relation("MessageSender")
+
+  @@index([status, ageVerified])
+  @@index([lastActiveAt])
+  @@map("users")
+}
+
+model Profile {
+  userId            String   @id @map("user_id") @db.Uuid
+  firstName         String   @map("first_name") @db.VarChar(50)
+  gender            Gender
+  bio               String?  @db.VarChar(500)
+  intent            Intent
+  city              String?  @db.VarChar(100)
+  heightCm          Int?     @map("height_cm") @db.SmallInt
+  education         String?  @db.VarChar(100)
+  jobTitle          String?  @map("job_title") @db.VarChar(100)
+  religion          String?  @db.VarChar(50)
+  languages         String[] @default([])
+  interests         String[] @default([])
+  /// [{ "promptId": string, "answer": string }], up to 3 entries
+  prompts           Json     @default("[]")
+  completenessScore Int      @default(0) @map("completeness_score") @db.SmallInt
+
+  // ── Location (PostGIS) ──
+  /// Latest location only, rounded to ~100 m before it's written. Never returned to clients.
+  /// Read and written via $queryRaw / $executeRaw in GeoRepository (Prisma has no geography type).
+  location          Unsupported("geography(Point, 4326)")?
+  /// Coarse 5-character geohash cell (~5 km), used for discovery cache keys
+  geohash5          String?                                @map("geohash5") @db.VarChar(5)
+  locationUpdatedAt DateTime?                              @map("location_updated_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Spatial index for ST_DWithin radius queries in discovery
+  @@index([location], map: "profiles_location_gist_idx", type: Gist)
+  @@index([geohash5])
+  @@index([gender])
+  @@map("profiles")
+}
+
+model Verification {
+  id       String               @id @default(uuid()) @db.Uuid
+  userId   String               @map("user_id") @db.Uuid
+  type     VerificationType
+  provider VerificationProvider @default(SMILE_ID)
+  status   VerificationStatus   @default(PENDING)
+
+  // ── Smile ID references (data minimisation: no raw ID images, no full NIN) ──
+  /// Our job_id, sent to Smile ID as a partner parameter. Unique, so callbacks are idempotent.
+  providerJobId   String?  @unique @map("provider_job_id")
+  /// Smile ID's own SmileJobID, returned in the callback
+  providerRef     String?  @map("provider_ref")
+  /// Smile ID ResultCode and ResultText, kept for audit and debugging
+  resultCode      String?  @map("result_code") @db.VarChar(16)
+  resultText      String?  @map("result_text") @db.VarChar(255)
+  /// ID type that was checked, e.g. NIN, PASSPORT, DRIVERS_LICENSE, VOTER_ID
+  idType          String?  @map("id_type") @db.VarChar(32)
+  /// Derived from the verified DOB, e.g. "18-24", "25-34". The exact DOB stays on users.
+  verifiedAgeBand String?  @map("verified_age_band") @db.VarChar(8)
+  /// True only when the verified age is 18 or over
+  verifiedAdult   Boolean? @map("verified_adult")
+  /// Whether the declared DOB matches the verified one. A mismatch sends the account to MANUAL_REVIEW.
+  dobMatches      Boolean? @map("dob_matches")
+  failureReason   String?  @map("failure_reason") @db.VarChar(255)
+  attempt         Int      @default(1) @db.SmallInt
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("verifications")
+}
+
+/// One row per matched pair. Canonical ordering: userAId < userBId (enforced by a CHECK in SQL).
+/// In this initial schema the match also acts as the conversation container.
+model Match {
+  id             String    @id @default(uuid()) @db.Uuid
+  userAId        String    @map("user_a_id") @db.Uuid
+  userBId        String    @map("user_b_id") @db.Uuid
+  /// Becomes true once both members have sent at least 3 messages each (PRD §5.5)
+  photosUnlocked Boolean   @default(false) @map("photos_unlocked")
+  lastMessageAt  DateTime? @map("last_message_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  unmatchedAt    DateTime? @map("unmatched_at") @db.Timestamptz(6)
+  unmatchedById  String?   @map("unmatched_by") @db.Uuid
+
+  userA       User      @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB       User      @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  unmatchedBy User?     @relation("MatchUnmatchedBy", fields: [unmatchedById], references: [id], onDelete: SetNull)
+  messages    Message[]
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("matches")
+}
+
+model Message {
+  id               String           @id @default(uuid()) @db.Uuid
+  matchId          String           @map("match_id") @db.Uuid
+  senderId         String           @map("sender_id") @db.Uuid
+  type             MessageType      @default(TEXT)
+  /// Encrypted at the application level before it's written (see docs/SECURITY.md §5)
+  body             String?
+  /// Object storage key for IMAGE messages (private bucket, signed URLs only)
+  mediaKey         String?          @map("media_key")
+  moderationStatus ModerationStatus @default(APPROVED) @map("moderation_status")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt           DateTime?        @map("read_at") @db.Timestamptz(6)
+  deletedAt        DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User  @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@map("messages")
+}
+
+// ─────────────────────── Raw SQL requirements ───────────────────────
+// Add these to the first migration with `prisma migrate dev --create-only`,
+// then edit the generated SQL before applying it:
+//
+//   -- 18+ at the database level
+//   ALTER TABLE users ADD CONSTRAINT users_adult_chk
+//     CHECK (date_of_birth <= (CURRENT_DATE - INTERVAL '18 years'));
+//
+//   -- Canonical pair ordering, so each pair can only match once
+//   ALTER TABLE matches ADD CONSTRAINT matches_pair_order_chk
+//     CHECK (user_a_id < user_b_id);
+//
+//   -- A message must have either a body or media
+//   ALTER TABLE messages ADD CONSTRAINT messages_content_chk
+//     CHECK (body IS NOT NULL OR media_key IS NOT NULL);
+//
+//   -- Profile bounds
+//   ALTER TABLE profiles ADD CONSTRAINT profiles_height_chk
+//     CHECK (height_cm IS NULL OR height_cm BETWEEN 120 AND 230);
+//   ALTER TABLE profiles ADD CONSTRAINT profiles_interests_chk
+//     CHECK (cardinality(interests) <= 10);
+//
+// Note: CURRENT_DATE in a CHECK is evaluated when a row is written, which is
+// exactly the rule we want (nobody under 18 can sign up).
+// The API also validates this, so the rule holds even if one layer has a bug.

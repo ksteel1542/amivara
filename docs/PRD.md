@@ -1,6 +1,14 @@
 # AMIVARA: Product Requirements Document
 
-**Status:** Draft v0.1 · **Owner:** Founder · **Launch market:** Nigeria
+**Status:** Draft v0.2 · **Owner:** Founder · **Launch market:** Nigeria · **MVP platforms:** Android (Flutter) + Web (Next.js)
+
+## Founder decisions (2026-11-10)
+
+| Decision | Outcome |
+|---|---|
+| Identity verification provider | **Smile ID** for KYC, liveness (SmartSelfie™) and document/ID verification |
+| Database ORM | **Prisma** on PostgreSQL + PostGIS |
+| Launch platform | **Android-only** mobile app (Flutter) plus the Next.js web ecosystem. **iOS comes after launch.** |
 
 ## 1. Summary
 
@@ -17,6 +25,7 @@ AMIVARA is a mobile-first dating and connection platform **for adults aged 18 an
 - Video calling, livestreaming, public feeds or group chat.
 - Under-18 access of any kind. There is no "teen mode".
 - Markets outside Nigeria before the launch is stable.
+- An iOS app. Flutter keeps iOS possible later, but no iOS builds, App Store submission or Apple billing are in MVP scope.
 
 ## 3. Target users
 
@@ -38,7 +47,7 @@ AMIVARA is a mobile-first dating and connection platform **for adults aged 18 an
 2. DOB, then an 18+ gate.
 3. Profile basics: first name, gender, interested in, intent, city.
 4. Photos: at least 2, at most 6. Every photo goes through automated moderation.
-5. Identity and liveness verification. Members can browse before it's done, but cannot like or message until it's complete.
+5. Identity and liveness verification through the **Smile ID** SDK, which runs inside the app on Android and in the browser on web. Members can browse before it's done, but cannot like or message until it's complete.
 6. Accept the Terms, Community Guidelines and Privacy Policy, and give explicit location consent.
 
 ### 5.2 Profile
@@ -75,7 +84,7 @@ AMIVARA is a mobile-first dating and connection platform **for adults aged 18 an
 
 ### 5.8 Monetisation (post-MVP within launch)
 - **AMIVARA Plus**: unlimited likes, see who liked you, 5 Super Likes a week, incognito, rewind.
-- Paid in NGN through local payment gateways (Paystack or Flutterwave) and app store billing where the stores require it.
+- Paid in NGN. On Android, purchases go through Google Play Billing wherever Play policy requires it. On web, they go through Paystack or Flutterwave. Apple billing comes with the iOS release.
 
 ## 6. Mutual matching rules
 
@@ -97,11 +106,12 @@ Ranking (v1): verified photo quality, recent activity, profile completeness and 
 |---|---|---|
 | Phone ownership | Signup | OTP over SMS or WhatsApp, 6 digits, 5-minute expiry, max 5 attempts |
 | One account per phone | Signup | Unique, normalised E.164 phone number |
-| Age (18+) | Before liking or messaging | Government ID (NIN slip, international passport, driver's licence, voter's card) checked by a KYC provider, with DOB extracted |
-| Liveness / face match | Together with the ID check | Selfie liveness compared with the ID photo and the profile photos |
-| Ongoing photo match | Each new photo | Face similarity checked against the verified selfie |
+| Age (18+) | Before liking or messaging | **Smile ID Biometric KYC**: the NIN is checked against the NIMC record with a selfie match. **Smile ID Document Verification** is the fallback (international passport, driver's licence, voter's card). Either way, the DOB is returned |
+| Liveness / face match | Together with the ID check | **Smile ID SmartSelfie™** liveness, matched against the ID or NIMC photo |
+| Ongoing photo match | Each new photo | Face similarity checked against the verified selfie. Smile ID SmartSelfie Authentication is used for re-verification (for example when the member logs in on a new device) |
 
-- The NIN is verified through a licensed provider. AMIVARA stores **only** the result (pass/fail, verified age band, provider reference), never the raw ID image beyond the provider's retention period.
+- Smile ID is the only KYC provider at launch. The backend wraps it behind a `VerificationProvider` interface so that adding a second provider later doesn't change the product flow.
+- AMIVARA stores **only** the result: pass/fail, verified age band, the Smile ID job reference and result code. We never store the raw ID image or the full NIN. Smile ID's own data retention is set by the DPA we sign with them.
 - If verification fails, the member can retry twice before a manual review.
 
 ## 8. Success metrics
@@ -120,7 +130,8 @@ Ranking (v1): verified photo quality, recent activity, profile completeness and 
 
 ## 10. Open questions
 
-1. Which KYC provider? Candidates: Smile ID, Youverify, Dojah, Prembly.
+1. ~~Which KYC provider?~~ **Decided: Smile ID.**
 2. Should we require full verification before browsing, or only before interacting (current proposal)?
-3. Should iOS ship at MVP or in the phase after launch?
+3. ~~Should iOS ship at MVP?~~ **Decided: Android-only MVP, iOS after launch.**
 4. What price should Plus have in NGN, and should there be weekly plans?
+5. What does a Smile ID check cost per verification at our expected volumes? Should we charge for re-verification attempts?

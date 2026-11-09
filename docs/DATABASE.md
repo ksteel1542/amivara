@@ -1,8 +1,24 @@
 # AMIVARA: Database Schema Plan
 
-**Engine:** PostgreSQL 16 + PostGIS 3 · **Status:** Draft v0.1
+**Engine:** PostgreSQL 16 + PostGIS 3 · **ORM:** Prisma · **Status:** Draft v0.2
 
-Conventions: `uuid` primary keys (v7, so they sort by time), `timestamptz` columns, `snake_case` names, soft deletion through `deleted_at` where it applies, and every schema change made through versioned migrations in `database/migrations/`.
+Conventions: `uuid` primary keys, `timestamptz` columns, `snake_case` names, soft deletion through `deleted_at` where it applies, and every schema change made through versioned migrations in `database/migrations/`.
+
+## 0. Prisma
+
+- **Source of truth:** [`database/schema/schema.prisma`](../database/schema/schema.prisma). Models use camelCase and map to the snake_case tables below through `@map` / `@@map`.
+- **Migrations:** `prisma migrate dev` locally, `prisma migrate deploy` in CI/CD. SQL lives in `database/migrations/`.
+- **PostGIS:** turned on through the `postgresqlExtensions` preview feature (`extensions = [postgis, pgcrypto]`). The `location` column is `Unsupported("geography(Point, 4326)")` with `@@index([location], type: Gist)`. Prisma Client can't read or write `Unsupported` fields, so spatial access goes through `$queryRaw` / `$executeRaw` tagged templates in a `GeoRepository`.
+- **Raw SQL that Prisma can't express:** the CHECK constraints (18+ DOB, match pair ordering, message content, profile bounds). These are added to migrations created with `--create-only`, and the full list is at the end of `schema.prisma`.
+- **UUIDs:** Prisma generates v4 UUIDs in the application (`@default(uuid())`). If index locality becomes a problem we can move to v7 (`uuid(7)` in Prisma 5.18+).
+
+### Schema v0.1 scope and how it differs from the plan below
+The first `schema.prisma` covers **User, Profile, Verification, Match and Message**. To keep the first version small:
+- `user_locations` is **merged into `profiles`** (`location`, `geohash5`, `location_updated_at`), because it's a one-to-one table anyway.
+- `conversations` is **merged into `matches`** (`photos_unlocked`, `last_message_at`). Messages reference `match_id` directly.
+- `verifications` gains Smile ID fields: `provider_job_id` (unique, so callbacks are idempotent), `provider_ref` (SmileJobID), `result_code`, `result_text`, `id_type`, `verified_adult` and `dob_matches`.
+
+The remaining tables below (preferences, likes, passes, blocks, reports, enforcement actions, device sessions, subscriptions, audit log, profile photos) come in the next iteration of the schema.
 
 ## 1. Entity overview
 
@@ -77,7 +93,7 @@ Indexes:
 Retention: we keep only the latest location, with no location history.
 
 ### `verifications`
-`id`, `user_id`, `type (phone/id_document/liveness)`, `provider`, `provider_ref`, `status (pending/passed/failed/review)`, `verified_age_band`, `failure_reason`, `created_at`, `completed_at`. Raw ID images are **not stored** (see SECURITY.md).
+`id`, `user_id`, `type (phone_otp/biometric_kyc/document_verification/smart_selfie)`, `provider (smile_id/internal)`, `provider_job_id`, `provider_ref`, `status (pending/passed/failed/manual_review/expired)`, `result_code`, `result_text`, `id_type`, `verified_age_band`, `verified_adult`, `dob_matches`, `failure_reason`, `attempt`, `created_at`, `completed_at`. The provider is **Smile ID**. Raw ID images and full NIN numbers are **not stored** (see SECURITY.md).
 
 ### `likes`
 `liker_id`, `likee_id`, `is_super`, `created_at`. PK `(liker_id, likee_id)`. Index on `(likee_id, created_at)` for "who liked me".
@@ -107,7 +123,7 @@ Retention: we keep only the latest location, with no location history.
 `id`, `user_id`, `refresh_token_hash`, `device_info`, `ip_hash`, `created_at`, `last_used_at`, `revoked_at`.
 
 ### `subscriptions`
-`id`, `user_id`, `plan`, `provider (paystack/flutterwave/play/app_store)`, `provider_ref`, `status`, `current_period_end`.
+`id`, `user_id`, `plan`, `provider (google_play/paystack/flutterwave)`, `provider_ref`, `status`, `current_period_end`. `app_store` is added with the iOS release.
 
 ### `audit_log`
 An append-only record of every admin action and sensitive data access: `actor_id`, `action`, `target_type`, `target_id`, `metadata jsonb`, `created_at`.
@@ -141,6 +157,8 @@ LIMIT 200;
 ```
 
 Ranking happens in the application on the returned set.
+
+This query runs through Prisma's `$queryRaw` tagged template, so `:me` becomes a bound `${userId}` parameter. With schema v0.1, the `user_locations` joins read `profiles.location` instead.
 
 ## 4. Seeds
 

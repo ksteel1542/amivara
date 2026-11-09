@@ -1,6 +1,8 @@
 # AMIVARA: Roadmap
 
-**Status:** Draft v0.1. Durations are indicative and will be set once the team size is confirmed.
+**Status:** Draft v0.2. Durations are indicative and will be set once the team size is confirmed.
+
+**Locked decisions:** Smile ID (KYC and liveness) · Prisma ORM · Android-only Flutter MVP plus Next.js web. iOS is a post-launch milestone (Stage 8).
 
 | # | Stage | Indicative duration | Exit criteria |
 |---|---|---|---|
@@ -10,31 +12,39 @@
 | 4 | MVP development | 10–12 weeks | All MVP features in PRD §5 complete |
 | 5 | Trust, safety & compliance | 3 weeks (overlaps 4) | DPIA, pen test, moderation operations ready |
 | 6 | Testing & closed beta | 4 weeks | Beta KPIs met, no open SEV1/SEV2 bugs |
-| 7 | Nigerian launch | 2–4 weeks | Public on Play Store, Lagos and Abuja marketing live |
-| 8 | Growth & expansion | Ongoing | iOS, Plus tier, new cities, then West Africa |
+| 7 | Nigerian launch | 2–4 weeks | Public on Google Play (Android) and the web, Lagos and Abuja marketing live |
+| 8 | Growth & expansion | Ongoing | iOS release, Plus tier, new cities, then West Africa |
 
 ## Stage 1: Foundation *(current)*
 - [x] Repository structure and foundation docs
 - [ ] Founder review and sign-off of the PRD, architecture and security
-- [ ] Decisions: KYC provider, cloud region, ORM (Prisma or TypeORM), whether iOS ships at MVP
+- [x] Decision: KYC provider → **Smile ID**
+- [x] Decision: ORM → **Prisma**
+- [x] Decision: MVP platform → **Android-only (Flutter) plus Next.js web. iOS after launch.**
+- [x] Initial Prisma schema (`database/schema/schema.prisma`): User, Profile, Verification, Match, Message
+- [ ] Decision: cloud region (AWS `af-south-1` or GCP `africa-south1`)
+- [ ] Sign the Smile ID commercial agreement and DPA. Get sandbox API keys and agree per-check pricing.
+- [ ] Google Play Console developer account (organisation) and the dating-app policy declaration
 - [ ] Register the domain, trademark search for "AMIVARA" in Nigeria (NIPO)
 - [ ] Engage Nigerian counsel (terms, NDPA registration)
 
 ## Stage 2: Brand & UI prototypes
 - Logo, palette, typography and voice → `design/brand`, `design/logos`
-- Wireframes, then hi-fi screens: onboarding, verification, discovery, match, chat, safety, settings
+- Wireframes, then hi-fi screens: onboarding, verification, discovery, match, chat, safety, settings. Android (Material 3) and responsive web layouts only.
+- Design the Smile ID verification moments: the pre-check explainer, SmartSelfie™ capture guidance, and the failure and retry screens
 - A component library → `design/ui-components`
 - Usability tests in Lagos and Abuja, with a focus on how clear verification is and how safe people feel
 
 ## Stage 3: Technical setup
-- Flutter, Next.js (web and admin) and NestJS skeletons, plus a shared lint and format setup
+- Flutter (Android target only), Next.js (web and admin) and NestJS skeletons, plus a shared lint and format setup
 - Terraform for dev and staging. PostgreSQL + PostGIS, Redis and object storage
-- GitHub Actions: lint, test, build, deploy. CodeQL and Dependabot
-- Initial migrations from `docs/DATABASE.md`
+- GitHub Actions: lint, test, build, deploy. CodeQL and Dependabot. Android AAB builds to the Play internal testing track.
+- Prisma set up in NestJS. Generate the first migration from `schema.prisma`, add the raw-SQL CHECK constraints, and run `prisma migrate deploy` in the pipeline.
+- Smile ID sandbox wired end to end: job signature endpoint, callback webhook, Flutter and Web SDK smoke test
 
 ## Stage 4: MVP development
 - Sprint 1–2: Auth (OTP), onboarding, 18+ gate, profiles and photos
-- Sprint 3: KYC and liveness integration, verification gating
+- Sprint 3: Smile ID integration (Biometric KYC using NIN, Document Verification as the fallback, SmartSelfie™ liveness), verification gating, the manual review queue
 - Sprint 4: Location, discovery query, ranking v1
 - Sprint 5: Likes, passes, matches, push notifications
 - Sprint 6: Messaging (REST + WebSocket), photo unlocking
@@ -47,15 +57,17 @@
 - Privacy policy, terms and community guidelines published
 
 ## Stage 6: Testing & closed beta
-- QA on a matrix of low and mid-range Android devices, and on 3G network conditions
+- QA on a matrix of low and mid-range Android devices (Tecno, Infinix, itel, Samsung A-series), on 3G network conditions, and across the main web browsers
+- Measure Smile ID pass rates and drop-off on real devices and in different lighting conditions
 - A closed beta with 500–1,000 invited adults in Lagos
 - Target KPIs: 60% or more verified within 7 days, a falling report rate, crash-free sessions at 99.5% or more
 
 ## Stage 7: Nigerian launch
-- Google Play release (Nigeria storefront), then the Lagos and Abuja launch campaigns
+- Google Play release (Nigeria storefront) and the public web app, then the Lagos and Abuja launch campaigns
 - Launch-week war room, with on-call cover for both engineering and safety
 
 ## Stage 8: Growth & expansion
-- iOS release, AMIVARA Plus (Paystack/Flutterwave), more cities
+- **iOS release:** turn on the Flutter iOS target, integrate the Smile ID iOS SDK, add APNs, StoreKit billing and App Store review
+- AMIVARA Plus (Google Play Billing on Android, Paystack/Flutterwave on web), more cities
 - Diaspora mode, then Ghana as the next market
 - Ranking v2 and an annual transparency report
