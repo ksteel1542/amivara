@@ -64,6 +64,7 @@ describe('validateEnv', () => {
     JWT_PRIVATE_KEY_PEM: '-----BEGIN PRIVATE KEY-----',
     JWT_PUBLIC_KEY_PEM: '-----BEGIN PUBLIC KEY-----',
     HASH_PEPPER: 'p'.repeat(32),
+    MESSAGE_ENC_KEY: Buffer.alloc(32, 7).toString('base64'),
   };
 
   it('requires the JWT keys and hashing pepper in staging', () => {

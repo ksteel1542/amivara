@@ -10,6 +10,12 @@ export const MATCH_NOTIFICATION = {
   body: 'You have a new match on AMIVARA. Open the app to see who.',
 };
 
+/** New message push: never the sender's name or any of the message (lock screens are public). */
+export const MESSAGE_NOTIFICATION = {
+  title: 'AMIVARA',
+  body: 'You have a new message.',
+};
+
 @Injectable()
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
@@ -30,6 +36,14 @@ export class NotificationsService implements OnModuleInit {
           }),
         ),
       );
+    });
+    // Only when the recipient isn't already in the app: an open socket shows it live.
+    this.events.on('message.created', async ({ matchId, recipientId, recipientOnline }) => {
+      if (recipientOnline) return;
+      await this.sendToUser(recipientId, {
+        notification: MESSAGE_NOTIFICATION,
+        data: { type: 'message.new', match_id: matchId },
+      });
     });
     // Silent: the other member's list refreshes, with no "X unmatched you" notification.
     this.events.on('match.unmatched', async ({ matchId, otherUserId }) => {

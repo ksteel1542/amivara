@@ -184,25 +184,41 @@ Push payloads never contain names, photos, phone numbers or any location. Push i
 
 ## Messaging
 
+Chat lives inside a match. Every route needs a verified member (`403 VERIFICATION_REQUIRED`) and an **active** match: if you aren't in it, it was unmatched, or the other member was banned or suspended, the answer is `404 NOT_FOUND` (nothing to learn by probing).
+
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| GET | `/conversations` | ✅ | Paginated, sorted by the latest message. |
-| GET | `/conversations/:id/messages?cursor=` | ✅ | Message history. |
-| POST | `/conversations/:id/messages` | ✅ | Body `{ type: "text", body }` or `{ type: "image", photo_upload_id }`. Images only once photos are unlocked. |
-| POST | `/conversations/:id/read` | ✅ | Body `{ up_to_message_id }`. |
-| DELETE | `/conversations/:id/messages/:msgId` | ✅ | Deletes the message for everyone (your own messages only). |
+| GET | `/matches/:id/messages?before=&limit=` | ✅ | History, newest first. `limit` 1–50 (default 30); pass the previous `next_before` as `before` for older pages. Returns `{ messages, next_before, photos }`. |
+| POST | `/matches/:id/messages` | ✅ | Send fallback when the socket is down. Body `{ body }`, 1–2,000 characters after trimming. `201` with the message. Delivered live to both members' sockets too. |
+| POST | `/matches/:id/read` | ✅ | Body `{ up_to_message_id }`: marks the other member's messages up to that one as read. Returns `{ read }` and sends `message.read` to the sender. |
 
-### WebSocket: `wss://api.amivara.com/v1/ws`
-Authenticate with the access token when connecting.
+A message: `{ id, match_id, sender_id, type: "text", body, created_at, read_at }`.
+
+**Rate limit:** 30 messages a minute per member, across all chats: `429 MESSAGE_RATE_LIMITED` with `details.retry_after`.
+
+**Encryption at rest:** bodies are stored AES-256-GCM encrypted (`MESSAGE_ENC_KEY`, Terraform secret `message-key`, required in staging and production). The database and its backups never hold plaintext.
+
+**Photo unlocking (PRD §5.5):** `photos` is `{ unlocked, threshold: 3, mine, theirs }` (counts capped at the threshold). Photos open in a chat once **both** members have sent 3 messages; the moment it happens both sockets get `photos.unlocked`, and `GET /matches` shows `photos_unlocked: true`. Sending photos in chat arrives in a later sprint.
+
+**Pushes:** a new message pushes the recipient only when they have no open chat socket. The push is generic: title "AMIVARA", body "You have a new message." and data `{ type: "message.new", match_id }`. It never includes the sender's name or any of the message.
+
+### WebSocket: `wss://api.amivara.com/ws/chat`
+
+Connect with the same access token as REST, in the `Authorization: Bearer …` header. The device session must be active and the member verified. Otherwise the server closes the socket with **4401** (`UNAUTHENTICATED` / `INVALID_TOKEN`: refresh and reconnect) or **4403** (`VERIFICATION_REQUIRED` / `ACCOUNT_SUSPENDED`: don't retry). The server pings every 30 s and drops sockets that stop answering. Frames are JSON `{ event, data }`, at most 16 KB.
 
 | Direction | Event | Payload |
 |---|---|---|
-| server → client | `message.new` | `{ conversation_id, message }` |
-| server → client | `message.read` | `{ conversation_id, up_to_message_id }` |
-| server → client | `typing` | `{ conversation_id, user_id }` |
-| server → client | `match.created` | `{ match_id, user }` |
-| server → client | `match.removed` | `{ match_id }` |
-| client → server | `typing` | `{ conversation_id }` |
+| client → server | `message.send` | `{ match_id, body }` (same rules as the REST send) |
+| client → server | `typing` | `{ match_id }`. Relayed, never stored. Clients send at most one every 3 s |
+| client → server | `message.read` | `{ match_id, up_to_message_id }` |
+| server → client | `message.new` | the message. Sent to **both** members, so the sender's other devices stay in sync (de-duplicate by `id`) |
+| server → client | `message.read` | `{ match_id, up_to_message_id, read_at }` |
+| server → client | `typing` | `{ match_id, user_id }`. Show "typing…" for about 4 s |
+| server → client | `photos.unlocked` | `{ match_id }` |
+| server → client | `match.removed` | `{ match_id }`. Sent to both members on unmatch: close the chat |
+| server → client | `error` | `{ code, message }`, the same codes as REST. The socket stays open |
+
+The socket registry is in-process for now (one API task). Running several tasks needs Redis pub/sub fan-out behind the same `RealtimeRegistry` interface.
 
 ## Safety
 

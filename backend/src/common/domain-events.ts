@@ -8,6 +8,15 @@ export interface DomainEventMap {
   'match.created': { matchId: string; userIds: [string, string] };
   /** One member unmatched; both lose the match and the conversation. */
   'match.unmatched': { matchId: string; byUserId: string; otherUserId: string };
+  /** A chat message was stored. Never carries the body. */
+  'message.created': {
+    matchId: string;
+    messageId: string;
+    senderId: string;
+    recipientId: string;
+    /** The recipient had the chat socket open when it was sent: no push needed. */
+    recipientOnline: boolean;
+  };
 }
 
 export type DomainEventName = keyof DomainEventMap;

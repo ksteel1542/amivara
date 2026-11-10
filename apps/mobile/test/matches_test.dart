@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:amivara/core/secure_store.dart';
 import 'package:amivara/features/auth/auth_providers.dart';
+import 'package:amivara/features/chat/chat_providers.dart';
+import 'package:amivara/features/chat/chat_socket.dart';
 import 'package:amivara/features/discovery/discovery_providers.dart';
 import 'package:amivara/features/home/home_screen.dart';
 import 'package:amivara/features/matches/matches_providers.dart';
@@ -21,6 +23,8 @@ Future<ProviderContainer> pumpMatches(
   required FakeMatchesRepository matches,
   FakePushRegistrar? push,
   FakeDiscoveryRepository? discovery,
+  FakeChatRepository? chat,
+  FakeChatSocket? socket,
   String location = '/matches',
   bool verified = true,
 }) async {
@@ -41,6 +45,8 @@ Future<ProviderContainer> pumpMatches(
       cardImageBuilderProvider.overrideWithValue(placeholderImage),
       matchesRepositoryProvider.overrideWithValue(matches),
       pushRegistrarProvider.overrideWithValue(push ?? FakePushRegistrar()),
+      chatRepositoryProvider.overrideWithValue(chat ?? FakeChatRepository()),
+      chatSocketFactoryProvider.overrideWithValue(() => (socket ?? FakeChatSocket()) as ChatSocket),
     ],
   );
   addTearDown(container.dispose);

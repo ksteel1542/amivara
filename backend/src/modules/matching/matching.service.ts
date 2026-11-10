@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 
 import { ApiError } from '../../common/api-error';
 import { DomainEvents } from '../../common/domain-events';
+import { MessageCipher } from '../../common/message-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PhotosService } from '../media/photos.service';
 import { currentAge } from '../users/age';
@@ -17,6 +18,7 @@ export class MatchingService {
     private readonly prisma: PrismaService,
     private readonly events: DomainEvents,
     private readonly photos: PhotosService,
+    private readonly cipher: MessageCipher,
   ) {}
 
   /** Passing only affects the passer's own stack, so it's open to unverified (browse-only) members. */
@@ -139,7 +141,7 @@ export class MatchingService {
         },
         last_message: last
           ? {
-              snippet: last.type === 'IMAGE' ? 'Photo' : (last.body ?? '').slice(0, 80),
+              snippet: last.type === 'IMAGE' ? 'Photo' : (last.body ? this.cipher.decrypt(last.body) : '').slice(0, 80),
               from_me: last.senderId === userId,
               sent_at: last.createdAt.toISOString(),
             }

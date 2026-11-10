@@ -61,6 +61,7 @@ locals {
       JWT_PRIVATE_KEY_PEM = "${aws_secretsmanager_secret.app["jwt"].arn}:private_key_pem::"
       JWT_PUBLIC_KEY_PEM  = "${aws_secretsmanager_secret.app["jwt"].arn}:public_key_pem::"
       HASH_PEPPER         = "${aws_secretsmanager_secret.app["hash-pepper"].arn}:value::"
+      MESSAGE_ENC_KEY     = "${aws_secretsmanager_secret.app["message-key"].arn}:value::"
       },
       # Signed CloudFront photo URLs: only injected when a signing key is configured.
       {

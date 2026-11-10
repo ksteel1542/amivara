@@ -25,6 +25,8 @@ const base = z.object({
   FCM_PROJECT_ID: z.string().optional(),
   FCM_CLIENT_EMAIL: z.string().email().optional(),
   FCM_PRIVATE_KEY_PEM: z.string().optional(),
+  /** AES-256-GCM key for message bodies at rest (secret message-key), 32 bytes base64. */
+  MESSAGE_ENC_KEY: z.string().optional(),
   /** Smile ID job_status fallback poll interval. 0 disables it (dev, tests). Deployed: 120. */
   VERIFICATION_POLL_SECONDS: z.coerce.number().int().min(0).max(3600).default(0),
 
@@ -51,6 +53,7 @@ const REQUIRED_IN_DEPLOYED_ENVS = [
   'JWT_PRIVATE_KEY_PEM',
   'JWT_PUBLIC_KEY_PEM',
   'HASH_PEPPER',
+  'MESSAGE_ENC_KEY',
 ] as const;
 
 export const envSchema = base.superRefine((env, ctx) => {

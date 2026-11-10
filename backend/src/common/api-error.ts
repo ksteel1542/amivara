@@ -33,6 +33,7 @@ export type ApiErrorCode =
   | 'LOCATION_REQUIRED'
   | 'DAILY_LIKE_LIMIT'
   | 'PLUS_REQUIRED'
+  | 'MESSAGE_RATE_LIMITED'
   | 'NOT_FOUND'
   | 'NOT_IMPLEMENTED'
   | 'INTERNAL';

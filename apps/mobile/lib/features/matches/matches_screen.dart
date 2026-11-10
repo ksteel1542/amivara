@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
@@ -11,7 +12,7 @@ import 'matches_providers.dart';
 import 'matches_repository.dart';
 
 /// Matches list (Stage 4, sprint 5): newest conversation first, unread dots,
-/// unmatch with confirmation. Chat itself arrives in sprint 6.
+/// unmatch with confirmation. Tapping a match opens the chat (sprint 6).
 class MatchesScreen extends ConsumerStatefulWidget {
   const MatchesScreen({super.key, this.avatarBuilder});
 
@@ -33,9 +34,9 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
   void initState() {
     super.initState();
     _load();
-    // "match.created" / "match.removed" pushes while the list is open: refresh.
+    // "match.created" / "match.removed" / "message.new" pushes while the list is open: refresh.
     _push = ref.read(pushRegistrarProvider).events.listen((type) {
-      if (type.startsWith('match.')) _load();
+      if (type.startsWith('match.') || type == 'message.new') _load();
     });
   }
 
@@ -92,8 +93,9 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
     }
   }
 
-  void _chatComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Chat opens in the next update.')));
+  Future<void> _openChat(MatchSummary match) async {
+    await context.push('/chat/${match.matchId}', extra: match);
+    if (mounted) await _load(); // unread counts and last messages changed
   }
 
   @override
@@ -129,7 +131,7 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
             final unread = m.unreadCount > 0;
             return ListTile(
               key: Key('match-${m.matchId}'),
-              onTap: _chatComingSoon,
+              onTap: () => _openChat(m),
               leading: SizedBox(
                 width: 52,
                 height: 52,
@@ -157,6 +159,14 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
                     ),
                   ),
                   if (m.verified) ...<Widget>[const SizedBox(width: RoseSpacing.s1), const VerifiedBadge(size: 16)],
+                  const SizedBox(width: RoseSpacing.s1),
+                  Icon(
+                    m.photosUnlocked ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                    key: Key('photos-${m.photosUnlocked ? 'unlocked' : 'locked'}-${m.matchId}'),
+                    size: 14,
+                    semanticLabel: m.photosUnlocked ? 'Photos unlocked' : 'Photos locked',
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ],
               ),
               subtitle: Text(

@@ -11,6 +11,7 @@ class MatchSummary {
     this.photoUrl,
     this.lastMessage,
     this.lastFromMe = false,
+    this.photosUnlocked = false,
   });
 
   factory MatchSummary.fromJson(Map<String, dynamic> json) {
@@ -26,6 +27,7 @@ class MatchSummary {
       lastMessage: last?['snippet'] as String?,
       lastFromMe: last?['from_me'] as bool? ?? false,
       unreadCount: (json['unread_count'] as num).toInt(),
+      photosUnlocked: json['photos_unlocked'] as bool? ?? false,
     );
   }
 
@@ -38,6 +40,9 @@ class MatchSummary {
   final String? lastMessage;
   final bool lastFromMe;
   final int unreadCount;
+
+  /// PRD §5.5: photos in chat open once both have sent 3 messages.
+  final bool photosUnlocked;
 }
 
 /// GET /matches, DELETE /matches/:id, POST /notifications/tokens.

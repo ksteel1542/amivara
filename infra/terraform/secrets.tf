@@ -14,6 +14,7 @@ locals {
     "media-signing" = "CloudFront signed-URL key. JSON keys: key_pair_id, private_key_pem"
     "fcm"           = "Firebase Cloud Messaging service account. JSON keys: project_id, client_email, private_key"
     "hash-pepper"   = "HMAC pepper for OTP codes, IPs, device ids and blocked phones. JSON keys: value (64 random hex chars)"
+    "message-key"   = "AES-256-GCM key for chat message bodies at rest. JSON keys: value (32 random bytes, base64)"
   }
 }
 

@@ -122,7 +122,7 @@ describe('Smile ID verification (integration, PostgreSQL)', () => {
     const like = await http().post('/v1/matching/likes').set(auth()).expect(403);
     expect(like.body.error.code).toBe('VERIFICATION_REQUIRED');
     const message = await http()
-      .post('/v1/conversations/00000000-0000-4000-8000-000000000000/messages')
+      .post('/v1/matches/00000000-0000-4000-8000-000000000000/messages')
       .set(auth())
       .expect(403);
     expect(message.body.error.code).toBe('VERIFICATION_REQUIRED');
@@ -176,7 +176,12 @@ describe('Smile ID verification (integration, PostgreSQL)', () => {
       .set(auth())
       .send({ user_id: '00000000-0000-4000-8000-0000000000ff' })
       .expect(404);
-    await http().post('/v1/conversations/00000000-0000-4000-8000-000000000000/messages').set(auth()).expect(501);
+    // Past the gate: no such match is a 404.
+    await http()
+      .post('/v1/matches/00000000-0000-4000-8000-000000000000/messages')
+      .set(auth())
+      .send({ body: 'Hello' })
+      .expect(404);
 
     // Smile ID retries: a replay changes nothing.
     const replay = await http().post('/v1/verification/webhook').send(failingCallback(jobId)).expect(200);

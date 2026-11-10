@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/otp_screen.dart';
 import 'features/auth/phone_screen.dart';
+import 'features/chat/chat_screen.dart';
 import 'features/home/home_screen.dart';
+import 'features/matches/matches_repository.dart';
 import 'features/matches/matches_screen.dart';
 import 'features/onboarding/basics_screen.dart';
 import 'features/onboarding/dob_screen.dart';
@@ -27,7 +29,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       final signedIn = ref.read(sessionProvider) != null;
       return switch (state.matchedLocation) {
         '/home' || '/profile/setup' || '/profile/edit' || '/verify-intro' || '/matches' when !signedIn => '/',
-        final String path when path.startsWith('/verify/') && !signedIn => '/',
+        final String path when (path.startsWith('/verify/') || path.startsWith('/chat/')) && !signedIn => '/',
         '/' || '/phone' when signedIn => '/home',
         '/otp' when flow.challenge == null => '/phone',
         '/dob' when flow.signupToken == null => '/',
@@ -56,6 +58,14 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         ),
       ),
       GoRoute(path: '/matches', builder: (_, _) => const MatchesScreen()),
+      // Opened from the matches list with the match as `extra`; a cold deep link falls back to the list.
+      GoRoute(
+        path: '/chat/:matchId',
+        builder: (_, state) => switch (state.extra) {
+          final MatchSummary match => ChatScreen(match: match),
+          _ => const MatchesScreen(),
+        },
+      ),
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
     ],
   );

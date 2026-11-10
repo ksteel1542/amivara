@@ -69,7 +69,8 @@
   - Open: the blocking and reporting UI (sprint 7); widening the radius in the app; a ranking v2 that learns from engagement.
 - Sprint 5 ✅ (code complete, 2026-11-11): Matches list (unread counts, last message), final unmatch (no rematch, gone from discovery both ways), domain events, FCM HTTP v1 push without firebase-admin (privacy: generic match notifications with no names, silent unmatch refresh), push tokens bound to device sessions. Android matches screen, unmatch confirmation, "It's a Match!" modal, FCM registration on sign-in.
   - Open: a Firebase project plus the `fcm` secret (push is off until then); a push for verification results; migrating the app to `register()`/`onRegistered` (Firebase Installation IDs) once the FCM v1 sender is confirmed against them.
-- Sprint 6: Messaging (REST + WebSocket), photo unlocking
+- Sprint 6 ✅ (code complete, 2026-11-10): Messaging over REST (`/v1/matches/:id/messages`, read receipts) and the `/ws/chat` WebSocket (live delivery, typing, read receipts, unmatch closes open chats). Bodies AES-256-GCM encrypted at rest, a 30/min send limit, generic "new message" pushes only when the recipient is offline. Progressive photo unlocking once both members have sent 3 messages. Android chat screen (ROSE bubbles, typing indicator, read ticks, unlock progress, REST fallback, paging older messages); lock state on the matches list.
+  - Open: the `message-key` secret value; sending photos in chat; Redis pub/sub fan-out before running more than one API task; re-checking open sockets when a session is revoked or a member is banned.
 - Sprint 7–8: Blocking and reporting, admin moderation console, account controls, data export and deletion
 
 ## Stage 5: Trust, safety & compliance

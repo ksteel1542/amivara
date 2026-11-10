@@ -18,6 +18,7 @@ import { VerificationModule } from './modules/verification/verification.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { DomainEventsModule } from './common/domain-events';
 import { HasherModule } from './common/hasher.service';
+import { MessageCipherModule } from './common/message-cipher';
 
 /** Modular monolith: one deployable, clear module boundaries (ARCHITECTURE.md §3). */
 @Module({
@@ -26,6 +27,7 @@ import { HasherModule } from './common/hasher.service';
     PrismaModule,
     HasherModule,
     DomainEventsModule,
+    MessageCipherModule,
     HealthModule,
     AuthModule,
     UsersModule,

@@ -186,13 +186,9 @@ describe('Matches, unmatch and push notifications (integration, PostgreSQL)', ()
     const withC = await makeMatch(a, c);
 
     // C sent two messages to A; the newest conversation sorts first.
-    await prisma.message.createMany({
-      data: [
-        { matchId: withC, senderId: c.id, body: 'Hello there' },
-        { matchId: withC, senderId: c.id, body: 'How was your weekend?' },
-      ],
-    });
-    await prisma.match.update({ where: { id: withC }, data: { lastMessageAt: new Date() } });
+    for (const body of ['Hello there', 'How was your weekend?']) {
+      await http().post(`/v1/matches/${withC}/messages`).set(c.auth).send({ body }).expect(201);
+    }
 
     const res = await http().get('/v1/matches').set(a.auth).expect(200);
     expect(res.body.matches.map((m: { match_id: string }) => m.match_id)).toEqual([withC, withB]);
@@ -200,7 +196,7 @@ describe('Matches, unmatch and push notifications (integration, PostgreSQL)', ()
       photos_unlocked: false,
       unread_count: 2,
       user: { user_id: c.id, first_name: 'Chidinma', age: 27, verified: true },
-      last_message: { from_me: false },
+      last_message: { from_me: false, snippet: 'How was your weekend?' },
     });
     expect(res.body.matches[1]).toMatchObject({ unread_count: 0, last_message: null });
   });

@@ -9,6 +9,8 @@ import 'package:amivara/core/api_client.dart';
 import 'package:amivara/core/secure_store.dart';
 import 'package:amivara/features/auth/auth_providers.dart';
 import 'package:amivara/features/auth/auth_repository.dart';
+import 'package:amivara/features/chat/chat_repository.dart';
+import 'package:amivara/features/chat/chat_socket.dart';
 import 'package:amivara/features/discovery/discovery_models.dart';
 import 'package:amivara/features/discovery/discovery_providers.dart';
 import 'package:amivara/features/discovery/discovery_repository.dart';
@@ -401,3 +403,101 @@ class FakePushRegistrar implements PushRegistrar {
   @override
   Future<void> stop() async {}
 }
+
+// ── Chat ────────────────────────────────────────────────────
+
+ChatMessage messageOf(
+  String id, {
+  required String from,
+  String matchId = 'm1',
+  String? body,
+  DateTime? at,
+  DateTime? readAt,
+}) => ChatMessage(
+  id: id,
+  matchId: matchId,
+  senderId: from,
+  body: body ?? 'Message $id',
+  createdAt: at ?? DateTime.utc(2026, 11, 10, 12),
+  readAt: readAt,
+);
+
+class FakeChatRepository implements ChatRepository {
+  FakeChatRepository({
+    List<ChatPage>? pages,
+    this.photos = const PhotoUnlock(unlocked: false, threshold: 3, mine: 0, theirs: 0),
+  }) : pages = pages ?? <ChatPage>[];
+
+  /// Returned in order: the first page, then each older page.
+  final List<ChatPage> pages;
+  final PhotoUnlock photos;
+  final List<String> calls = <String>[];
+  ApiException? historyError;
+  int _sent = 0;
+
+  @override
+  Future<ChatPage> history(String accessToken, String matchId, {String? before}) async {
+    calls.add('history:${before ?? '-'}');
+    if (historyError != null) throw historyError!;
+    final empty = ChatPage(messages: const <ChatMessage>[], photos: photos);
+    if (before == null) return pages.isEmpty ? empty : pages.first;
+    // `before` is the previous page's next_before: serve the page after it.
+    final prev = pages.indexWhere((p) => p.nextBefore == before);
+    return prev >= 0 && prev + 1 < pages.length ? pages[prev + 1] : empty;
+  }
+
+  @override
+  Future<ChatMessage> send(String accessToken, String matchId, String body) async {
+    calls.add('send:$body');
+    _sent++;
+    return ChatMessage(
+      id: 'sent-$_sent',
+      matchId: matchId,
+      senderId: 'me',
+      body: body,
+      createdAt: DateTime.utc(2026, 11, 10, 13, _sent),
+    );
+  }
+
+  @override
+  Future<void> markRead(String accessToken, String matchId, String upToMessageId) async =>
+      calls.add('read:$upToMessageId');
+}
+
+/// A scriptable chat socket: [push] simulates server events, [emitted] records client events.
+class FakeChatSocket implements ChatSocket {
+  FakeChatSocket({this.online = true});
+
+  bool online;
+  final StreamController<ChatEvent> _controller = StreamController<ChatEvent>.broadcast();
+  final List<ChatEvent> emitted = <ChatEvent>[];
+  String? token;
+  bool closed = false;
+
+  @override
+  Stream<ChatEvent> get events => _controller.stream;
+
+  @override
+  bool get connected => online && !closed;
+
+  @override
+  Future<void> connect(String accessToken) async => token = accessToken;
+
+  @override
+  void emit(String event, Map<String, dynamic> data) => emitted.add(ChatEvent(event, data));
+
+  void push(String event, Map<String, dynamic> data) => _controller.add(ChatEvent(event, data));
+
+  @override
+  Future<void> close() async => closed = true;
+}
+
+Map<String, dynamic> messageJson(ChatMessage m) => <String, dynamic>{
+  'id': m.id,
+  'match_id': m.matchId,
+  'sender_id': m.senderId,
+  'type': 'text',
+  'body': m.body,
+  'created_at': m.createdAt.toIso8601String(),
+  'read_at': m.readAt?.toIso8601String(),
+};
