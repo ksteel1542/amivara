@@ -30,6 +30,9 @@ locals {
       CLOUDFRONT_MEDIA_DOMAIN = local.media_hostname
       SMILE_ID_ENVIRONMENT    = local.is_prod ? "production" : "sandbox"
       SMILE_ID_CALLBACK_URL   = "https://${local.api_hostname}/v1/verification/webhook"
+      PHONE_COUNTRIES         = "NG"
+      TRUST_PROXY_HOPS        = "2" # CloudFront + ALB
+      OTP_PROVIDER            = "console" # until the SMS/WhatsApp provider is chosen (refused in prod by the API)
     }
     web = {
       NODE_ENV                = "production"
@@ -52,6 +55,9 @@ locals {
       DB_PASSWORD         = "${local.rds_secret_arn}:password::"
       SMILE_ID_PARTNER_ID = "${aws_secretsmanager_secret.app["smile-id"].arn}:partner_id::"
       SMILE_ID_API_KEY    = "${aws_secretsmanager_secret.app["smile-id"].arn}:api_key::"
+      JWT_PRIVATE_KEY_PEM = "${aws_secretsmanager_secret.app["jwt"].arn}:private_key_pem::"
+      JWT_PUBLIC_KEY_PEM  = "${aws_secretsmanager_secret.app["jwt"].arn}:public_key_pem::"
+      HASH_PEPPER         = "${aws_secretsmanager_secret.app["hash-pepper"].arn}:value::"
     }
     web   = {}
     admin = {}

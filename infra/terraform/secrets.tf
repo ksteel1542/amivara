@@ -12,6 +12,7 @@ locals {
     "otp-provider"  = "SMS / WhatsApp OTP provider credentials. JSON keys: api_key, sender_id"
     "jwt"           = "JWT ES256 signing keys. JSON keys: private_key_pem, public_key_pem"
     "media-signing" = "CloudFront signed-URL key. JSON keys: key_pair_id, private_key_pem"
+    "hash-pepper"   = "HMAC pepper for OTP codes, IPs, device ids and blocked phones. JSON keys: value (64 random hex chars)"
   }
 }
 

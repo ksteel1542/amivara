@@ -16,6 +16,19 @@ const base = z.object({
   SMILE_ID_PARTNER_ID: z.string().optional(),
   SMILE_ID_API_KEY: z.string().optional(),
   SMILE_ID_CALLBACK_URL: z.string().url().optional(),
+
+  // ── Auth (sprint 1) ──
+  /** ES256 (P-256) key pair for access/signup JWTs. Dev and test generate an ephemeral pair if unset. */
+  JWT_PRIVATE_KEY_PEM: z.string().optional(),
+  JWT_PUBLIC_KEY_PEM: z.string().optional(),
+  /** Secret pepper for HMACs of OTP codes, IPs, device ids and blocked phones. At least 32 characters. */
+  HASH_PEPPER: z.string().min(32).optional(),
+  /** OTP delivery. Only the console sender exists until the SMS/WhatsApp provider is chosen. */
+  OTP_PROVIDER: z.enum(['console']).default('console'),
+  /** Comma-separated ISO countries whose mobile numbers may sign up. Nigeria only at launch. */
+  PHONE_COUNTRIES: z.string().default('NG'),
+  /** Proxies in front of the API (CloudFront + ALB = 2), so req.ip is the member's IP. */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
 });
 
 const REQUIRED_IN_DEPLOYED_ENVS = [
@@ -24,6 +37,9 @@ const REQUIRED_IN_DEPLOYED_ENVS = [
   'SMILE_ID_PARTNER_ID',
   'SMILE_ID_API_KEY',
   'SMILE_ID_CALLBACK_URL',
+  'JWT_PRIVATE_KEY_PEM',
+  'JWT_PUBLIC_KEY_PEM',
+  'HASH_PEPPER',
 ] as const;
 
 export const envSchema = base.superRefine((env, ctx) => {
@@ -34,6 +50,14 @@ export const envSchema = base.superRefine((env, ctx) => {
     if (!env[key]) {
       ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required in ${env.NODE_ENV}` });
     }
+  }
+  // The console sender logs codes: never acceptable with real members.
+  if (env.NODE_ENV === 'production' && env.OTP_PROVIDER === 'console') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['OTP_PROVIDER'],
+      message: 'Production needs a real SMS/WhatsApp OTP provider, not the console sender',
+    });
   }
   if (env.NODE_ENV === 'production' && env.SMILE_ID_ENVIRONMENT !== 'production') {
     ctx.addIssue({

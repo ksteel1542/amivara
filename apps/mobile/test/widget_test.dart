@@ -1,9 +1,14 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:amivara/core/secure_store.dart';
+import 'package:amivara/features/auth/auth_providers.dart';
 import 'package:amivara/main.dart';
 import 'package:amivara/theme/amivara_theme.dart';
 import 'package:amivara/theme/rose_tokens.g.dart';
+
+import 'support/fakes.dart';
 
 /// The 360 x 800dp Android reference frame from docs/UI_WIREFRAMES.md.
 void _usePhoneFrame(WidgetTester tester) {
@@ -12,10 +17,19 @@ void _usePhoneFrame(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
+Widget _app() => ProviderScope(
+  overrides: [
+    authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+    secureStoreProvider.overrideWithValue(MemoryStore()),
+  ],
+  child: const AmivaraApp(),
+);
+
 void main() {
   testWidgets('Welcome screen shows the brand promise and both CTAs', (tester) async {
     _usePhoneFrame(tester);
-    await tester.pumpWidget(const AmivaraApp());
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
 
     expect(find.text('AMIVARA'), findsOneWidget);
     expect(find.text('Real connections between verified adults.'), findsOneWidget);
@@ -28,7 +42,8 @@ void main() {
     tester.platformDispatcher.textScaleFactorTestValue = 2.0;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-    await tester.pumpWidget(const AmivaraApp());
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
 
     // A RenderFlex overflow would be reported as an exception here.
     expect(tester.takeException(), isNull);

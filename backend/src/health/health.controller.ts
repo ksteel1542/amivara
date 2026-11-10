@@ -1,8 +1,10 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
+import { Public } from '../modules/auth/auth.guards';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Load balancer / ECS health checks. Excluded from the /v1 prefix. */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}

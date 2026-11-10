@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../theme/rose_tokens.g.dart';
 
@@ -9,7 +10,7 @@ import '../../theme/rose_tokens.g.dart';
 /// Skeleton only: the hero photo, monogram artwork and navigation to phone
 /// authentication arrive with the Stage 4 onboarding sprint.
 ///
-/// The hero takes ~55% of the screen. Below it the content fills the remaining
+/// The hero takes ~48% of the screen (so both CTAs clear the gesture bar on a 360 x 800dp phone). Below it the content fills the remaining
 /// height, with the CTAs pinned to the bottom, and scrolls instead of
 /// overflowing on short screens or at large font scales (up to 200%).
 class WelcomeScreen extends StatelessWidget {
@@ -24,7 +25,7 @@ class WelcomeScreen extends StatelessWidget {
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final heroHeight = math.max(220.0, constraints.maxHeight * 0.55);
+          final heroHeight = math.max(200.0, constraints.maxHeight * 0.48);
           return SingleChildScrollView(
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -61,9 +62,15 @@ class WelcomeScreen extends StatelessWidget {
                               const _ValueProp(text: "You only chat when it's mutual"),
                               const Spacer(),
                               const SizedBox(height: RoseSpacing.s6),
-                              FilledButton(onPressed: () {}, child: const Text('Create account')),
+                              FilledButton(
+                                onPressed: () => context.push('/phone'),
+                                child: const Text('Create account'),
+                              ),
                               const SizedBox(height: RoseSpacing.s2),
-                              TextButton(onPressed: () {}, child: const Text('I already have an account')),
+                              TextButton(
+                                onPressed: () => context.push('/phone'),
+                                child: const Text('I already have an account'),
+                              ),
                             ],
                           ),
                         ),

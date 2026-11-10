@@ -90,6 +90,19 @@ enum VerificationStatus {
   @@map("verification_status")
 }
 
+enum OtpChannel {
+  SMS
+  WHATSAPP
+
+  @@map("otp_channel")
+}
+
+enum SignupBlockReason {
+  UNDERAGE
+
+  @@map("signup_block_reason")
+}
+
 enum MessageType {
   TEXT
   IMAGE
@@ -125,11 +138,13 @@ model User {
   deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(6)
 
   profile       Profile?
+  preference    Preference?
+  sessions      DeviceSession[]
   verifications Verification[]
-  matchesAsA    Match[]        @relation("MatchUserA")
-  matchesAsB    Match[]        @relation("MatchUserB")
-  unmatchedByMe Match[]        @relation("MatchUnmatchedBy")
-  sentMessages  Message[]      @relation("MessageSender")
+  matchesAsA    Match[]         @relation("MatchUserA")
+  matchesAsB    Match[]         @relation("MatchUserB")
+  unmatchedByMe Match[]         @relation("MatchUnmatchedBy")
+  sentMessages  Message[]       @relation("MessageSender")
 
   @@index([status, ageVerified])
   @@index([lastActiveAt])
@@ -255,6 +270,85 @@ model Message {
   @@map("messages")
 }
 
+/// Discovery preferences (PRD §6). Age bounds are CHECK-constrained to 18+ in SQL.
+model Preference {
+  userId          String   @id @map("user_id") @db.Uuid
+  interestedIn    Gender[] @map("interested_in")
+  ageMin          Int      @map("age_min") @db.SmallInt
+  ageMax          Int      @map("age_max") @db.SmallInt
+  maxDistanceKm   Int      @default(50) @map("max_distance_km") @db.SmallInt
+  intents         Intent[] @default([])
+  showInDiscovery Boolean  @default(true) @map("show_me_in_discovery")
+  incognito       Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("preferences")
+}
+
+/// One phone-OTP attempt (SECURITY.md §2). The code is never stored, only an
+/// HMAC of it. Rows are retained 30 days for abuse analysis, then purged.
+model OtpChallenge {
+  id         String     @id @default(uuid()) @db.Uuid
+  phoneE164  String     @map("phone_e164")
+  channel    OtpChannel
+  /// HMAC-SHA256(HASH_PEPPER, challenge id + code)
+  codeHash   String     @map("code_hash") @db.VarChar(64)
+  attempts   Int        @default(0) @db.SmallInt
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime?  @map("consumed_at") @db.Timestamptz(6)
+  /// HMAC of the client IP and device id: rate limiting without storing either.
+  ipHash     String?    @map("ip_hash") @db.VarChar(64)
+  deviceHash String?    @map("device_hash") @db.VarChar(64)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([phoneE164, createdAt(sort: Desc)])
+  @@index([deviceHash, createdAt(sort: Desc)])
+  @@index([ipHash, createdAt(sort: Desc)])
+  @@map("otp_challenges")
+}
+
+/// A signed-in device. Refresh tokens rotate on every use; reusing a rotated
+/// token revokes the whole family (SECURITY.md §3).
+model DeviceSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  /// All sessions descending from one sign-in share a family id.
+  familyId         String    @map("family_id") @db.Uuid
+  /// SHA-256 of the opaque refresh token. The token itself is never stored.
+  refreshTokenHash String    @unique @map("refresh_token_hash") @db.VarChar(64)
+  platform         String?   @db.VarChar(16)
+  deviceModel      String?   @map("device_model") @db.VarChar(100)
+  ipHash           String?   @map("ip_hash") @db.VarChar(64)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(6)
+  /// Set when this token was rotated: the session that replaced it.
+  replacedById     String?   @map("replaced_by_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@map("device_sessions")
+}
+
+/// Under-18 signup attempts block the phone and the device for 12 months
+/// (SECURITY.md §1). Only HMACs are stored: no phone number, no device id.
+model SignupBlock {
+  id        String            @id @default(uuid()) @db.Uuid
+  subject   String            @db.VarChar(64)
+  reason    SignupBlockReason
+  expiresAt DateTime          @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([subject, expiresAt])
+  @@map("signup_blocks")
+}
+
 // ─────────────────────── Raw SQL requirements ───────────────────────
 // Add these to the first migration with `prisma migrate dev --create-only`,
 // then edit the generated SQL before applying it:
@@ -276,6 +370,18 @@ model Message {
 //     CHECK (height_cm IS NULL OR height_cm BETWEEN 120 AND 230);
 //   ALTER TABLE profiles ADD CONSTRAINT profiles_interests_chk
 //     CHECK (cardinality(interests) <= 10);
+//
+//   -- Preferences: nobody can ever set an age range below 18 (PRD §4)
+//   ALTER TABLE preferences ADD CONSTRAINT preferences_age_chk
+//     CHECK (age_min >= 18 AND age_max >= age_min AND age_max <= 99);
+//   ALTER TABLE preferences ADD CONSTRAINT preferences_distance_chk
+//     CHECK (max_distance_km BETWEEN 1 AND 300);
+//   ALTER TABLE preferences ADD CONSTRAINT preferences_interested_in_chk
+//     CHECK (cardinality(interested_in) >= 1);
+//
+//   -- OTP attempts are capped at 5 by the API; the DB refuses anything absurd
+//   ALTER TABLE otp_challenges ADD CONSTRAINT otp_challenges_attempts_chk
+//     CHECK (attempts BETWEEN 0 AND 10);
 //
 // Note: CURRENT_DATE in a CHECK is evaluated when a row is written, which is
 // exactly the rule we want (nobody under 18 can sign up).

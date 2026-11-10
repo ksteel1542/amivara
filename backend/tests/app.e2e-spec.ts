@@ -7,8 +7,10 @@ import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
- * Boots the full AppModule (every feature module, config validation, the
- * /v1 prefix) with the database replaced by a stub. No PostgreSQL needed.
+ * Boots the full AppModule (every feature module, config validation, the /v1
+ * prefix, the global auth guard and the error envelope) with the database
+ * replaced by a stub. Only paths that never reach the database are tested
+ * here; the database-backed flows are in tests/*.int-spec.ts.
  */
 describe('AMIVARA API (e2e, no database)', () => {
   let app: INestApplication;
@@ -31,24 +33,52 @@ describe('AMIVARA API (e2e, no database)', () => {
     await app.close();
   });
 
-  it('GET /health is unprefixed and healthy', async () => {
-    await request(app.getHttpServer()).get('/health').expect(200, { status: 'ok' });
+  const http = () => request(app.getHttpServer());
+
+  it('GET /health is public, unprefixed and healthy', async () => {
+    await http().get('/health').expect(200, { status: 'ok' });
   });
 
   it('GET /health/ready reports the database as up', async () => {
-    await request(app.getHttpServer()).get('/health/ready').expect(200, { status: 'ok', database: 'up' });
+    await http().get('/health/ready').expect(200, { status: 'ok', database: 'up' });
   });
 
-  it('feature routes live under /v1', async () => {
-    await request(app.getHttpServer()).post('/matching/likes').expect(404);
+  it('feature routes live under /v1, and errors use the API envelope', async () => {
+    const res = await http().post('/matching/likes').expect(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
   });
 
-  it('POST /v1/matching/likes is behind the verification gate', async () => {
-    const res = await request(app.getHttpServer()).post('/v1/matching/likes').expect(401);
-    expect(res.body.code).toBe('UNAUTHENTICATED');
+  it.each([
+    ['POST', '/v1/matching/likes'],
+    ['POST', '/v1/matching/passes'],
+    ['GET', '/v1/me'],
+    ['POST', '/v1/auth/logout'],
+    ['GET', '/v1/auth/sessions'],
+  ])('%s %s requires sign-in', async (method, path) => {
+    const res = await (method === 'GET' ? http().get(path) : http().post(path)).expect(401);
+    expect(res.body.error.code).toBe('UNAUTHENTICATED');
   });
 
-  it('POST /v1/matching/passes is open before verification (browse-only members can pass)', async () => {
-    await request(app.getHttpServer()).post('/v1/matching/passes').expect(501);
+  it('rejects a malformed bearer token', async () => {
+    const res = await http().get('/v1/me').set('Authorization', 'Bearer not.a.jwt').expect(401);
+    expect(res.body.error.code).toBe('INVALID_TOKEN');
+  });
+
+  it('onboarding requires the signup token', async () => {
+    const res = await http().post('/v1/onboarding/complete').send({}).expect(401);
+    expect(res.body.error.code).toBe('UNAUTHENTICATED');
+  });
+
+  it('validates OTP requests before touching the database', async () => {
+    const res = await http().post('/v1/auth/otp/request').send({ channel: 'pigeon' }).expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_FAILED');
+    expect(res.body.error.details.fields.map((f: { path: string }) => f.path)).toEqual(
+      expect.arrayContaining(['phone', 'channel']),
+    );
+  });
+
+  it('rejects non-Nigerian numbers at launch', async () => {
+    const res = await http().post('/v1/auth/otp/request').send({ phone: '+447911123456' }).expect(400);
+    expect(res.body.error.code).toBe('INVALID_PHONE');
   });
 });

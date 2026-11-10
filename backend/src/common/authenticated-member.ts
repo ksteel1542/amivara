@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 
 /**
- * The member attached to a request by the auth module's JWT guard (Stage 4).
+ * The member attached to a request by the global JwtAuthGuard.
  * Only the fields the cross-cutting guards need live here.
  */
 export interface AuthenticatedMember {
@@ -13,4 +13,8 @@ export interface AuthenticatedMember {
 
 export interface MemberRequest extends Request {
   member?: AuthenticatedMember;
+  /** Device session behind the access token (for logout). */
+  sessionId?: string;
+  /** Set by SignupTokenGuard on onboarding routes. */
+  signup?: { phoneE164: string; deviceHash?: string };
 }

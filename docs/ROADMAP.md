@@ -15,7 +15,7 @@
 | 7 | Nigerian launch | 2–4 weeks | Public on Google Play (Android) and the web, Lagos and Abuja marketing live |
 | 8 | Growth & expansion | Ongoing | iOS release, Plus tier, new cities, then West Africa |
 
-## Stage 1: Foundation *(current)*
+## Stage 1: Foundation
 - [x] Repository structure and foundation docs
 - [ ] Founder review and sign-off of the PRD, architecture and security
 - [x] Decision: KYC provider → **Smile ID**
@@ -58,8 +58,10 @@
 - [x] Bundle the brand fonts in the Android app: Playfair 600/700 and Inter 400/500/600 as static subsets with full Yoruba, Igbo and Hausa coverage and ₦ (`scripts/fonts/build_fonts.py`, tests in `apps/mobile/test/fonts_test.dart`)
 - [ ] Smile ID sandbox wired end to end: job signature endpoint, callback webhook, Flutter and Web SDK smoke test (needs sandbox keys)
 
-## Stage 4: MVP development
-- Sprint 1–2: Auth (OTP), onboarding, 18+ gate, profiles and photos
+## Stage 4: MVP development *(current)*
+- Sprint 1 ✅ (code complete, 2026-11-10): Phone OTP auth (API + Android screens 2a/2b), rotating device sessions, the 18+ gate with 12-month underage blocks (screens 3/3x), profile basics and account creation, GET /me, and the browse-only home placeholder.
+  - Open: choose the SMS/WhatsApp OTP provider (only a dev console sender exists, and production refuses to boot without a real one). Also the Android SMS User Consent API for one-tap code autofill.
+- Sprint 2: Profiles and photos (upload, moderation, reorder), location, and the Smile ID explainer (screen 4)
 - Sprint 3: Smile ID integration (Biometric KYC using NIN, Document Verification as the fallback, SmartSelfie™ liveness), verification gating, the manual review queue
 - Sprint 4: Location, discovery query, ranking v1
 - Sprint 5: Likes, passes, matches, push notifications

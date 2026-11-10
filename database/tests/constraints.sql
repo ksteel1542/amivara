@@ -30,6 +30,35 @@ BEGIN
 END
 $$;
 
+-- Preferences can never go below 18 (PRD §4).
+DO $$
+DECLARE
+  adult uuid;
+BEGIN
+  SELECT id INTO adult FROM users WHERE phone_e164 = '+2348000000002';
+
+  BEGIN
+    INSERT INTO preferences (user_id, interested_in, age_min, age_max, updated_at)
+    VALUES (adult, ARRAY['WOMAN']::gender[], 17, 30, now());
+    RAISE EXCEPTION 'preferences_age_chk did not reject age_min 17';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: preferences_age_chk rejects age_min below 18';
+  END;
+
+  BEGIN
+    INSERT INTO preferences (user_id, interested_in, age_min, age_max, updated_at)
+    VALUES (adult, ARRAY[]::gender[], 18, 30, now());
+    RAISE EXCEPTION 'preferences_interested_in_chk did not reject an empty list';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: preferences_interested_in_chk rejects an empty list';
+  END;
+
+  INSERT INTO preferences (user_id, interested_in, age_min, age_max, updated_at)
+  VALUES (adult, ARRAY['WOMAN', 'MAN']::gender[], 18, 40, now());
+  RAISE NOTICE 'ok: valid preferences accepted';
+END
+$$;
+
 -- PostGIS is installed and the spatial index exists.
 DO $$
 BEGIN

@@ -69,7 +69,7 @@ jobs:
 
   # ─── Database: migrations apply cleanly on real PostGIS and match the schema ───
   database:
-    name: Database (Prisma migrations on PostGIS)
+    name: Database (migrations · API integration tests on PostGIS)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -116,6 +116,12 @@ jobs:
 
       - name: CHECK constraints and PostGIS smoke test
         run: psql "postgresql://amivara:amivara@localhost:5432/amivara" -f database/tests/constraints.sql
+
+      - name: Generate Prisma client
+        run: pnpm --filter @amivara/backend prisma:generate
+
+      - name: API integration tests (auth + onboarding against PostGIS)
+        run: pnpm --filter @amivara/backend test:integration
 
   # ─── Android: analyze, test and build a release AAB ───
   android:

@@ -13,21 +13,45 @@
 
 ## Auth
 
+*Implemented in Stage 4, sprint 1.* Clients send `X-Device-Id` (a random install id) and `X-Platform` on every request. The API uses them for per-device limits and session records.
+
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| POST | `/auth/otp/request` | 🔓 | Body `{ phone, channel: "sms" \| "whatsapp" }`. Limited to 3 requests per 10 minutes per phone and device. |
-| POST | `/auth/otp/verify` | 🔓 | Body `{ phone, code }`. Returns `{ access_token, refresh_token, is_new_user }`. |
-| POST | `/auth/refresh` | 🔓 | Body `{ refresh_token }`. Rotates both tokens. |
-| POST | `/auth/logout` | 🔑 | Revokes the current device session. |
-| GET | `/auth/sessions` | 🔑 | Lists active device sessions. |
-| DELETE | `/auth/sessions/:id` | 🔑 | Revokes a session. |
+| POST | `/auth/otp/request` | 🔓 | Body `{ phone, channel: "sms" \| "whatsapp" }`. Returns `202 { challenge_id, channel, expires_in: 300, resend_in }`. Same response whether or not the number has an account. |
+| POST | `/auth/otp/verify` | 🔓 | Body `{ challenge_id, code }`. Existing member: `{ status: "signed_in", access_token, refresh_token, token_type, expires_in }`. New number: `{ status: "signup_required", signup_token, expires_in: 1800 }`. |
+| POST | `/auth/refresh` | 🔓 | Body `{ refresh_token }`. Rotates the token. Replaying an already-rotated token returns `REFRESH_TOKEN_REUSED` and revokes every session in that family. |
+| POST | `/auth/logout` | 🔑 | Revokes the current device session (takes effect immediately). |
+| GET | `/auth/sessions` | 🔑 | `{ sessions: [{ id, platform, device_model, created_at, last_used_at, current }] }`. |
+| DELETE | `/auth/sessions/:id` | 🔑 | Revokes one of your sessions. |
+
+**OTP limits** (SECURITY.md §2):
+- **Codes:** 6 digits, 5-minute expiry, single use, at most 5 wrong attempts. The 5th wrong attempt locks the number for 15 minutes.
+- **Resend cooldown:** 60 seconds, then 120 seconds.
+- **Per phone and per device:** 3 codes per 10 minutes, 10 per day.
+- **Per IP:** 30 per 10 minutes and 200 per day. This is deliberately high, because Nigerian carriers put many subscribers behind one CGNAT address.
+- **Errors:** `OTP_RATE_LIMITED` and `OTP_LOCKED` include `details.retry_after` (seconds).
+
+**Tokens:**
+- **Access token:** an ES256 JWT that lasts 15 minutes and is bound to a device session, so revoking the session revokes the token.
+- **Refresh token:** opaque, lasts 30 days, stored only as a SHA-256 hash.
+- **Signup token:** an ES256 JWT that lasts 30 minutes. It can only be used on `/onboarding/*`.
+
+## Onboarding
+
+*Implemented in Stage 4, sprint 1.* Uses the **signup token** as the bearer token. No member record exists until `complete` succeeds.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| POST | `/onboarding/age-gate` | Signup token | Body `{ date_of_birth: "YYYY-MM-DD" }`. Returns `204` if 18+. If under 18, returns `403 UNDERAGE` and blocks this phone and device for 12 months (later attempts get `SIGNUP_BLOCKED`). |
+| POST | `/onboarding/complete` | Signup token | Body `{ first_name, date_of_birth, gender, interested_in[], intent }`. Creates the user, profile and preferences, then signs in: `201` with the token pair. Returns `409 PHONE_ALREADY_REGISTERED` if repeated. |
+
+Age is 18+ only if it holds on both the Lagos and the UTC calendar date, so the API always agrees with the database CHECK constraint.
 
 ## Account & Profile
 
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| POST | `/me/onboarding` | 🔑 | Body `{ first_name, date_of_birth, gender, interested_in, intent }`. Returns `403 UNDERAGE` if the DOB is under 18. |
-| GET | `/me` | 🔑 | Your account, profile, preferences and verification state. |
+| GET | `/me` | 🔑 | *(sprint 1)* `{ id, status, phone_last4, age, verification: { phone, age_verified, can_like_and_message }, profile, preferences }`. Never returns the full phone number or date of birth. |
 | PATCH | `/me/profile` | 🔑 | Update bio, prompts, interests and other profile fields. |
 | PATCH | `/me/preferences` | 🔑 | `age_min` must be at least 18, `max_distance_km` must be 1–300, plus `interested_in`. |
 | PUT | `/me/location` | 🔑 | Body `{ lat, lng }`. Rounded on the server, and only the latest is kept. |
@@ -91,6 +115,11 @@ Authenticate with the access token when connecting.
 | GET | `/safety/blocks` | 🔑 | List of people you've blocked. |
 | POST | `/safety/reports` | 🔑 | Body `{ user_id, category, details?, message_id? }`. Reporting also blocks the person automatically. |
 
-## Error codes (initial)
+## Error codes
 
-`UNDERAGE`, `NOT_AGE_VERIFIED`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_RATE_LIMITED`, `DAILY_LIKE_LIMIT`, `NOT_MATCHED`, `PHOTOS_LOCKED`, `ACCOUNT_SUSPENDED`, `PLUS_REQUIRED`, `VALIDATION_FAILED`.
+Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clients switch on `code`.
+
+- **Auth:** `UNAUTHENTICATED`, `INVALID_TOKEN`, `INVALID_PHONE`, `OTP_INVALID` (`details.attempts_left`), `OTP_EXPIRED`, `OTP_LOCKED`, `OTP_RATE_LIMITED`, `OTP_DELIVERY_FAILED`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `ACCOUNT_SUSPENDED`
+- **Onboarding:** `UNDERAGE`, `SIGNUP_BLOCKED`, `PHONE_ALREADY_REGISTERED`
+- **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `NOT_IMPLEMENTED`, `INTERNAL`
+- **Later sprints:** `NOT_AGE_VERIFIED`, `DAILY_LIKE_LIMIT`, `NOT_MATCHED`, `PHOTOS_LOCKED`, `PLUS_REQUIRED`

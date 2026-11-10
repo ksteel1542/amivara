@@ -55,33 +55,46 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ NODE_ENV: 'staging', DATABASE_URL: DB })).toThrow(/SMILE_ID_API_KEY is required/);
   });
 
-  it('refuses the Smile ID sandbox in production', () => {
+  const deployedSecrets = {
+    REDIS_URL: 'redis://cache:6379',
+    S3_MEDIA_BUCKET: 'amivara-media',
+    SMILE_ID_PARTNER_ID: '1234',
+    SMILE_ID_API_KEY: 'secret',
+    SMILE_ID_CALLBACK_URL: 'https://api.amivara.com/v1/verification/webhook',
+    JWT_PRIVATE_KEY_PEM: '-----BEGIN PRIVATE KEY-----',
+    JWT_PUBLIC_KEY_PEM: '-----BEGIN PUBLIC KEY-----',
+    HASH_PEPPER: 'p'.repeat(32),
+  };
+
+  it('requires the JWT keys and hashing pepper in staging', () => {
+    const { HASH_PEPPER: _pepper, ...withoutPepper } = deployedSecrets;
+    expect(() => validateEnv({ NODE_ENV: 'staging', DATABASE_URL: DB, ...withoutPepper })).toThrow(
+      /HASH_PEPPER is required/,
+    );
+    expect(validateEnv({ NODE_ENV: 'staging', DATABASE_URL: DB, ...deployedSecrets }).OTP_PROVIDER).toBe('console');
+  });
+
+  it('rejects a short hashing pepper', () => {
+    expect(() => validateEnv({ DATABASE_URL: DB, HASH_PEPPER: 'too-short' })).toThrow(/HASH_PEPPER/);
+  });
+
+  it('refuses the Smile ID sandbox and the console OTP sender in production', () => {
     const complete = {
       NODE_ENV: 'production',
       DATABASE_URL: DB,
-      REDIS_URL: 'redis://cache:6379',
-      S3_MEDIA_BUCKET: 'amivara-prod-media',
-      SMILE_ID_PARTNER_ID: '1234',
-      SMILE_ID_API_KEY: 'secret',
-      SMILE_ID_CALLBACK_URL: 'https://api.amivara.com/v1/verification/webhook',
-      SMILE_ID_ENVIRONMENT: 'sandbox',
+      ...deployedSecrets,
+      SMILE_ID_ENVIRONMENT: 'production',
     };
-    expect(() => validateEnv(complete)).toThrow(/Smile ID production environment/);
-    expect(validateEnv({ ...complete, SMILE_ID_ENVIRONMENT: 'production' }).NODE_ENV).toBe('production');
+    expect(() => validateEnv({ ...complete, SMILE_ID_ENVIRONMENT: 'sandbox' })).toThrow(
+      /Smile ID production environment/,
+    );
+    // Only the console sender exists until a provider is chosen, so production cannot boot yet.
+    expect(() => validateEnv(complete)).toThrow(/real SMS\/WhatsApp OTP provider/);
   });
 
   it('refuses deployed environments outside af-south-1', () => {
     expect(() =>
-      validateEnv({
-        NODE_ENV: 'staging',
-        DATABASE_URL: DB,
-        REDIS_URL: 'redis://cache:6379',
-        S3_MEDIA_BUCKET: 'b',
-        SMILE_ID_PARTNER_ID: '1',
-        SMILE_ID_API_KEY: 'k',
-        SMILE_ID_CALLBACK_URL: 'https://example.test/cb',
-        AWS_REGION: 'eu-west-1',
-      }),
+      validateEnv({ NODE_ENV: 'staging', DATABASE_URL: DB, ...deployedSecrets, AWS_REGION: 'eu-west-1' }),
     ).toThrow(/af-south-1/);
   });
 });
