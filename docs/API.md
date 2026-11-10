@@ -119,13 +119,45 @@ The app compresses every photo to **≤ 300 KB JPEG** before uploading (stepping
 
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| GET | `/discovery/candidates?limit=10` | 🔑 | A ranked stack of profile cards with rounded distance. |
-| POST | `/matching/likes` | ✅ | Body `{ user_id, is_super? }`. Returns `{ matched: bool, match_id? }`. Daily limit applies. |
-| POST | `/matching/passes` | ✅ | Body `{ user_id }`. |
+| GET | `/discovery?limit=10&cursor=` | 🔑 | *(sprint 4)* The ranked card stack: `{ cards: [{ user_id, first_name, age, verified, distance: { km, label }, intent, bio, prompts[{ prompt_id, prompt, answer }], interests, languages, height_cm, job_title, education, photos[{ id, url }] }], next_cursor, radius_km }`. Open to unverified members (browsing is free). Returns `409 LOCATION_REQUIRED` until a location is shared. |
+| POST | `/matching/likes` | ✅ | *(sprint 4)* Body `{ user_id }`. Returns `201 { matched, match_id }`. A like in the other direction creates the match in the same transaction. Limit 50 per 24 hours (`429 DAILY_LIKE_LIMIT`). `is_super: true` returns `403 PLUS_REQUIRED`. |
+| POST | `/matching/passes` | 🔑 | *(sprint 4)* Body `{ user_id }`. Returns `204`. Open before verification. The member is hidden from your stack for 30 days. |
 | POST | `/matching/rewind` | ✅ Plus | Undo your last pass. |
 | GET | `/matching/likes/received` | ✅ | Free members get a blurred count. Plus members get the full list. |
 | GET | `/matches` | ✅ | Paginated list of your matches. |
 | DELETE | `/matches/:id` | ✅ | Unmatch. Removes the conversation for both members. |
+
+### How discovery works (sprint 4)
+
+**Hard filters** (PRD §6). Every one must hold:
+- both members are active and not deleted
+- the candidate is **Smile ID-verified** (unverified members are never shown, PRD §5.3a) and visible in discovery
+- each person's gender is in the other's "interested in"
+- each person's age is in the other's age range
+- the distance is within **both** members' radius (PostGIS `ST_DWithin` on the GiST index)
+- no block in either direction
+- not already liked, passed (for 30 days) or matched
+- the candidate has at least one uploaded, non-rejected photo
+- never yourself
+
+**Ranking v1** (weights sum to 1):
+
+| Weight | Signal |
+|---|---|
+| 0.40 | Distance: closer is better, linear across your radius |
+| 0.30 | Recent activity: the later of the last API use (recorded at most every 15 minutes) and the last profile edit, decaying with a 72-hour time constant |
+| 0.15 | Age fit: how centrally each person sits in the other's age range |
+| 0.10 | Profile completeness |
+| 0.05 | A small per-viewer, per-day shuffle, so the feed isn't static |
+
+There is no scoring on ethnicity, religion or "desirability".
+
+**Distance privacy** (SECURITY.md §4):
+- Labels are bucketed: "Less than 2 km away", then whole km up to 10 km, then 5 km steps, then "50+ km away".
+- A fixed ±15% jitter is applied per pair of members first, so repeating the query reveals nothing more.
+- Coordinates and exact distances are never returned.
+
+**Paging:** the cursor fixes "now" for the session, so scores stay stable from page to page. A cursor expires after 6 hours.
 
 ## Messaging
 
@@ -164,7 +196,8 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 
 - **Auth:** `UNAUTHENTICATED`, `INVALID_TOKEN`, `INVALID_PHONE`, `OTP_INVALID` (`details.attempts_left`), `OTP_EXPIRED`, `OTP_LOCKED`, `OTP_RATE_LIMITED`, `OTP_DELIVERY_FAILED`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `ACCOUNT_SUSPENDED`
 - **Onboarding:** `UNDERAGE`, `SIGNUP_BLOCKED`, `PHONE_ALREADY_REGISTERED`
+- **Discovery and matching:** `LOCATION_REQUIRED`, `DAILY_LIKE_LIMIT`, `PLUS_REQUIRED`
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Verification:** `VERIFICATION_REQUIRED` (403 on likes, messages and other gated routes), `VERIFICATION_UNAVAILABLE`, `ALREADY_VERIFIED`, `UNDER_REVIEW`, `INVALID_SIGNATURE`
-- **Later sprints:** `DAILY_LIKE_LIMIT`, `NOT_MATCHED`, `PHOTOS_LOCKED`, `PLUS_REQUIRED`
+- **Later sprints:** `NOT_MATCHED`, `PHOTOS_LOCKED`

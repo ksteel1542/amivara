@@ -65,8 +65,9 @@
   - Open: automated photo moderation (e.g. Rekognition) and the face match against the SmartSelfie; a location permission screen in the app (the API is ready); interests and languages pickers in the app (the API is ready).
 - Sprint 3 ✅ (code complete, 2026-11-10): Smile ID Biometric KYC: signed sessions, the signature-verified idempotent webhook, the job_status fallback poller, a pure decision function (passed / manual review / failed / under-18 ban), the `VERIFICATION_REQUIRED` gate on likes and messages; Android NIN entry (screenshots blocked), Smile ID SDK capture, checking and result screens (gold-badge celebration, review, retry).
   - Open: Smile ID sandbox keys and a real end-to-end run, confirming the `Actions` decision against real sandbox payloads; Document Verification as a fallback for members without a NIN; the admin manual-review queue (sprints 7–8); push notification when a result arrives.
-- Sprint 4: Location, discovery query, ranking v1
-- Sprint 5: Likes, passes, matches, push notifications
+- Sprint 4 ✅ (code complete, 2026-11-11): Discovery: the PostGIS candidate query with every PRD §6 filter (both radii, mutual gender and age, verified-only, liked, passed, blocked and matched excluded), ranking v1 (distance, activity, age fit, completeness, small shuffle), a keyset cursor and coarse, jittered distance labels. Likes (verified only, 50 a day, a mutual like creates a match) and passes (30 days). Android swipe stack with photo carousels, the gold badge, the verify prompt for unverified likes, a match dialog and a coarse-location step.
+  - Open: the blocking and reporting UI (sprint 7); widening the radius in the app; a ranking v2 that learns from engagement.
+- Sprint 5: Matches list, unmatch, push notifications (new match, verification result)
 - Sprint 6: Messaging (REST + WebSocket), photo unlocking
 - Sprint 7–8: Blocking and reporting, admin moderation console, account controls, data export and deletion
 
