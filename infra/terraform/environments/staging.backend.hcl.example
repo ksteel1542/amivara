@@ -1,0 +1,6 @@
+# Copy to staging.backend.hcl (gitignored), then: terraform init -backend-config=environments/staging.backend.hcl
+bucket       = "amivara-terraform-state-<ACCOUNT_ID>"
+key          = "staging/terraform.tfstate"
+region       = "af-south-1"
+encrypt      = true
+use_lockfile = true

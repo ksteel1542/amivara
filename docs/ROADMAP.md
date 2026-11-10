@@ -43,12 +43,20 @@
 - Usability tests in Lagos and Abuja, with a focus on how clear verification is and how safe people feel
 
 ## Stage 3: Technical setup
-- Flutter (Android target only), Next.js (web and admin) and NestJS skeletons, plus a shared lint and format setup
-- Terraform for dev and staging in **`af-south-1`**: VPC, ECS Fargate, RDS PostgreSQL 16 + PostGIS, ElastiCache Redis, S3, CloudFront (Lagos edges, OAC, WAF), Secrets Manager and KMS
-- Theme code generated from `design/brand/tokens.json` (Flutter `ColorScheme`/`TextTheme` and CSS variables), with CI checking that the generated code matches
-- GitHub Actions: lint, test, build, deploy. CodeQL and Dependabot. Android AAB builds to the Play internal testing track.
-- Prisma set up in NestJS. Generate the first migration from `schema.prisma`, add the raw-SQL CHECK constraints, and run `prisma migrate deploy` in the pipeline.
-- Smile ID sandbox wired end to end: job signature endpoint, callback webhook, Flutter and Web SDK smoke test
+- [x] pnpm monorepo with shared TypeScript, ESLint (flat config) and Prettier rules
+- [x] NestJS skeleton: 12 feature modules, Prisma wiring, env validation (zod), `/health` + `/health/ready`, and the `@RequireAgeVerified()` gate (PRD §5.3a) with unit and e2e tests
+- [x] Flutter Android skeleton (`com.amivara.app`, minSdk 24, portrait only, ROSE launch background), ROSE Material 3 theme, Welcome screen, widget tests including 200% font scale
+- [x] Next.js web and admin skeletons (App Router, ROSE tokens, next/font, security headers, admin noindex)
+- [x] Theme code generated from `design/brand/tokens.json` (`scripts/generate-tokens.ts` → Flutter `ColorScheme`/`TextTheme` and CSS variables), with CI failing if the generated code is stale
+- [x] First Prisma migration (`database/schema/migrations/20261110000000_init`) with the raw-SQL CHECK constraints. CI applies it to PostGIS, checks for drift and runs constraint smoke tests.
+- [x] GitHub Actions CI: workspace (tokens, lint, format, typecheck, tests, builds), database, Android (analyze, test, release AAB artifact), Terraform (fmt, validate)
+- [x] Terraform for **`af-south-1`**: VPC, RDS PostgreSQL 16, ElastiCache Redis, S3 media, CloudFront (Lagos edges, OAC, signed URLs) and the edge WAF. **Written but not applied.**
+- [ ] Terraform: ECS Fargate services and ALB, web and API CloudFront distributions, ACM and Route 53, Secrets Manager entries, GitHub OIDC deploy role
+- [ ] Apply staging (needs the AWS Organization and the `af-south-1` opt-in region enabled, Stage 1 task)
+- [ ] CD: deploy pipeline, `prisma migrate deploy` release step, Android AAB to the Play internal testing track (needs the Play Console account and an upload key)
+- [ ] CodeQL and Dependabot
+- [ ] Bundle the subset Playfair Display and Inter fonts in the Android app
+- [ ] Smile ID sandbox wired end to end: job signature endpoint, callback webhook, Flutter and Web SDK smoke test (needs sandbox keys)
 
 ## Stage 4: MVP development
 - Sprint 1–2: Auth (OTP), onboarding, 18+ gate, profiles and photos

@@ -1,0 +1,6 @@
+# Copy to prod.backend.hcl (gitignored), then: terraform init -backend-config=environments/prod.backend.hcl
+bucket       = "amivara-terraform-state-<ACCOUNT_ID>"
+key          = "prod/terraform.tfstate"
+region       = "af-south-1"
+encrypt      = true
+use_lockfile = true

@@ -10,11 +10,14 @@
 //   - UUID primary keys, timestamptz for every timestamp
 //
 // Things Prisma cannot express are added in hand-edited SQL migrations
-// (database/migrations/). See "Raw SQL requirements" at the bottom of this file.
+// (database/schema/migrations/). See "Raw SQL requirements" at the bottom of this file.
 
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
+  // Generated into the backend package (gitignored), so it works with pnpm's
+  // isolated node_modules. Run `pnpm --filter @amivara/backend prisma:generate`.
+  output          = "../../backend/generated/prisma"
 }
 
 datasource db {

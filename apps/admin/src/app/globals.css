@@ -1,0 +1,135 @@
+/* Admin console: the muted AMIVARA ROSE variant. Tokens come from rose-tokens.css (generated). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--am-bg);
+  color: var(--am-text);
+  font-family: var(--font-body), var(--am-font-body);
+  font-size: var(--am-type-body-medium-size);
+  line-height: var(--am-type-body-medium-line-height);
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  font-family: var(--font-display), var(--am-font-display);
+  font-size: var(--am-type-headline-medium-size);
+  color: var(--am-secondary);
+}
+
+h2 {
+  font-size: var(--am-type-title-medium-size);
+  font-weight: var(--am-type-title-medium-weight);
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--am-primary);
+  outline-offset: 2px;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 15rem 1fr;
+  min-height: 100dvh;
+}
+
+@media (max-width: 48rem) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar {
+  background: var(--am-color-burgundy);
+  color: var(--am-color-warm-ivory);
+  padding: var(--am-space-6) var(--am-space-4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .sidebar {
+    background: var(--am-color-night-800);
+  }
+}
+
+.brand {
+  font-family: var(--font-display), var(--am-font-display);
+  font-size: var(--am-type-title-large-size);
+  letter-spacing: 0.15em;
+  margin-bottom: var(--am-space-6);
+}
+
+.brand span {
+  font-family: var(--font-body), var(--am-font-body);
+  font-size: var(--am-type-label-medium-size);
+  letter-spacing: 0.05em;
+  color: var(--am-accent);
+  margin-left: var(--am-space-1);
+}
+
+.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--am-space-1);
+}
+
+.sidebar a {
+  display: block;
+  padding: var(--am-space-2) var(--am-space-3);
+  border-radius: var(--am-radius-sm);
+  text-decoration: none;
+}
+
+.sidebar a:hover {
+  background: rgb(253 251 247 / 0.1);
+}
+
+.main {
+  padding: var(--am-space-8) var(--am-space-6);
+}
+
+.muted {
+  color: var(--am-text-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--am-space-4);
+  margin-top: var(--am-space-6);
+}
+
+.card {
+  background: var(--am-surface-container);
+  border: 1px solid var(--am-line);
+  border-radius: var(--am-radius-md);
+  padding: var(--am-space-4);
+}
+
+.card--critical {
+  border-left: 4px solid var(--am-error);
+}
+
+.card--high {
+  border-left: 4px solid var(--am-primary);
+}
+
+.count {
+  font-size: var(--am-type-display-small-size);
+  font-family: var(--font-display), var(--am-font-display);
+  margin: var(--am-space-2) 0;
+}

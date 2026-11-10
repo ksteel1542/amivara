@@ -1,0 +1,21 @@
+# Prose and design specs are hand-formatted
+*.md
+docs/
+design/
+
+# Formatted by their own toolchains
+apps/mobile/
+database/
+infra/
+
+# Generated
+pnpm-lock.yaml
+**/rose-tokens.css
+backend/generated/
+**/next-env.d.ts
+
+# Build output
+**/node_modules/
+**/dist/
+**/.next/
+**/coverage/

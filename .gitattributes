@@ -1,0 +1,13 @@
+# Normalise line endings in the repository (the dev machine is Windows, CI is Linux).
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.jar binary
+*.ttf binary
+*.otf binary

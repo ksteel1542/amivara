@@ -74,7 +74,7 @@ A modular monolith. The modules share one deployable but have clear boundaries, 
 | `admin` | Admin-only endpoints, audit logging |
 
 Cross-cutting:
-- **Prisma** for data access and migrations. The schema lives at `database/schema/schema.prisma`, migrations at `database/migrations/`. Prisma has no native geography type, so PostGIS columns are declared as `Unsupported("geography(Point,4326)")` with a GiST index. Spatial reads and writes go through `$queryRaw` / `$executeRaw` (tagged templates only, so they're always parameterised) inside a dedicated `GeoRepository`. CHECK constraints that Prisma can't express (such as the 18+ rule) are added in hand-edited SQL migrations.
+- **Prisma** for data access and migrations. The schema lives at `database/schema/schema.prisma`, migrations at `database/schema/migrations/` (Prisma keeps them next to the schema). The client is generated into `backend/generated/prisma`. Prisma has no native geography type, so PostGIS columns are declared as `Unsupported("geography(Point,4326)")` with a GiST index. Spatial reads and writes go through `$queryRaw` / `$executeRaw` (tagged templates only, so they're always parameterised) inside a dedicated `GeoRepository`. CHECK constraints that Prisma can't express (such as the 18+ rule) are added in hand-edited SQL migrations.
 - class-validator DTOs and global validation pipes.
 - Rate limiting with a Redis-backed throttler.
 - OpenTelemetry tracing, structured JSON logs (with PII redaction) and Sentry.

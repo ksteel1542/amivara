@@ -1,0 +1,186 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  FLUTTER_VERSION: '3.38.7'
+  TERRAFORM_VERSION: '1.17.1'
+
+jobs:
+  # ─── TypeScript workspace: tokens, lint, format, types, tests, builds ───
+  workspace:
+    name: Workspace (tokens · lint · test · build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Design tokens are up to date
+        run: pnpm tokens:check
+
+      - name: Generate Prisma client
+        run: pnpm --filter @amivara/backend prisma:generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Backend tests
+        run: pnpm --filter @amivara/backend test
+
+      - name: Build backend
+        run: pnpm --filter @amivara/backend build
+
+      - name: Build web
+        run: pnpm --filter @amivara/web build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Build admin
+        run: pnpm --filter @amivara/admin build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  # ─── Database: migrations apply cleanly on real PostGIS and match the schema ───
+  database:
+    name: Database (Prisma migrations on PostGIS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: amivara
+          POSTGRES_PASSWORD: amivara
+          POSTGRES_DB: amivara
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U amivara"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://amivara:amivara@localhost:5432/amivara?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install backend
+        run: pnpm install --frozen-lockfile --filter @amivara/backend...
+
+      - name: Validate schema
+        run: pnpm --filter @amivara/backend prisma:validate
+
+      - name: Apply migrations
+        run: pnpm --filter @amivara/backend prisma:migrate:deploy
+
+      - name: Migrations match schema.prisma (no drift)
+        working-directory: backend
+        run: >-
+          pnpm exec prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel ../database/schema/schema.prisma
+          --exit-code
+
+      - name: CHECK constraints and PostGIS smoke test
+        run: psql "postgresql://amivara:amivara@localhost:5432/amivara" -f database/tests/constraints.sql
+
+  # ─── Android: analyze, test and build a release AAB ───
+  android:
+    name: Android (analyze · test · AAB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Format
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build release AAB (debug-signed until Play signing is set up)
+        run: flutter build appbundle --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amivara-android-aab
+          path: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 14
+
+  # ─── Infrastructure: format and validate only (no AWS credentials) ───
+  terraform:
+    name: Terraform (fmt · validate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Format
+        run: terraform fmt -check -recursive
+
+      - name: Init (no backend)
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate

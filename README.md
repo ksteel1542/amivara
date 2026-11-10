@@ -29,23 +29,47 @@ AMIVARA is an **18+ dating and connection platform** built for safety, authentic
 
 ```
 apps/
-  mobile/          Flutter app
-  web/             Next.js public web app
-  admin/           Next.js moderation & operations console
+  mobile/          Flutter app (Android only, minSdk 24, AMIVARA ROSE theme)
+  web/             Next.js public web app (App Router)
+  admin/           Next.js moderation & operations console (internal)
 backend/
-  src/             NestJS API
-  tests/           API unit & integration tests
+  src/             NestJS API (modular monolith, Prisma)
+  tests/           API e2e tests
 database/
-  migrations/      Versioned SQL migrations
-  schema/          Reference schema and ERDs
+  schema/          schema.prisma (source of truth) + migrations/
+  tests/           SQL smoke tests for CHECK constraints and PostGIS
   seeds/           Development seed data (never real users)
 design/
-  brand/           Brand guidelines, palette, typography
-  logos/           Logo source and exports
+  brand/           AMIVARA ROSE guidelines + tokens.json
+  logos/           Logo brief, source and exports
   ui-components/   Component library designs
+infra/terraform/   AWS af-south-1: VPC, RDS PostgreSQL + PostGIS, Redis, S3, CloudFront + WAF
+scripts/           generate-tokens.ts (tokens.json → Flutter + CSS)
 docs/              Product and engineering documentation
-.github/           CI workflows, issue/PR templates
+.github/workflows/ CI
 ```
+
+## Getting started
+
+Requirements: Node 24, pnpm 10 (`corepack enable`), and Flutter 3.38 with the Android SDK and JDK 17 for the mobile app.
+
+```sh
+pnpm install                                   # whole TypeScript workspace
+pnpm tokens                                    # regenerate theme code after editing design/brand/tokens.json
+pnpm --filter @amivara/backend prisma:generate # Prisma client (needed before backend typecheck/tests)
+pnpm lint && pnpm typecheck && pnpm test
+pnpm --filter @amivara/web dev                 # http://localhost:3000
+pnpm --filter @amivara/admin dev               # http://localhost:3001
+pnpm --filter @amivara/backend start:dev       # http://localhost:4000/health (copy backend/.env.example to .env first)
+
+cd apps/mobile && flutter test && flutter run  # Android device or emulator
+```
+
+CI (`.github/workflows/ci.yml`) runs on every push and pull request:
+- tokens, lint, format, types, backend tests and all builds
+- Prisma migrations against a real PostGIS database, checked for drift
+- Flutter analyze, tests and a release AAB
+- Terraform fmt and validate
 
 ## Documentation
 
@@ -58,4 +82,4 @@ docs/              Product and engineering documentation
 
 ## Status
 
-**Stage 1: Foundation.** Documentation and repository structure only. No application code yet.
+**Stage 3: Technical setup.** All apps are scaffolded, CI is in place and the infrastructure code is written. No infrastructure has been deployed yet. Product features start in Stage 4 (see [ROADMAP](docs/ROADMAP.md)).

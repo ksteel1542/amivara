@@ -2,12 +2,12 @@
 
 **Engine:** PostgreSQL 16 + PostGIS 3 · **ORM:** Prisma · **Status:** Draft v0.2
 
-Conventions: `uuid` primary keys, `timestamptz` columns, `snake_case` names, soft deletion through `deleted_at` where it applies, and every schema change made through versioned migrations in `database/migrations/`.
+Conventions: `uuid` primary keys, `timestamptz` columns, `snake_case` names, soft deletion through `deleted_at` where it applies, and every schema change made through versioned migrations in `database/schema/migrations/`.
 
 ## 0. Prisma
 
 - **Source of truth:** [`database/schema/schema.prisma`](../database/schema/schema.prisma). Models use camelCase and map to the snake_case tables below through `@map` / `@@map`.
-- **Migrations:** `prisma migrate dev` locally, `prisma migrate deploy` in CI/CD. SQL lives in `database/migrations/`.
+- **Migrations:** `prisma migrate dev` locally, `prisma migrate deploy` in CI/CD. SQL lives in `database/schema/migrations/`, and the first migration is `20261110000000_init`. `database/tests/constraints.sql` checks the hand-written CHECK constraints in CI.
 - **PostGIS:** turned on through the `postgresqlExtensions` preview feature (`extensions = [postgis, pgcrypto]`). The `location` column is `Unsupported("geography(Point, 4326)")` with `@@index([location], type: Gist)`. Prisma Client can't read or write `Unsupported` fields, so spatial access goes through `$queryRaw` / `$executeRaw` tagged templates in a `GeoRepository`.
 - **Raw SQL that Prisma can't express:** the CHECK constraints (18+ DOB, match pair ordering, message content, profile bounds). These are added to migrations created with `--create-only`, and the full list is at the end of `schema.prisma`.
 - **UUIDs:** Prisma generates v4 UUIDs in the application (`@default(uuid())`). If index locality becomes a problem we can move to v7 (`uuid(7)` in Prisma 5.18+).

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AMIVARA ROSE canvas colours, dark mode (design/brand/tokens.json: color.core). -->
+<resources>
+    <color name="amivara_canvas">#1A0B12</color> <!-- Deep Burgundy-Black -->
+</resources>

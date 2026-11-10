@@ -1,0 +1,196 @@
+/* GENERATED FILE. Do not edit by hand. Source: design/brand/tokens.json. Regenerate with `pnpm tokens`. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Raw palette */
+  --am-color-deep-rose: #88304E;
+  --am-color-burgundy: #52182F;
+  --am-color-champagne-gold: #D4AF37;
+  --am-color-warm-ivory: #FDFBF7;
+  --am-color-burgundy-black: #1A0B12;
+  --am-color-rose-100: #F9DCE5;
+  --am-color-rose-300: #E8A5BC;
+  --am-color-rose-700: #88304E;
+  --am-color-rose-800: #6A2440;
+  --am-color-rose-950: #3A0A1C;
+  --am-color-burgundy-200: #E3BCC9;
+  --am-color-burgundy-900: #52182F;
+  --am-color-burgundy-950: #2E0A18;
+  --am-color-gold-500: #D4AF37;
+  --am-color-gold-700: #8A6D12;
+  --am-color-ivory-50: #FDFBF7;
+  --am-color-ivory-100: #F6F0E8;
+  --am-color-night-800: #2A1520;
+  --am-color-night-950: #1A0B12;
+  --am-color-ink-600: #6B5A60;
+  --am-color-ink-900: #2A1A20;
+  --am-color-mist-50: #F5ECEF;
+  --am-color-mist-300: #BFAEB4;
+  --am-color-line-light: #E7DCD3;
+  --am-color-line-dark: #3D2430;
+  --am-color-white: #FFFFFF;
+  --am-color-status-success-light: #2E7D5B;
+  --am-color-status-success-dark: #7FD1AE;
+  --am-color-status-warning-light: #965C09;
+  --am-color-status-warning-dark: #F2C46D;
+  --am-color-status-error-light: #B3261E;
+  --am-color-status-error-dark: #F2B8B5;
+  --am-color-status-error-on-dark: #601410;
+  --am-color-brand-verified-badge-fill: #D4AF37;
+  --am-color-brand-verified-badge-check: #1A0B12;
+  --am-color-brand-hero-background: #52182F;
+  --am-accent: #D4AF37;
+
+  /* Material 3 roles: light */
+  --am-primary: #88304E;
+  --am-on-primary: #FFFFFF;
+  --am-primary-container: #F9DCE5;
+  --am-on-primary-container: #3A0A1C;
+  --am-secondary: #52182F;
+  --am-on-secondary: #FFFFFF;
+  --am-tertiary: #8A6D12;
+  --am-on-tertiary: #FFFFFF;
+  --am-surface: #FDFBF7;
+  --am-on-surface: #2A1A20;
+  --am-surface-container: #F6F0E8;
+  --am-on-surface-variant: #6B5A60;
+  --am-outline: #E7DCD3;
+  --am-error: #B3261E;
+  --am-on-error: #FFFFFF;
+  --am-bg: #FDFBF7;
+  --am-text: #2A1A20;
+  --am-text-muted: #6B5A60;
+  --am-line: #E7DCD3;
+  --am-accent-text: #8A6D12;
+
+  /* Typography */
+  --am-font-display: "Playfair Display", "Georgia", serif;
+  --am-font-display-alternate: "Cormorant Garamond", "Georgia", serif;
+  --am-font-body: "Inter", system-ui, "Roboto", sans-serif;
+  --am-font-body-alternate: "Plus Jakarta Sans", system-ui, "Roboto", sans-serif;
+  --am-type-display-large-size: 48px;
+  --am-type-display-large-line-height: 1.1667;
+  --am-type-display-large-weight: 600;
+  --am-type-display-large-tracking: 0em;
+  --am-type-display-small-size: 36px;
+  --am-type-display-small-line-height: 1.2222;
+  --am-type-display-small-weight: 600;
+  --am-type-display-small-tracking: 0em;
+  --am-type-headline-large-size: 32px;
+  --am-type-headline-large-line-height: 1.25;
+  --am-type-headline-large-weight: 600;
+  --am-type-headline-large-tracking: 0em;
+  --am-type-headline-medium-size: 28px;
+  --am-type-headline-medium-line-height: 1.2857;
+  --am-type-headline-medium-weight: 600;
+  --am-type-headline-medium-tracking: 0em;
+  --am-type-headline-small-size: 24px;
+  --am-type-headline-small-line-height: 1.3333;
+  --am-type-headline-small-weight: 500;
+  --am-type-headline-small-tracking: 0em;
+  --am-type-title-large-size: 22px;
+  --am-type-title-large-line-height: 1.2727;
+  --am-type-title-large-weight: 600;
+  --am-type-title-large-tracking: 0em;
+  --am-type-title-medium-size: 16px;
+  --am-type-title-medium-line-height: 1.5;
+  --am-type-title-medium-weight: 600;
+  --am-type-title-medium-tracking: 0.009375em;
+  --am-type-body-large-size: 16px;
+  --am-type-body-large-line-height: 1.5;
+  --am-type-body-large-weight: 400;
+  --am-type-body-large-tracking: 0.03125em;
+  --am-type-body-medium-size: 14px;
+  --am-type-body-medium-line-height: 1.4286;
+  --am-type-body-medium-weight: 400;
+  --am-type-body-medium-tracking: 0.015625em;
+  --am-type-body-small-size: 12px;
+  --am-type-body-small-line-height: 1.3333;
+  --am-type-body-small-weight: 400;
+  --am-type-body-small-tracking: 0.025em;
+  --am-type-label-large-size: 14px;
+  --am-type-label-large-line-height: 1.4286;
+  --am-type-label-large-weight: 600;
+  --am-type-label-large-tracking: 0.00625em;
+  --am-type-label-medium-size: 12px;
+  --am-type-label-medium-line-height: 1.3333;
+  --am-type-label-medium-weight: 600;
+  --am-type-label-medium-tracking: 0.03125em;
+
+  /* Spacing, radius, motion */
+  --am-space-1: 4px;
+  --am-space-2: 8px;
+  --am-space-3: 12px;
+  --am-space-4: 16px;
+  --am-space-6: 24px;
+  --am-space-8: 32px;
+  --am-space-12: 48px;
+  --am-space-16: 64px;
+  --am-space-gutter-onboarding: 24px;
+  --am-space-gutter-dense: 16px;
+  --am-space-button-primary-height: 56px;
+  --am-space-button-bottom-inset: 24px;
+  --am-radius-sm: 8px;
+  --am-radius-md: 16px;
+  --am-radius-lg: 28px;
+  --am-radius-full: 999px;
+  --am-duration-short: 150ms;
+  --am-duration-medium: 300ms;
+  --am-duration-long: 500ms;
+  --am-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --am-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --am-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --am-primary: #E8A5BC;
+    --am-on-primary: #1A0B12;
+    --am-primary-container: #6A2440;
+    --am-on-primary-container: #FFD9E3;
+    --am-secondary: #E3BCC9;
+    --am-on-secondary: #2E0A18;
+    --am-tertiary: #D4AF37;
+    --am-on-tertiary: #1A0B12;
+    --am-surface: #1A0B12;
+    --am-on-surface: #F5ECEF;
+    --am-surface-container: #2A1520;
+    --am-on-surface-variant: #BFAEB4;
+    --am-outline: #3D2430;
+    --am-error: #F2B8B5;
+    --am-on-error: #601410;
+    --am-bg: #1A0B12;
+    --am-text: #F5ECEF;
+    --am-text-muted: #BFAEB4;
+    --am-line: #3D2430;
+    --am-accent-text: #D4AF37;
+  }
+}
+
+:root[data-theme="dark"] {
+  --am-primary: #E8A5BC;
+  --am-on-primary: #1A0B12;
+  --am-primary-container: #6A2440;
+  --am-on-primary-container: #FFD9E3;
+  --am-secondary: #E3BCC9;
+  --am-on-secondary: #2E0A18;
+  --am-tertiary: #D4AF37;
+  --am-on-tertiary: #1A0B12;
+  --am-surface: #1A0B12;
+  --am-on-surface: #F5ECEF;
+  --am-surface-container: #2A1520;
+  --am-on-surface-variant: #BFAEB4;
+  --am-outline: #3D2430;
+  --am-error: #F2B8B5;
+  --am-on-error: #601410;
+  --am-bg: #1A0B12;
+  --am-text: #F5ECEF;
+  --am-text-muted: #BFAEB4;
+  --am-line: #3D2430;
+  --am-accent-text: #D4AF37;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}

@@ -1,0 +1,13 @@
+packages:
+  - apps/web
+  - apps/admin
+  - backend
+
+# pnpm 10 blocks dependency install scripts by default. Allow only the ones we need.
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@nestjs/core'
+  - prisma
+  - sharp
+  - unrs-resolver

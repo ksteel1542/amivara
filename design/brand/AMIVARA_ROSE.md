@@ -227,4 +227,4 @@ The canonical tokens live in [`tokens.json`](tokens.json) (W3C Design Tokens for
 - Wordmark: "AMIVARA" in Playfair Display SemiBold with custom letter-spacing, burgundy on ivory or ivory on burgundy.
 - Monogram: a stylised **A** formed by two curves meeting (mutual connection), with a small gold point at the apex.
 - The minimum clear space around the logo is the height of the "A".
-- App icon: the monogram in ivory with a gold apex point on a **Burgundy `#52182F`** background (proposed in place of Deep Rose, because gold on rose isn't allowed; founder to confirm). Full spec in [`design/logos/LOGO_BRIEF.md`](../logos/LOGO_BRIEF.md).
+- App icon: the monogram in ivory with a gold apex point on a **Burgundy `#52182F`** background (**confirmed by the founder**. It replaces Deep Rose, because gold on rose isn't allowed). Full spec in [`design/logos/LOGO_BRIEF.md`](../logos/LOGO_BRIEF.md).

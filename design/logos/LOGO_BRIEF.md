@@ -122,12 +122,12 @@ Don't stretch, rotate, outline, add shadows or glows, recolour outside the appro
 
 The **monogram alone**, in Warm Ivory, centred, with the Champagne Gold apex point, on a **Burgundy `#52182F`** background.
 
-> ⚠️ **Decision for the founder:** AMIVARA_ROSE §8 originally said the icon background would be **Deep Rose `#88304E`**. That conflicts with the brand rule "never gold on rose". This brief recommends **Burgundy**:
-> - It keeps the gold apex point (6.53:1 on burgundy).
-> - It looks deeper and more premium.
-> - It stands apart from the bright red, pink and orange icons common on Nigerian home screens.
+> ✅ **Confirmed by the founder (2026-11-10): Burgundy `#52182F` icon background.** It replaces the Deep Rose background in the original AMIVARA_ROSE §8, which conflicted with the brand rule "never gold on rose". Burgundy:
+> - keeps the gold apex point (6.53:1 on burgundy)
+> - looks deeper and more premium
+> - stands apart from the bright red, pink and orange icons common on Nigerian home screens
 >
-> The designer should also present a **Deep Rose alternative with an ivory apex point** for comparison.
+> A Deep Rose alternative is no longer needed in round 1.
 
 Optional: a very subtle radial lift (Burgundy `#52182F` at the edges to about `#6A2440` behind the mark) for depth. It must stay flat-looking and is never glossy.
 
