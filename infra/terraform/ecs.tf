@@ -31,7 +31,7 @@ locals {
       SMILE_ID_ENVIRONMENT    = local.is_prod ? "production" : "sandbox"
       SMILE_ID_CALLBACK_URL   = "https://${local.api_hostname}/v1/verification/webhook"
       PHONE_COUNTRIES         = "NG"
-      TRUST_PROXY_HOPS        = "2" # CloudFront + ALB
+      TRUST_PROXY_HOPS        = "2"       # CloudFront + ALB
       OTP_PROVIDER            = "console" # until the SMS/WhatsApp provider is chosen (refused in prod by the API)
     }
     web = {

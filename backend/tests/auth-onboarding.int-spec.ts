@@ -70,7 +70,8 @@ describe('Auth + onboarding (integration, PostgreSQL)', () => {
     return { challengeId: res.body.challenge_id as string, code: sender.lastCode(), body: res.body };
   }
 
-  async function verifyOtp(challengeId: string, code: string, device = DEVICE_A) {
+  // Not async: returning the supertest Test keeps `.expect()` chainable.
+  function verifyOtp(challengeId: string, code: string, device = DEVICE_A) {
     return http().post('/v1/auth/otp/verify').set('X-Device-Id', device).send({ challenge_id: challengeId, code });
   }
 
