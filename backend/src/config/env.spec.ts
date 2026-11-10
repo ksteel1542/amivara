@@ -1,4 +1,4 @@
-import { validateEnv } from './env';
+import { resolveDatabaseUrl, validateEnv } from './env';
 
 const DB = 'postgresql://amivara:amivara@localhost:5432/amivara';
 
@@ -9,6 +9,42 @@ describe('validateEnv', () => {
     expect(env.PORT).toBe(4000);
     expect(env.AWS_REGION).toBe('af-south-1');
     expect(env.SMILE_ID_ENVIRONMENT).toBe('sandbox');
+  });
+
+  describe('DATABASE_URL from ECS-injected DB_* parts', () => {
+    const parts = {
+      DB_HOST: 'amivara-staging-postgres.abc.af-south-1.rds.amazonaws.com',
+      DB_PORT: '5432',
+      DB_NAME: 'amivara',
+      DB_USERNAME: 'amivara_admin',
+      DB_PASSWORD: 'p@ss/w:rd?#&',
+    };
+    const original = process.env.DATABASE_URL;
+    afterEach(() => {
+      // Assigning undefined to process.env stores the string "undefined".
+      if (original === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = original;
+    });
+
+    it('builds a TLS connection string and URL-encodes the RDS-generated password', () => {
+      expect(resolveDatabaseUrl(parts)).toBe(
+        'postgresql://amivara_admin:p%40ss%2Fw%3Ard%3F%23%26@amivara-staging-postgres.abc.af-south-1.rds.amazonaws.com:5432/amivara?schema=public&sslmode=require',
+      );
+    });
+
+    it('prefers an explicit DATABASE_URL', () => {
+      expect(resolveDatabaseUrl({ ...parts, DATABASE_URL: DB })).toBe(DB);
+    });
+
+    it('returns undefined when a part is missing', () => {
+      expect(resolveDatabaseUrl({ ...parts, DB_PASSWORD: '' })).toBeUndefined();
+    });
+
+    it('exposes the built URL to Prisma through process.env', () => {
+      const env = validateEnv(parts);
+      expect(env.DATABASE_URL).toContain('sslmode=require');
+      expect(process.env.DATABASE_URL).toBe(env.DATABASE_URL);
+    });
   });
 
   it('rejects a missing DATABASE_URL', () => {

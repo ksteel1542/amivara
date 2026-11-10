@@ -1,0 +1,102 @@
+# Dependabot version updates. Security updates are separate and immediate:
+# enable "Dependabot security updates" in the repository settings.
+#
+# Updates are grouped to keep PR noise low. Major versions of the core
+# frameworks are ignored here and upgraded deliberately, because they need code
+# changes (e.g. Prisma 7 moves configuration out of schema.prisma).
+
+version: 2
+
+updates:
+  # ── TypeScript workspace (pnpm: root, backend, apps/web, apps/admin) ──
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /backend
+      - /apps/web
+      - /apps/admin
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Africa/Lagos
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    labels: [dependencies]
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      nestjs:
+        patterns: ['@nestjs/*']
+      prisma:
+        patterns: ['prisma', '@prisma/*']
+      next-react:
+        patterns: ['next', '@next/*', 'react', 'react-dom', '@types/react', '@types/react-dom']
+      lint-format:
+        patterns: ['eslint', '@eslint/*', 'typescript-eslint', 'eslint-plugin-*', 'globals', 'prettier']
+      testing:
+        patterns: ['jest', 'ts-jest', '@types/jest', 'supertest', '@types/supertest']
+      types:
+        patterns: ['@types/*']
+    ignore:
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: '@prisma/client'
+        update-types: [version-update:semver-major]
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: '@next/eslint-plugin-next'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@nestjs/*'
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+      - dependency-name: '@eslint/js'
+        update-types: [version-update:semver-major]
+      # @types/node tracks the Node runtime (24); move it with the runtime.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
+
+  # ── Flutter (pub) ──
+  - package-ecosystem: pub
+    directory: /apps/mobile
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Africa/Lagos
+    labels: [dependencies, mobile]
+    commit-message:
+      prefix: chore(deps)
+
+  # ── GitHub Actions (also moves actions off the deprecated Node 20 runtime) ──
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Africa/Lagos
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: chore(ci)
+    groups:
+      actions:
+        patterns: ['*']
+
+  # ── Terraform providers and modules ──
+  - package-ecosystem: terraform
+    directory: /infra/terraform
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Africa/Lagos
+    labels: [dependencies, infra]
+    commit-message:
+      prefix: chore(infra)
+    groups:
+      terraform:
+        patterns: ['*']

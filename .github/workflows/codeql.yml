@@ -1,0 +1,52 @@
+name: CodeQL
+
+# Static security analysis for the TypeScript workspace (backend, web, admin,
+# scripts) and the GitHub Actions workflows themselves. Dart is not supported
+# by CodeQL; the Flutter app is covered by `flutter analyze` in CI.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '23 3 * * 1' # Mondays 04:23 WAT, so new CodeQL queries also run against unchanged code
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - '**/node_modules/**'
+              - '**/.next/**'
+              - '**/dist/**'
+              - 'backend/generated/**'
+              - 'apps/mobile/**'
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

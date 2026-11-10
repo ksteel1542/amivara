@@ -51,10 +51,10 @@
 - [x] First Prisma migration (`database/schema/migrations/20261110000000_init`) with the raw-SQL CHECK constraints. CI applies it to PostGIS, checks for drift and runs constraint smoke tests.
 - [x] GitHub Actions CI: workspace (tokens, lint, format, typecheck, tests, builds), database, Android (analyze, test, release AAB artifact), Terraform (fmt, validate)
 - [x] Terraform for **`af-south-1`**: VPC, RDS PostgreSQL 16, ElastiCache Redis, S3 media, CloudFront (Lagos edges, OAC, signed URLs) and the edge WAF. **Written but not applied.**
-- [ ] Terraform: ECS Fargate services and ALB, web and API CloudFront distributions, ACM and Route 53, Secrets Manager entries, GitHub OIDC deploy role
-- [ ] Apply staging (needs the AWS Organization and the `af-south-1` opt-in region enabled, Stage 1 task)
+- [x] Terraform: ECS Fargate (api, web, admin, ARM64) and ALB, web and API CloudFront distributions, ACM and Route 53, SES, Secrets Manager entries, CloudWatch alarms, GitHub OIDC deploy role (deploy-only, no infra rights). **Written but not applied.**
+- [ ] Register the domain, then apply staging (needs the AWS Organization and the `af-south-1` opt-in region enabled, Stage 1 task). Steps: infra/terraform/README.md
 - [ ] CD: deploy pipeline, `prisma migrate deploy` release step, Android AAB to the Play internal testing track (needs the Play Console account and an upload key)
-- [ ] CodeQL and Dependabot
+- [x] CodeQL (TypeScript and GitHub Actions, security-extended, weekly) and Dependabot (npm, pub, GitHub Actions, Terraform; grouped, framework majors held back)
 - [ ] Bundle the subset Playfair Display and Inter fonts in the Android app
 - [ ] Smile ID sandbox wired end to end: job signature endpoint, callback webhook, Flutter and Web SDK smoke test (needs sandbox keys)
 

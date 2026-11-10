@@ -53,9 +53,37 @@ export const envSchema = base.superRefine((env, ctx) => {
 
 export type Env = z.infer<typeof envSchema>;
 
-/** Used as ConfigModule's `validate` hook. Throws a readable error listing every problem. */
+const DB_PARTS = ['DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'DB_NAME'] as const;
+
+/**
+ * On ECS the database credentials arrive as separate variables (DB_HOST,
+ * DB_PORT, DB_NAME from Terraform; DB_USERNAME / DB_PASSWORD injected from the
+ * RDS-managed secret), because RDS rotates that secret itself. Build the
+ * Prisma connection string from them when DATABASE_URL isn't set directly.
+ * TLS is required (the RDS parameter group sets rds.force_ssl = 1).
+ */
+export function resolveDatabaseUrl(raw: Record<string, unknown>): string | undefined {
+  if (typeof raw.DATABASE_URL === 'string' && raw.DATABASE_URL.length > 0) return raw.DATABASE_URL;
+  if (!DB_PARTS.every((k) => typeof raw[k] === 'string' && (raw[k] as string).length > 0)) return undefined;
+
+  const user = encodeURIComponent(raw.DB_USERNAME as string);
+  const password = encodeURIComponent(raw.DB_PASSWORD as string);
+  const port = typeof raw.DB_PORT === 'string' && raw.DB_PORT ? raw.DB_PORT : '5432';
+  const db = encodeURIComponent(raw.DB_NAME as string);
+  return `postgresql://${user}:${password}@${raw.DB_HOST as string}:${port}/${db}?schema=public&sslmode=require`;
+}
+
+/**
+ * Used as ConfigModule's `validate` hook. Throws a readable error listing every problem.
+ * When DATABASE_URL is built from DB_* parts, it is also written to process.env,
+ * because the Prisma client reads env("DATABASE_URL") directly.
+ */
 export function validateEnv(raw: Record<string, unknown>): Env {
-  const result = envSchema.safeParse(raw);
+  const databaseUrl = resolveDatabaseUrl(raw);
+  if (databaseUrl && raw.DATABASE_URL !== databaseUrl) {
+    process.env.DATABASE_URL = databaseUrl;
+  }
+  const result = envSchema.safeParse({ ...raw, DATABASE_URL: databaseUrl });
   if (!result.success) {
     const problems = result.error.issues.map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${problems}`);

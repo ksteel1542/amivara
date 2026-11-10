@@ -119,3 +119,109 @@ variable "waf_rate_limit_per_5min" {
   type        = number
   default     = 2000
 }
+
+# ── DNS & certificates ──────────────────────────────────────
+
+variable "domain_name" {
+  description = "Root domain for this environment, e.g. amivara.com (prod) or staging.amivara.com. A Route 53 zone is created for it; delegate its name servers at the registrar (or parent zone) before the certificates can validate."
+  type        = string
+}
+
+# ── Application tier (ECS Fargate) ──────────────────────────
+
+variable "services_enabled" {
+  description = "Run the ECS services. Keep false until images are in ECR and the Secrets Manager values are populated; then set true and apply (autoscaling raises each service to its minimum)."
+  type        = bool
+  default     = false
+}
+
+variable "bootstrap_image_tag" {
+  description = "Image tag used in the Terraform-managed task definitions. CD registers new revisions with real image tags afterwards."
+  type        = string
+  default     = "bootstrap"
+}
+
+variable "api_cpu" {
+  description = "API task CPU units (Fargate)."
+  type        = number
+  default     = 512
+}
+
+variable "api_memory" {
+  description = "API task memory (MiB)."
+  type        = number
+  default     = 1024
+}
+
+variable "api_min_count" {
+  description = "Minimum API tasks when services are enabled."
+  type        = number
+  default     = 1
+}
+
+variable "api_max_count" {
+  description = "Maximum API tasks (CPU target tracking)."
+  type        = number
+  default     = 4
+}
+
+variable "web_cpu" {
+  description = "Web (Next.js) task CPU units."
+  type        = number
+  default     = 512
+}
+
+variable "web_memory" {
+  description = "Web (Next.js) task memory (MiB)."
+  type        = number
+  default     = 1024
+}
+
+variable "web_min_count" {
+  description = "Minimum web tasks when services are enabled."
+  type        = number
+  default     = 1
+}
+
+variable "web_max_count" {
+  description = "Maximum web tasks."
+  type        = number
+  default     = 4
+}
+
+variable "admin_allowed_cidrs" {
+  description = "Office / VPN egress CIDRs allowed to reach admin.<domain>. Empty means the admin console is unreachable."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = length(var.admin_allowed_cidrs) <= 4
+    error_message = "At most 4 admin CIDRs (ALB rule condition limit). Use a VPN with a single egress range."
+  }
+}
+
+variable "waf_otp_rate_limit_per_5min" {
+  description = "Requests per 5 minutes per IP to /v1/auth/otp/* before the edge blocks them. Kept generous because Nigerian carriers put many users behind one CGNAT IP; the per-phone limits in the API are the primary control."
+  type        = number
+  default     = 300
+}
+
+# ── Operations ──────────────────────────────────────────────
+
+variable "alert_email" {
+  description = "Email address subscribed to the CloudWatch alarm topic. Null means no subscription."
+  type        = string
+  default     = null
+}
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) allowed to assume the deploy role through OIDC."
+  type        = string
+  default     = "ksteel1542/amivara"
+}
+
+variable "create_github_oidc_provider" {
+  description = "Create the GitHub Actions OIDC provider. It can only exist once per AWS account; set false if it already exists."
+  type        = bool
+  default     = true
+}

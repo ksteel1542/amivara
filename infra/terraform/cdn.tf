@@ -1,11 +1,151 @@
-# CloudFront in front of the media bucket. PriceClass_All is required so that
-# Nigerian members are served from the Lagos edge locations (ARCHITECTURE.md
-# §6.1). Distributions for the web apps and the API (caching disabled) are
-# added together with the ECS services.
+# CloudFront distributions: media (S3), web (Next.js on ECS) and API (ECS,
+# caching disabled). PriceClass_All is required so that Nigerian members are
+# served from the Lagos edge locations (ARCHITECTURE.md §6.1). TLS terminates
+# in Lagos; the long haul to Cape Town runs over the AWS backbone.
 
 data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
+
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_cache_policy" "origin_cache_control" {
+  name = "Managed-UseOriginCacheControlHeaders-QueryStrings"
+}
+
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
+locals {
+  cdn_viewer_certificate = {
+    acm_certificate_arn      = aws_acm_certificate_validation.cdn.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
+  }
+}
+
+# ── Web (Next.js) ───────────────────────────────────────────
+
+resource "aws_cloudfront_distribution" "web" {
+  enabled         = true
+  is_ipv6_enabled = true
+  http_version    = "http2and3"
+  comment         = "AMIVARA ${var.environment} web (Lagos edges)"
+  price_class     = "PriceClass_All"
+  aliases         = local.web_hostnames
+  web_acl_id      = aws_wafv2_web_acl.edge.arn
+
+  origin {
+    origin_id   = "web-alb"
+    domain_name = local.web_origin_host
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+
+    custom_header {
+      name  = "X-Origin-Verify"
+      value = random_password.origin_verify.result
+    }
+  }
+
+  # Next.js sets Cache-Control itself (static pages, ISR, no-store for dynamic).
+  default_cache_behavior {
+    target_origin_id           = "web-alb"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = data.aws_cloudfront_cache_policy.origin_cache_control.id
+    origin_request_policy_id   = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security_headers.id
+  }
+
+  # Fingerprinted build assets: cache for as long as possible.
+  ordered_cache_behavior {
+    path_pattern               = "/_next/static/*"
+    target_origin_id           = "web-alb"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security_headers.id
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = local.cdn_viewer_certificate.acm_certificate_arn
+    ssl_support_method       = local.cdn_viewer_certificate.ssl_support_method
+    minimum_protocol_version = local.cdn_viewer_certificate.minimum_protocol_version
+  }
+}
+
+# ── API (REST + WebSockets, never cached) ───────────────────
+
+resource "aws_cloudfront_distribution" "api" {
+  enabled         = true
+  is_ipv6_enabled = true
+  http_version    = "http2and3"
+  comment         = "AMIVARA ${var.environment} API (Lagos edges, caching disabled)"
+  price_class     = "PriceClass_All"
+  aliases         = [local.api_hostname]
+  web_acl_id      = aws_wafv2_web_acl.edge.arn
+
+  origin {
+    origin_id   = "api-alb"
+    domain_name = local.api_origin_host
+
+    custom_origin_config {
+      http_port                = 80
+      https_port               = 443
+      origin_protocol_policy   = "https-only"
+      origin_ssl_protocols     = ["TLSv1.2"]
+      origin_read_timeout      = 60
+      origin_keepalive_timeout = 60
+    }
+
+    custom_header {
+      name  = "X-Origin-Verify"
+      value = random_password.origin_verify.result
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id         = "api-alb"
+    viewer_protocol_policy   = "https-only"
+    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods           = ["GET", "HEAD"]
+    compress                 = true
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = local.cdn_viewer_certificate.acm_certificate_arn
+    ssl_support_method       = local.cdn_viewer_certificate.ssl_support_method
+    minimum_protocol_version = local.cdn_viewer_certificate.minimum_protocol_version
+  }
+}
+
+# ── Media (S3) ──────────────────────────────────────────────
 
 data "aws_cloudfront_response_headers_policy" "security_headers" {
   name = "Managed-SecurityHeadersPolicy"
@@ -64,9 +204,12 @@ resource "aws_cloudfront_distribution" "media" {
     }
   }
 
-  # Custom domain (media.amivara.com) arrives with the ACM certificate in us-east-1.
+  aliases = [local.media_hostname]
+
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.cdn.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   lifecycle {
@@ -111,11 +254,50 @@ resource "aws_wafv2_web_acl" "edge" {
     }
   }
 
+  # OTP endpoints are the most abused path on a phone-auth app (SMS pumping).
+  rule {
+    name     = "otp-rate-limit-per-ip"
+    priority = 1
+
+    action {
+      block {}
+    }
+
+    statement {
+      rate_based_statement {
+        limit              = var.waf_otp_rate_limit_per_5min
+        aggregate_key_type = "IP"
+
+        scope_down_statement {
+          byte_match_statement {
+            search_string         = "/v1/auth/otp"
+            positional_constraint = "STARTS_WITH"
+
+            field_to_match {
+              uri_path {}
+            }
+
+            text_transformation {
+              priority = 0
+              type     = "LOWERCASE"
+            }
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-otp-rate-limit"
+      sampled_requests_enabled   = true
+    }
+  }
+
   dynamic "rule" {
     for_each = {
-      AWSManagedRulesAmazonIpReputationList = 1
-      AWSManagedRulesCommonRuleSet          = 2
-      AWSManagedRulesKnownBadInputsRuleSet  = 3
+      AWSManagedRulesAmazonIpReputationList = 2
+      AWSManagedRulesCommonRuleSet          = 3
+      AWSManagedRulesKnownBadInputsRuleSet  = 4
     }
 
     content {
