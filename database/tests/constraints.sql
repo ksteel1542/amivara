@@ -118,3 +118,50 @@ BEGIN
   RAISE NOTICE 'ok: PostGIS geography + GiST index present';
 END
 $$;
+
+-- Stage 5: report evidence is immutable; the audit log is append-only.
+DO $$
+DECLARE
+  adult uuid;
+  other uuid := gen_random_uuid();
+  report uuid := gen_random_uuid();
+  entry uuid := gen_random_uuid();
+BEGIN
+  SELECT id INTO adult FROM users WHERE phone_e164 = '+2348000000002';
+  INSERT INTO users (id, phone_e164, date_of_birth, updated_at)
+  VALUES (other, '+2348000000003', CURRENT_DATE - INTERVAL '30 years', now());
+
+  BEGIN
+    INSERT INTO reports (id, reporter_id, reported_id, category, evidence)
+    VALUES (gen_random_uuid(), adult, adult, 'OTHER', 'v1:x');
+    RAISE EXCEPTION 'reports_not_self_chk did not reject a self-report';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: nobody can report themselves';
+  END;
+
+  INSERT INTO reports (id, reporter_id, reported_id, category, evidence)
+  VALUES (report, adult, other, 'HARASSMENT', 'v1:original');
+  UPDATE reports SET status = 'DISMISSED', resolved_at = now() WHERE id = report;
+  RAISE NOTICE 'ok: a report can be resolved';
+  BEGIN
+    UPDATE reports SET evidence = 'v1:tampered' WHERE id = report;
+    RAISE EXCEPTION 'reports evidence was changed';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: report evidence is immutable';
+  END;
+
+  INSERT INTO audit_log (id, actor_id, action, target_type, target_id) VALUES (entry, adult, 'test', 'user', other);
+  BEGIN
+    UPDATE audit_log SET action = 'edited' WHERE id = entry;
+    RAISE EXCEPTION 'audit_log row was updated';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'ok: audit_log refuses updates';
+  END;
+  BEGIN
+    DELETE FROM audit_log WHERE id = entry;
+    RAISE EXCEPTION 'audit_log row was deleted';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'ok: audit_log refuses deletes';
+  END;
+END
+$$;

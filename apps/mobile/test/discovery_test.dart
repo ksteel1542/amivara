@@ -9,13 +9,19 @@ import 'package:amivara/features/discovery/discovery_providers.dart';
 import 'package:amivara/features/home/home_screen.dart';
 import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
+import 'package:amivara/features/safety/safety_repository.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
 import 'package:amivara/main.dart';
 
 import 'support/fakes.dart';
 
 /// Signed-in app on the discovery home.
-Future<void> pumpHome(WidgetTester tester, {required FakeDiscoveryRepository discovery, bool verified = false}) async {
+Future<void> pumpHome(
+  WidgetTester tester, {
+  required FakeDiscoveryRepository discovery,
+  bool verified = false,
+  FakeSafetyRepository? safety,
+}) async {
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 3.0;
   addTearDown(tester.view.reset);
@@ -32,6 +38,7 @@ Future<void> pumpHome(WidgetTester tester, {required FakeDiscoveryRepository dis
       discoveryRepositoryProvider.overrideWithValue(discovery),
       locationSourceProvider.overrideWithValue(FakeLocationSource()),
       cardImageBuilderProvider.overrideWithValue(placeholderImage),
+      safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
     ],
   );
   addTearDown(container.dispose);

@@ -56,7 +56,17 @@ export class JwtAuthGuard implements CanActivate {
         userId: true,
         revokedAt: true,
         expiresAt: true,
-        user: { select: { id: true, status: true, ageVerified: true, deletedAt: true, lastActiveAt: true } },
+        user: {
+          select: {
+            id: true,
+            status: true,
+            role: true,
+            suspendedUntil: true,
+            ageVerified: true,
+            deletedAt: true,
+            lastActiveAt: true,
+          },
+        },
       },
     });
     if (!session || session.userId !== claims.sub || session.revokedAt || session.expiresAt <= new Date()) {
@@ -66,9 +76,20 @@ export class JwtAuthGuard implements CanActivate {
       throw new ApiError(HttpStatus.FORBIDDEN, 'ACCOUNT_SUSPENDED', 'This account is not active.');
     }
 
+    let status = session.user.status;
+    // A temporary suspension lifts itself once it has run its course.
+    if (status === 'SUSPENDED' && session.user.suspendedUntil && session.user.suspendedUntil <= new Date()) {
+      const lifted = await this.prisma.user.updateMany({
+        where: { id: session.user.id, status: 'SUSPENDED', suspendedUntil: { lte: new Date() } },
+        data: { status: 'ACTIVE', suspendedUntil: null },
+      });
+      if (lifted.count > 0) status = 'ACTIVE';
+    }
+
     const member: AuthenticatedMember = {
       id: session.user.id,
-      status: session.user.status,
+      status,
+      role: session.user.role,
       ageVerified: session.user.ageVerified,
     };
     req.member = member;

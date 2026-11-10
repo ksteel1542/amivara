@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
+import '../safety/report_user_sheet.dart';
 import 'discovery_models.dart';
 import 'discovery_providers.dart';
 import 'profile_card.dart';
@@ -136,6 +137,14 @@ class _DiscoveryFeedState extends ConsumerState<DiscoveryFeed> {
     }
   }
 
+  /// Report or block from the card: either way they leave the stack for good.
+  Future<void> _openSafety(DiscoveryCard card) async {
+    final outcome = await showSafetyMenu(context, userId: card.userId, firstName: card.firstName);
+    if (outcome == null || !mounted) return;
+    setState(() => _cards.removeWhere((c) => c.userId == card.userId));
+    if (_cards.length <= 3) _load();
+  }
+
   Future<void> _showMatch(DiscoveryCard card) {
     return showDialog<void>(
       context: context,
@@ -208,6 +217,7 @@ class _DiscoveryFeedState extends ConsumerState<DiscoveryFeed> {
                 key: ValueKey<String>(_cards[i].userId),
                 card: _cards[i],
                 imageBuilder: widget.imageBuilder,
+                onSafety: () => _openSafety(_cards[i]),
               ),
             ),
           ),

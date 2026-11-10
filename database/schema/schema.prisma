@@ -99,6 +99,8 @@ enum OtpChannel {
 
 enum SignupBlockReason {
   UNDERAGE
+  /// Permanent ban: the member's phone and devices can't sign up again (until unbanned)
+  BANNED
 
   @@map("signup_block_reason")
 }
@@ -119,6 +121,45 @@ enum ModerationStatus {
   @@map("moderation_status")
 }
 
+/// PRD §5.6 report categories.
+enum ReportCategory {
+  FAKE_PROFILE
+  UNDERAGE
+  HARASSMENT
+  SCAM
+  EXPLICIT_CONTENT
+  HATE
+  OTHER
+
+  @@map("report_category")
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+
+  @@map("report_status")
+}
+
+/// Queue order. UNDERAGE is always CRITICAL (target: resolved within 1 hour).
+enum ReportPriority {
+  CRITICAL
+  HIGH
+  NORMAL
+
+  @@map("report_priority")
+}
+
+enum EnforcementActionType {
+  WARN
+  SUSPEND
+  BAN
+  UNBAN
+
+  @@map("enforcement_action_type")
+}
+
 // ───────────────────────────── Models ─────────────────────────────
 
 model User {
@@ -131,6 +172,8 @@ model User {
   ageVerified     Boolean    @default(false) @map("age_verified")
   ageVerifiedAt   DateTime?  @map("age_verified_at") @db.Timestamptz(6)
   status          UserStatus @default(ACTIVE)
+  /// Temporary suspensions lift themselves at this time (null = until a moderator acts)
+  suspendedUntil  DateTime?  @map("suspended_until") @db.Timestamptz(6)
   role            UserRole   @default(MEMBER)
   lastActiveAt    DateTime?  @map("last_active_at") @db.Timestamptz(6)
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -142,16 +185,19 @@ model User {
   sessions      DeviceSession[]
   pushTokens    PushToken[]
   verifications Verification[]
-  matchesAsA    Match[]         @relation("MatchUserA")
-  matchesAsB    Match[]         @relation("MatchUserB")
-  unmatchedByMe Match[]         @relation("MatchUnmatchedBy")
-  sentMessages  Message[]       @relation("MessageSender")
-  likesGiven    Like[]          @relation("LikeLiker")
-  likesReceived Like[]          @relation("LikeLikee")
-  passesGiven   Pass[]          @relation("PassPasser")
-  passesGot     Pass[]          @relation("PassPassee")
-  blocksMade    Block[]         @relation("BlockBlocker")
-  blockedBy     Block[]         @relation("BlockBlocked")
+  matchesAsA    Match[]             @relation("MatchUserA")
+  matchesAsB    Match[]             @relation("MatchUserB")
+  unmatchedByMe Match[]             @relation("MatchUnmatchedBy")
+  sentMessages  Message[]           @relation("MessageSender")
+  likesGiven    Like[]              @relation("LikeLiker")
+  likesReceived Like[]              @relation("LikeLikee")
+  passesGiven   Pass[]              @relation("PassPasser")
+  passesGot     Pass[]              @relation("PassPassee")
+  blocksMade    Block[]             @relation("BlockBlocker")
+  blockedBy     Block[]             @relation("BlockBlocked")
+  reportsMade   Report[]            @relation("ReportReporter")
+  reportsAbout  Report[]            @relation("ReportReported")
+  enforcements  EnforcementAction[] @relation("EnforcementSubject")
 
   @@index([status, ageVerified])
   @@index([lastActiveAt])
@@ -408,6 +454,8 @@ model DeviceSession {
   platform         String?   @db.VarChar(16)
   deviceModel      String?   @map("device_model") @db.VarChar(100)
   ipHash           String?   @map("ip_hash") @db.VarChar(64)
+  /// HMAC of the X-Device-Id, so a ban can also block the member's devices
+  deviceHash       String?   @map("device_hash") @db.VarChar(64)
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(6)
   expiresAt        DateTime  @map("expires_at") @db.Timestamptz(6)
@@ -453,6 +501,69 @@ model SignupBlock {
 
   @@index([subject, expiresAt])
   @@map("signup_blocks")
+}
+
+/// A member's report about another (PRD §5.6). The evidence snapshot is
+/// taken when the report is filed and can never change (trigger in SQL):
+/// moderators see what the reporter saw, even if messages are later deleted.
+model Report {
+  id           String         @id @default(uuid()) @db.Uuid
+  reporterId   String         @map("reporter_id") @db.Uuid
+  reportedId   String         @map("reported_id") @db.Uuid
+  category     ReportCategory
+  details      String?        @db.VarChar(1000)
+  /// The message the reporter pointed at, if any
+  messageId    String?        @map("message_id") @db.Uuid
+  matchId      String?        @map("match_id") @db.Uuid
+  /// Encrypted JSON (MessageCipher): profile snapshot plus the recent conversation
+  evidence     String
+  status       ReportStatus   @default(OPEN)
+  priority     ReportPriority @default(NORMAL)
+  resolvedAt   DateTime?      @map("resolved_at") @db.Timestamptz(6)
+  resolvedById String?        @map("resolved_by") @db.Uuid
+  resolution   String?        @db.VarChar(1000)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User @relation("ReportReported", fields: [reportedId], references: [id], onDelete: Cascade)
+
+  @@index([status, priority, createdAt])
+  @@index([reportedId])
+  @@index([reporterId, createdAt(sort: Desc)])
+  @@map("reports")
+}
+
+/// Warnings, suspensions, bans and unbans. Kept for the member's history.
+model EnforcementAction {
+  id        String                @id @default(uuid()) @db.Uuid
+  userId    String                @map("user_id") @db.Uuid
+  action    EnforcementActionType
+  reason    String                @db.VarChar(1000)
+  /// Null for automatic actions (an underage report suspends immediately)
+  actorId   String?               @map("actor_id") @db.Uuid
+  reportId  String?               @map("report_id") @db.Uuid
+  expiresAt DateTime?             @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation("EnforcementSubject", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("enforcement_actions")
+}
+
+/// Append-only record of every admin action (UPDATE and DELETE are refused in SQL).
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String   @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(64)
+  targetType String   @map("target_type") @db.VarChar(32)
+  targetId   String   @map("target_id") @db.Uuid
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([targetType, targetId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@map("audit_log")
 }
 
 // ─────────────────────── Raw SQL requirements ───────────────────────

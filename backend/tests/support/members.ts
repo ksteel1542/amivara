@@ -63,6 +63,14 @@ let counter = 0;
 
 /** Signs up a fresh member through the real OTP + onboarding endpoints. Returns an access token. */
 export async function createMember(app: INestApplication, sender: CapturingSender): Promise<string> {
+  return (await createMemberDetailed(app, sender)).token;
+}
+
+/** Like createMember, also returning the phone (national format) and X-Device-Id it signed up with. */
+export async function createMemberDetailed(
+  app: INestApplication,
+  sender: CapturingSender,
+): Promise<{ token: string; phone: string; device: string }> {
   counter += 1;
   const phone = `0803${String(1_000_000 + counter).slice(-7)}`;
   const device = `test-device-${String(counter).padStart(4, '0')}`;
@@ -88,5 +96,5 @@ export async function createMember(app: INestApplication, sender: CapturingSende
       intent: 'relationship',
     })
     .expect(201);
-  return done.body.access_token as string;
+  return { token: done.body.access_token as string, phone, device };
 }

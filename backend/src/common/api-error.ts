@@ -35,6 +35,8 @@ export type ApiErrorCode =
   | 'PLUS_REQUIRED'
   | 'MESSAGE_RATE_LIMITED'
   | 'NOT_FOUND'
+  | 'FORBIDDEN'
+  | 'REPORT_RATE_LIMITED'
   | 'NOT_IMPLEMENTED'
   | 'INTERNAL';
 

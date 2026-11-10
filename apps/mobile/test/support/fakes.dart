@@ -21,6 +21,7 @@ import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_models.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
 import 'package:amivara/features/profile/profile_repository.dart';
+import 'package:amivara/features/safety/safety_repository.dart';
 import 'package:amivara/features/verification/identity_capture.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
 import 'package:amivara/features/verification/verification_repository.dart';
@@ -108,6 +109,7 @@ Future<void> pumpApp(
   required FakeAuthRepository repo,
   FakeProfileRepository? profiles,
   FakeDiscoveryRepository? discovery,
+  FakeSafetyRepository? safety,
   MemoryStore? store,
   String initialLocation = '/',
   List<dynamic> extraOverrides = const <dynamic>[],
@@ -127,6 +129,7 @@ Future<void> pumpApp(
         discoveryRepositoryProvider.overrideWithValue(discovery ?? FakeDiscoveryRepository()),
         locationSourceProvider.overrideWithValue(FakeLocationSource()),
         cardImageBuilderProvider.overrideWithValue(placeholderImage),
+        safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
         ...extraOverrides.cast(),
       ],
       child: AmivaraApp(initialLocation: initialLocation),
@@ -501,3 +504,28 @@ Map<String, dynamic> messageJson(ChatMessage m) => <String, dynamic>{
   'created_at': m.createdAt.toIso8601String(),
   'read_at': m.readAt?.toIso8601String(),
 };
+
+// ── Safety ──────────────────────────────────────────────────
+
+class FakeSafetyRepository implements SafetyRepository {
+  final List<String> calls = <String>[];
+  ApiException? error;
+
+  @override
+  Future<void> block(String accessToken, String userId) async {
+    if (error != null) throw error!;
+    calls.add('block:$userId');
+  }
+
+  @override
+  Future<void> report(
+    String accessToken, {
+    required String userId,
+    required ReportCategory category,
+    String? details,
+    String? messageId,
+  }) async {
+    if (error != null) throw error!;
+    calls.add('report:$userId:${category.apiValue}:${details ?? ''}:${messageId ?? '-'}');
+  }
+}

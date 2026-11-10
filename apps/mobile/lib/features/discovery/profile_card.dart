@@ -22,10 +22,13 @@ const Map<String, String> _intentLabels = <String, String>{
 /// photo) with name, age, the gold verified badge and the coarse distance,
 /// then bio, prompts and interests below (scroll inside the card).
 class ProfileCard extends StatefulWidget {
-  const ProfileCard({super.key, required this.card, this.imageBuilder = networkCardImage});
+  const ProfileCard({super.key, required this.card, this.imageBuilder = networkCardImage, this.onSafety});
 
   final DiscoveryCard card;
   final CardImageBuilder imageBuilder;
+
+  /// Opens the "Safety & Report" menu (report or block this person).
+  final VoidCallback? onSafety;
 
   @override
   State<ProfileCard> createState() => _ProfileCardState();
@@ -93,6 +96,17 @@ class _ProfileCardState extends State<ProfileCard> {
                                   ),
                                 ),
                             ],
+                          ),
+                        ),
+                      if (widget.onSafety != null)
+                        Positioned(
+                          top: RoseSpacing.s4,
+                          right: RoseSpacing.s1,
+                          child: IconButton(
+                            key: Key('card-safety-${card.userId}'),
+                            tooltip: 'Safety & Report',
+                            onPressed: widget.onSafety,
+                            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
                           ),
                         ),
                       Positioned(

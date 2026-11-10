@@ -24,6 +24,7 @@ describe('AgeVerifiedGuard (PRD §5.3a)', () => {
     id: '00000000-0000-4000-8000-000000000001',
     ageVerified: true,
     status: 'ACTIVE',
+    role: 'MEMBER',
     ...overrides,
   });
 

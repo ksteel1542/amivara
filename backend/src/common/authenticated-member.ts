@@ -9,6 +9,8 @@ export interface AuthenticatedMember {
   /** True only after Smile ID returned a pass and the verified age is 18+. */
   ageVerified: boolean;
   status: 'ACTIVE' | 'PAUSED' | 'SUSPENDED' | 'BANNED' | 'PENDING_DELETION';
+  /** MEMBER, or a staff role for the moderation API. */
+  role: 'MEMBER' | 'MODERATOR' | 'SENIOR_MODERATOR' | 'ADMIN';
 }
 
 export interface MemberRequest extends Request {

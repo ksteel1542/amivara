@@ -12,6 +12,7 @@ import 'package:amivara/features/matches/matches_providers.dart';
 import 'package:amivara/features/matches/matches_repository.dart';
 import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
+import 'package:amivara/features/safety/safety_repository.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
 import 'package:amivara/main.dart';
 
@@ -25,6 +26,7 @@ Future<ProviderContainer> pumpMatches(
   FakeDiscoveryRepository? discovery,
   FakeChatRepository? chat,
   FakeChatSocket? socket,
+  FakeSafetyRepository? safety,
   String location = '/matches',
   bool verified = true,
 }) async {
@@ -46,6 +48,7 @@ Future<ProviderContainer> pumpMatches(
       matchesRepositoryProvider.overrideWithValue(matches),
       pushRegistrarProvider.overrideWithValue(push ?? FakePushRegistrar()),
       chatRepositoryProvider.overrideWithValue(chat ?? FakeChatRepository()),
+      safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
       chatSocketFactoryProvider.overrideWithValue(() => (socket ?? FakeChatSocket()) as ChatSocket),
     ],
   );

@@ -8,6 +8,10 @@ export interface DomainEventMap {
   'match.created': { matchId: string; userIds: [string, string] };
   /** One member unmatched; both lose the match and the conversation. */
   'match.unmatched': { matchId: string; byUserId: string; otherUserId: string };
+  /** A member was suspended or banned: open sockets close (the WebSocket checks status only on connect). */
+  'member.restricted': { userId: string; action: 'SUSPEND' | 'BAN' };
+  /** A moderator warned a member: a generic push asks them to review the guidelines. */
+  'member.warned': { userId: string };
   /** A chat message was stored. Never carries the body. */
   'message.created': {
     matchId: string;

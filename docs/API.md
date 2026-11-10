@@ -222,12 +222,39 @@ The socket registry is in-process for now (one API task). Running several tasks 
 
 ## Safety
 
+Open to every signed-in member, verified or not: anyone must be able to block and report.
+
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| POST | `/safety/blocks` | 🔑 | Body `{ user_id }`. |
-| DELETE | `/safety/blocks/:userId` | 🔑 | Unblock. |
-| GET | `/safety/blocks` | 🔑 | List of people you've blocked. |
-| POST | `/safety/reports` | 🔑 | Body `{ user_id, category, details?, message_id? }`. Reporting also blocks the person automatically. |
+| POST | `/safety/blocks` | 🔑 | Body `{ user_id }`. `204`, idempotent. Hides both members from each other everywhere (discovery both ways, likes). Any active match between them is archived (unmatched): open chats get `match.removed` on both sides and the other member's list refreshes silently. |
+| DELETE | `/safety/blocks/:userId` | 🔑 | Unblock. `204`, or `404` if there was no block. A match never comes back. |
+| GET | `/safety/blocks` | 🔑 | `{ blocks: [{ user_id, first_name, blocked_at }] }`, newest first. |
+| POST | `/safety/reports` | 🔑 | Body `{ user_id, category, details?, message_id? }`. `201 { report_id, priority }`. Reporting **also blocks** the person. |
+
+**Report categories (PRD §5.6):** `fake_profile`, `underage`, `harassment`, `scam`, `explicit_content`, `hate`, `other`. Priority: `underage` is `critical` (target: resolved within an hour, 24/7), and it **suspends the reported account at once** until a moderator reviews it. `harassment`, `scam`, `explicit_content` and `hate` are `high`; `fake_profile` and `other` are `normal`. `details` is up to 1,000 characters. `message_id` must be a message in the reporter's chat with that person.
+
+**Evidence:** each report stores a snapshot taken when it was filed: the reported profile (name, age, bio, prompts, job, photo keys, verified, member since) and the last 50 messages between them. The snapshot is encrypted like messages (`MESSAGE_ENC_KEY`), and the database refuses to change it (trigger), so moderators see what the reporter saw, even if messages are deleted later.
+
+**Limit:** 20 reports per member per 24 hours (`429 REPORT_RATE_LIMITED`).
+
+## Admin
+
+The moderation API for the console (`apps/admin`). Staff roles only (`moderator`, `senior_moderator`, `admin`); for anyone else every admin route is a `404`. Every action, and every opening of a report's evidence, is written to the append-only `audit_log` (UPDATE and DELETE are refused in SQL). Staff accounts can't be actioned here, and nobody can action themselves (`403 FORBIDDEN`).
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/admin/me` | `{ id, role, first_name }`. The console's staff check. |
+| GET | `/admin/reports?status=open\|actioned\|dismissed&limit=` | The queue. Open reports are ordered critical first, then oldest first. `{ counts: { critical, high, normal }, reports: [...] }`, each with the reporter, and the reported member's name, age, status, verified, first photo and number of open reports. |
+| GET | `/admin/reports/:id` | One report: the evidence snapshot (messages marked `reporter` / `reported`, the reported `message_id`), the live profile with signed photo URLs, the member's enforcement history and other reports about them. Audited as `report.view`. |
+| POST | `/admin/reports/:id/dismiss` | Body `{ note? }`. `204`; `409` if it's already resolved. |
+| POST | `/admin/users/:id/warn` | Body `{ reason, report_id? }`. Records a warning and sends the member a generic push ("A note from AMIVARA Safety"). Nothing about the report or the reporter. |
+| POST | `/admin/users/:id/suspend` | Body `{ reason, days (1–90), report_id? }`. Status `suspended` until then: gated actions return `403 ACCOUNT_SUSPENDED`, the member is hidden from discovery and chats, and open sockets close with `4403`. The suspension lifts itself on the first request after it ends. |
+| POST | `/admin/users/:id/ban` | Body `{ reason, report_id? }`. Permanent: every device session revoked (sign-in and refresh return `403 ACCOUNT_SUSPENDED`), push tokens dropped, sockets closed, and the phone number and every device the member signed in on are added to the signup blacklist (`SIGNUP_BLOCKED`; HMACs only, no raw numbers or device ids). All open reports about them are closed. |
+| POST | `/admin/users/:id/unban` | Body `{ reason }`. Lifts a ban or suspension and its blacklist entries. `409` if the member isn't banned or suspended. |
+
+`reason` is 3–1,000 characters and goes into the member's enforcement history (`enforcement_actions`) and the audit log. When `report_id` is given it must be an open report about that member, and it's resolved as `actioned`.
+
+**Console sign-in:** moderators sign in to the console with the same phone OTP as the app, and the console then checks `/admin/me`. Tokens stay in httpOnly, Secure, SameSite=Strict cookies, and the console calls the API from its server only. SECURITY.md §3 still requires SSO with MFA plus the IP allowlist / VPN in front of the console before launch.
 
 ## Error codes
 
@@ -237,6 +264,7 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Onboarding:** `UNDERAGE`, `SIGNUP_BLOCKED`, `PHONE_ALREADY_REGISTERED`
 - **Discovery and matching:** `LOCATION_REQUIRED`, `DAILY_LIKE_LIMIT`, `PLUS_REQUIRED`
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
-- **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `NOT_IMPLEMENTED`, `INTERNAL`
+- **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`
+- **Messaging and safety:** `MESSAGE_RATE_LIMITED`, `REPORT_RATE_LIMITED`
 - **Verification:** `VERIFICATION_REQUIRED` (403 on likes, messages and other gated routes), `VERIFICATION_UNAVAILABLE`, `ALREADY_VERIFIED`, `UNDER_REVIEW`, `INVALID_SIGNATURE`
 - **Later sprints:** `NOT_MATCHED`, `PHOTOS_LOCKED`

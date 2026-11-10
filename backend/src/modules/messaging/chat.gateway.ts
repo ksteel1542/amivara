@@ -9,13 +9,13 @@ import { z } from 'zod';
 import { ApiError } from '../../common/api-error';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TokensService } from '../auth/tokens.service';
-import { MessagingService } from './messaging.service';
+import { CLOSE_FORBIDDEN, MessagingService } from './messaging.service';
 import { RealtimeRegistry } from './realtime.registry';
 
 export const CHAT_PATH = '/ws/chat';
 /** Close codes (API.md "Messaging"): 4401 sign in again, 4403 verification required / not allowed. */
 export const CLOSE_UNAUTHENTICATED = 4401;
-export const CLOSE_FORBIDDEN = 4403;
+export { CLOSE_FORBIDDEN };
 const HEARTBEAT_MS = 30_000;
 const MAX_FRAME_BYTES = 16 * 1024;
 

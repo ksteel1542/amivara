@@ -45,6 +45,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 </li>
               ))}
             </ul>
+            <form action="/auth/logout" method="post" className="signout">
+              <button type="submit">Sign out</button>
+            </form>
           </nav>
           <main className="main">{children}</main>
         </div>

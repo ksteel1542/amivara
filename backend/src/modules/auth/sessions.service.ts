@@ -81,6 +81,7 @@ export class SessionsService {
           platform: ctx.platform ?? session.platform,
           deviceModel: ctx.deviceModel ?? session.deviceModel,
           ipHash: this.hasher.hashOptional('ip', ctx.ip),
+          deviceHash: this.hasher.hashOptional('device', ctx.deviceId) ?? session.deviceHash,
           expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000),
         },
       });
@@ -120,6 +121,7 @@ export class SessionsService {
         platform: ctx.platform,
         deviceModel: ctx.deviceModel,
         ipHash: this.hasher.hashOptional('ip', ctx.ip),
+        deviceHash: this.hasher.hashOptional('device', ctx.deviceId),
         expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000),
       },
     });

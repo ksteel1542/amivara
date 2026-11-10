@@ -18,7 +18,7 @@ The first `schema.prisma` covers **User, Profile, Verification, Match and Messag
 - `conversations` is **merged into `matches`** (`photos_unlocked`, `last_message_at`). Messages reference `match_id` directly.
 - `verifications` gains Smile ID fields: `provider_job_id` (unique, so callbacks are idempotent), `provider_ref` (SmileJobID), `result_code`, `result_text`, `id_type`, `verified_adult` and `dob_matches`.
 
-The remaining tables below (preferences, likes, passes, blocks, reports, enforcement actions, device sessions, subscriptions, audit log, profile photos) come in the next iteration of the schema.
+Reports, enforcement actions and the audit log arrived in Stage 5 (migration `20261112090000_safety_moderation`): report evidence is immutable and the audit log append-only, both enforced by triggers. Subscriptions are still to come.
 
 ## 1. Entity overview
 

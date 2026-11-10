@@ -10,6 +10,12 @@ export const MATCH_NOTIFICATION = {
   body: 'You have a new match on AMIVARA. Open the app to see who.',
 };
 
+/** After a moderator's warning: generic, nothing about the report or the reporter. */
+export const WARNING_NOTIFICATION = {
+  title: 'A note from AMIVARA Safety',
+  body: 'Please take a moment to review our community guidelines.',
+};
+
 /** New message push: never the sender's name or any of the message (lock screens are public). */
 export const MESSAGE_NOTIFICATION = {
   title: 'AMIVARA',
@@ -36,6 +42,9 @@ export class NotificationsService implements OnModuleInit {
           }),
         ),
       );
+    });
+    this.events.on('member.warned', async ({ userId }) => {
+      await this.sendToUser(userId, { notification: WARNING_NOTIFICATION, data: { type: 'account.warning' } });
     });
     // Only when the recipient isn't already in the app: an open socket shows it live.
     this.events.on('message.created', async ({ matchId, recipientId, recipientOnline }) => {

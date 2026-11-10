@@ -9,6 +9,7 @@ import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
 import '../discovery/profile_card.dart';
 import '../matches/matches_repository.dart';
+import '../safety/report_user_sheet.dart';
 import 'chat_providers.dart';
 import 'chat_repository.dart';
 import 'chat_socket.dart';
@@ -201,6 +202,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// Reporting or blocking ends the conversation (the server archives the match).
+  Future<void> _openSafety() async {
+    final theirs = _messages.where(_fromThem).firstOrNull;
+    final outcome = await showSafetyMenu(
+      context,
+      userId: _match.userId,
+      firstName: _match.firstName,
+      messageId: theirs?.id,
+    );
+    if (outcome == null || !mounted) return;
+    _gone = true; // the match.removed echo must not show "no longer available"
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/matches');
+    }
+  }
+
   void _matchGone() {
     if (_gone || !mounted) return;
     _gone = true;
@@ -265,6 +284,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (_match.verified) ...<Widget>[const SizedBox(width: RoseSpacing.s1), const VerifiedBadge(size: 16)],
           ],
         ),
+        actions: <Widget>[
+          IconButton(
+            key: const Key('chat-safety-menu'),
+            tooltip: 'Safety & Report',
+            icon: const Icon(Icons.shield_outlined),
+            onPressed: _openSafety,
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(

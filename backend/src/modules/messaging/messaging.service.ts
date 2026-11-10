@@ -6,6 +6,9 @@ import { MessageCipher } from '../../common/message-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeRegistry } from './realtime.registry';
 
+/** WebSocket close code for "not allowed" (API.md "Messaging"). */
+export const CLOSE_FORBIDDEN = 4403;
+
 /** PRD §5.5: photos in chat unlock once both members have sent at least this many messages. */
 export const PHOTO_UNLOCK_MESSAGES = 3;
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -43,6 +46,10 @@ export class MessagingService implements OnModuleInit {
       for (const userId of [byUserId, otherUserId]) {
         this.realtime.send(userId, { event: 'match.removed', data: { match_id: matchId } });
       }
+    });
+    // Suspended and banned members lose their live connection at once.
+    this.events.on('member.restricted', ({ userId }) => {
+      this.realtime.disconnect(userId, CLOSE_FORBIDDEN, 'ACCOUNT_SUSPENDED');
     });
   }
 
