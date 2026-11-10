@@ -61,8 +61,9 @@
 ## Stage 4: MVP development *(current)*
 - Sprint 1 ✅ (code complete, 2026-11-10): Phone OTP auth (API + Android screens 2a/2b), rotating device sessions, the 18+ gate with 12-month underage blocks (screens 3/3x), profile basics and account creation, GET /me, and the browse-only home placeholder.
   - Open: choose the SMS/WhatsApp OTP provider (only a dev console sender exists, and production refuses to boot without a real one). Also the Android SMS User Consent API for one-tap code autofill.
-- Sprint 2: Profiles and photos (upload, moderation, reorder), location, and the Smile ID explainer (screen 4)
-- Sprint 3: Smile ID integration (Biometric KYC using NIN, Document Verification as the fallback, SmartSelfie™ liveness), verification gating, the manual review queue
+- Sprint 2 ✅ (code complete, 2026-11-10): Profile editing API (bio, intent, up to 5 prompts, interests, languages, height) with DB CHECKs; photos via S3 presigned POST (6 slots, signature-verified confirm, reorder, main photo, remove with a minimum of 2); PostGIS location with ~100 m rounding; Android profile editor (drag-to-reorder grid, ≤ 300 KB on-device compression, prompts, bio, intent) and the Smile ID explainer (screen 4).
+  - Open: automated photo moderation (e.g. Rekognition) and the face match against the SmartSelfie; a location permission screen in the app (the API is ready); interests and languages pickers in the app (the API is ready).
+- Sprint 3: Smile ID integration (Biometric KYC using NIN, Document Verification as the fallback, SmartSelfie liveness), verification gating, the manual review queue
 - Sprint 4: Location, discovery query, ranking v1
 - Sprint 5: Likes, passes, matches, push notifications
 - Sprint 6: Messaging (REST + WebSocket), photo unlocking

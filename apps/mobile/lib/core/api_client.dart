@@ -40,6 +40,14 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String path, {String? bearer}) => _send('GET', path, bearer: bearer);
 
+  Future<Map<String, dynamic>> put(String path, {Map<String, dynamic>? body, String? bearer}) =>
+      _send('PUT', path, body: body, bearer: bearer);
+
+  Future<Map<String, dynamic>> patch(String path, {Map<String, dynamic>? body, String? bearer}) =>
+      _send('PATCH', path, body: body, bearer: bearer);
+
+  Future<Map<String, dynamic>> delete(String path, {String? bearer}) => _send('DELETE', path, bearer: bearer);
+
   Future<Map<String, dynamic>> _send(String method, String path, {Map<String, dynamic>? body, String? bearer}) async {
     final request = http.Request(method, Uri.parse('$baseUrl$path'))
       ..headers.addAll(<String, String>{

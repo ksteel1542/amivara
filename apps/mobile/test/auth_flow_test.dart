@@ -154,8 +154,8 @@ void main() {
     expect(repo.lastDetails!.interestedIn, <Gender>{Gender.man});
     expect(repo.lastDetails!.dateOfBirth, '1999-03-14');
     expect(store.values[StoreKeys.refreshToken], 'refresh-token');
-    expect(find.text("You're in, Adaeze"), findsOneWidget);
-    expect(find.byKey(const Key('verify-banner')), findsOneWidget);
+    // Onboarding continues to photos (PRD §5.1 step 4).
+    expect(find.text('Add your photos'), findsOneWidget);
   });
 
   testWidgets('existing member signs straight in', (tester) async {

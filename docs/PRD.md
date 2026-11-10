@@ -55,7 +55,7 @@ AMIVARA is a mobile-first dating and connection platform **for adults aged 18 an
 6. Accept the Terms, Community Guidelines and Privacy Policy, and give explicit location consent.
 
 ### 5.2 Profile
-- Photos, a bio of up to 500 characters, prompts (up to 3), interests (up to 10), languages (English, Yoruba, Igbo, Hausa, Pidgin and more), height, education, job, religion (optional) and intent.
+- Photos, a bio of up to 500 characters, prompts (up to 5; founder decision, 2026-11-10), interests (up to 10), languages (English, Yoruba, Igbo, Hausa, Pidgin and more), height, education, job, religion (optional) and intent.
 - A verification badge appears once ID and liveness checks pass.
 - Fields marked optional can be hidden.
 

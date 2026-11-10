@@ -9,6 +9,8 @@ import 'features/onboarding/basics_screen.dart';
 import 'features/onboarding/dob_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
+import 'features/profile/profile_editor_screen.dart';
+import 'features/verification/verify_intro_screen.dart';
 
 /// Routes for sprint 1. Each onboarding step redirects to the start if the
 /// state it depends on is missing (e.g. a cold start on /dob).
@@ -19,7 +21,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       final flow = ref.read(signupFlowProvider);
       final signedIn = ref.read(sessionProvider) != null;
       return switch (state.matchedLocation) {
-        '/home' when !signedIn => '/',
+        '/home' || '/profile/setup' || '/profile/edit' || '/verify-intro' when !signedIn => '/',
         '/' || '/phone' when signedIn => '/home',
         '/otp' when flow.challenge == null => '/phone',
         '/dob' when flow.signupToken == null => '/',
@@ -34,6 +36,9 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       GoRoute(path: '/dob', builder: (_, _) => const DobScreen()),
       GoRoute(path: '/not-eligible', builder: (_, _) => const NotEligibleScreen()),
       GoRoute(path: '/basics', builder: (_, _) => const BasicsScreen()),
+      GoRoute(path: '/profile/setup', builder: (_, _) => const ProfileEditorScreen(onboarding: true)),
+      GoRoute(path: '/profile/edit', builder: (_, _) => const ProfileEditorScreen()),
+      GoRoute(path: '/verify-intro', builder: (_, _) => const VerifyIntroScreen()),
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
     ],
   );

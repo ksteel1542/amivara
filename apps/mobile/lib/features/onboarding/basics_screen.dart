@@ -75,7 +75,8 @@ class _BasicsScreenState extends ConsumerState<BasicsScreen> {
           );
       await ref.read(sessionProvider.notifier).signIn(tokens);
       ref.read(signupFlowProvider.notifier).reset();
-      if (mounted) context.go('/home');
+      // Next: photos (PRD §5.1 step 4), then the Smile ID explainer.
+      if (mounted) context.go('/profile/setup');
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.code == 'UNDERAGE' || e.code == 'SIGNUP_BLOCKED') {

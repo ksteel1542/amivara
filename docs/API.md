@@ -52,17 +52,39 @@ Age is 18+ only if it holds on both the Lagos and the UTC calendar date, so the 
 | Method | Path | Gate | Description |
 |---|---|---|---|
 | GET | `/me` | 🔑 | *(sprint 1)* `{ id, status, phone_last4, age, verification: { phone, age_verified, can_like_and_message }, profile, preferences }`. Never returns the full phone number or date of birth. |
-| PATCH | `/me/profile` | 🔑 | Update bio, prompts, interests and other profile fields. |
 | PATCH | `/me/preferences` | 🔑 | `age_min` must be at least 18, `max_distance_km` must be 1–300, plus `interested_in`. |
-| PUT | `/me/location` | 🔑 | Body `{ lat, lng }`. Rounded on the server, and only the latest is kept. |
-| POST | `/me/photos/upload-url` | 🔑 | Returns a signed upload URL and a `photo_id`. |
-| POST | `/me/photos/:id/confirm` | 🔑 | Starts moderation. |
-| PATCH | `/me/photos/order` | 🔑 | Body `{ photo_ids: [] }`. |
-| DELETE | `/me/photos/:id` | 🔑 | Removes a photo. At least 2 must remain. |
 | POST | `/me/pause` · `/me/resume` | 🔑 | Hide or show your profile in discovery. |
 | POST | `/me/data-export` | 🔑 | Queues an export of your data (NDPA access right). |
 | DELETE | `/me` | 🔑 | Schedules deletion with a 30-day recovery window. |
 | GET | `/profiles/:userId` | 🔑 | Someone else's public profile. Only returned if they're discoverable to you or you're matched. Unverified members can view profiles, because browsing is open (PRD §5.3a). |
+
+## Profiles
+
+*Implemented in Stage 4, sprint 2.*
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/profiles/catalog` | 🔑 | The prompts, interest tags and languages members can choose from, plus all limits (`prompts: 5`, `photos: { min: 2, max: 6 }`, `height_cm: { min: 120, max: 230 }` and the rest). |
+| GET | `/profiles/me` | 🔑 | Your editable profile: `first_name, gender, bio, intent, prompts[], interests[], languages[], height_cm, education, job_title, religion, city, photos[], has_location, completeness`. |
+| PATCH | `/profiles/me` | 🔑 | Partial update of `bio` (≤ 500), `intent`, `prompts` (≤ 5, ids from the catalogue, answers ≤ 150, no repeats), `interests` (≤ 10), `languages` (≤ 8), `height_cm` (120–230), `education`, `job_title`, `religion`. `""` or `null` clears a text field. Unknown fields are rejected. Returns the profile. |
+| PUT | `/profiles/me/location` | 🔑 | Body `{ lat, lng, accuracy_m? }`. Stored **rounded to ~100 m** as a PostGIS point and geohash, keeping only the latest. Returns `204`. The point is never returned by any endpoint. |
+
+The database enforces the same limits with CHECK constraints: prompts ≤ 5, languages ≤ 8, interests ≤ 10, height 120–230 and a non-blank bio.
+
+## Media
+
+*Implemented in Stage 4, sprint 2.* Photos go **straight from the app to S3** with a presigned POST. The API never handles the file. Photos are never public: every response carries short-lived signed URLs (CloudFront in deployed environments).
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| POST | `/media/upload-url` | 🔑 | Body `{ content_type: "image/jpeg" \| "image/webp" }`. Reserves a photo and returns `{ photo_id, upload: { method: "POST", url, fields, file_field: "file" }, max_bytes: 1500000, expires_in: 600 }`. The S3 policy pins the key, the content type and the size. Returns `409 PHOTO_LIMIT` at 6 photos. |
+| POST | `/media/photos/:id/confirm` | 🔑 | After the upload: checks that the object exists, its size, and that its **first bytes really are JPEG or WebP**. The photo then takes the next free slot. Errors: `409 UPLOAD_NOT_FOUND`, and `422 INVALID_IMAGE` (the file is also deleted). Returns `{ photos }`. |
+| GET | `/media/photos` | 🔑 | `{ photos: [{ id, position, is_primary, url, moderation_status }] }`, in order. Position 0 is the main photo. |
+| PUT | `/media/photos/order` | 🔑 | Body `{ photo_ids }`: must list every photo exactly once. The first becomes the main photo. |
+| PUT | `/media/photos/:id/primary` | 🔑 | Makes this the main photo and keeps the others in order. |
+| DELETE | `/media/photos/:id` | 🔑 | Removes the photo and its object. Returns `409 MIN_PHOTOS` if it would take you from 2 photos to 1. |
+
+The app compresses every photo to **≤ 300 KB JPEG** before uploading (stepping quality and then size down), and strips EXIF data including GPS. Uploads that are never confirmed release their slot after 1 hour. New photos stay `moderation_status: pending` until automated moderation lands in a later sprint.
 
 ## Verification
 
@@ -121,5 +143,6 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 
 - **Auth:** `UNAUTHENTICATED`, `INVALID_TOKEN`, `INVALID_PHONE`, `OTP_INVALID` (`details.attempts_left`), `OTP_EXPIRED`, `OTP_LOCKED`, `OTP_RATE_LIMITED`, `OTP_DELIVERY_FAILED`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `ACCOUNT_SUSPENDED`
 - **Onboarding:** `UNDERAGE`, `SIGNUP_BLOCKED`, `PHONE_ALREADY_REGISTERED`
+- **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Later sprints:** `NOT_AGE_VERIFIED`, `DAILY_LIKE_LIMIT`, `NOT_MATCHED`, `PHOTOS_LOCKED`, `PLUS_REQUIRED`

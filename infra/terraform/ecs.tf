@@ -48,9 +48,11 @@ locals {
     }
   }
 
+  media_signing_enabled = var.media_signing_public_key_pem != null
+
   # name => "secret-arn:json-key::"
   container_secrets = {
-    api = {
+    api = merge({
       DB_USERNAME         = "${local.rds_secret_arn}:username::"
       DB_PASSWORD         = "${local.rds_secret_arn}:password::"
       SMILE_ID_PARTNER_ID = "${aws_secretsmanager_secret.app["smile-id"].arn}:partner_id::"
@@ -58,7 +60,14 @@ locals {
       JWT_PRIVATE_KEY_PEM = "${aws_secretsmanager_secret.app["jwt"].arn}:private_key_pem::"
       JWT_PUBLIC_KEY_PEM  = "${aws_secretsmanager_secret.app["jwt"].arn}:public_key_pem::"
       HASH_PEPPER         = "${aws_secretsmanager_secret.app["hash-pepper"].arn}:value::"
-    }
+      },
+      # Signed CloudFront photo URLs: only injected when a signing key is configured.
+      {
+        for k, v in {
+          MEDIA_SIGNING_KEY_PAIR_ID     = "${aws_secretsmanager_secret.app["media-signing"].arn}:key_pair_id::"
+          MEDIA_SIGNING_PRIVATE_KEY_PEM = "${aws_secretsmanager_secret.app["media-signing"].arn}:private_key_pem::"
+        } : k => v if local.media_signing_enabled
+    })
     web   = {}
     admin = {}
   }

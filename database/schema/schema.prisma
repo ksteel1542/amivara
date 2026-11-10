@@ -164,7 +164,7 @@ model Profile {
   religion          String?  @db.VarChar(50)
   languages         String[] @default([])
   interests         String[] @default([])
-  /// [{ "promptId": string, "answer": string }], up to 3 entries
+  /// [{ "prompt_id": string, "answer": string }], at most 5 entries (CHECK in SQL)
   prompts           Json     @default("[]")
   completenessScore Int      @default(0) @map("completeness_score") @db.SmallInt
 
@@ -179,7 +179,8 @@ model Profile {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photos ProfilePhoto[]
 
   /// Spatial index for ST_DWithin radius queries in discovery
   @@index([location], map: "profiles_location_gist_idx", type: Gist)
@@ -268,6 +269,40 @@ model Message {
   @@index([matchId, createdAt(sort: Desc)])
   @@index([senderId])
   @@map("messages")
+}
+
+enum PhotoStatus {
+  /// Upload URL issued; the object may not exist yet. Swept after 1 hour.
+  PENDING_UPLOAD
+  /// Object verified in S3 (size, type, JPEG/WebP signature).
+  UPLOADED
+
+  @@map("photo_status")
+}
+
+/// Profile photos (PRD §5.1/§5.2): at most 6 per member, position 0 is the
+/// primary photo. Objects live in the private media bucket under
+/// photos/<user_id>/<photo_id>.<ext> and are only served via signed URLs.
+model ProfilePhoto {
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  storageKey       String           @unique @map("storage_key")
+  contentType      String           @map("content_type") @db.VarChar(32)
+  sizeBytes        Int?             @map("size_bytes")
+  status           PhotoStatus      @default(PENDING_UPLOAD)
+  /// 0–5 once uploaded (0 = primary); NULL while pending. Unique per member.
+  position         Int?             @db.SmallInt
+  moderationStatus ModerationStatus @default(PENDING) @map("moderation_status")
+  /// Face match against the verified SmartSelfie (sprint 3).
+  faceMatchScore   Float?           @map("face_match_score")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  uploadedAt       DateTime?        @map("uploaded_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, position])
+  @@index([userId, status])
+  @@map("profile_photos")
 }
 
 /// Discovery preferences (PRD §6). Age bounds are CHECK-constrained to 18+ in SQL.
@@ -382,6 +417,24 @@ model SignupBlock {
 //   -- OTP attempts are capped at 5 by the API; the DB refuses anything absurd
 //   ALTER TABLE otp_challenges ADD CONSTRAINT otp_challenges_attempts_chk
 //     CHECK (attempts BETWEEN 0 AND 10);
+//
+//   -- Profile content limits (sprint 2)
+//   ALTER TABLE profiles ADD CONSTRAINT profiles_prompts_chk
+//     CHECK (jsonb_typeof(prompts) = 'array' AND jsonb_array_length(prompts) <= 5);
+//   ALTER TABLE profiles ADD CONSTRAINT profiles_languages_chk
+//     CHECK (cardinality(languages) <= 8);
+//   ALTER TABLE profiles ADD CONSTRAINT profiles_bio_chk
+//     CHECK (bio IS NULL OR char_length(btrim(bio)) > 0);
+//
+//   -- Photos: six slots, positions 0-5 (NULL while pending), JPEG/WebP only
+//   ALTER TABLE profile_photos ADD CONSTRAINT profile_photos_position_chk
+//     CHECK (position IS NULL OR position BETWEEN 0 AND 5);
+//   -- Pending uploads never hold a slot. (Uploaded photos may be NULL only
+//   -- inside the reorder transaction: the unique index is checked per row.)
+//   ALTER TABLE profile_photos ADD CONSTRAINT profile_photos_pending_position_chk
+//     CHECK (status = 'UPLOADED' OR position IS NULL);
+//   ALTER TABLE profile_photos ADD CONSTRAINT profile_photos_content_type_chk
+//     CHECK (content_type IN ('image/jpeg', 'image/webp'));
 //
 // Note: CURRENT_DATE in a CHECK is evaluated when a row is written, which is
 // exactly the rule we want (nobody under 18 can sign up).

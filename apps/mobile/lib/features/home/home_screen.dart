@@ -44,14 +44,19 @@ class HomeScreen extends ConsumerWidget {
           if (!verified)
             Card(
               key: const Key('verify-banner'),
-              child: Padding(
-                padding: const EdgeInsets.all(RoseSpacing.s4),
-                child: Row(
-                  children: <Widget>[
-                    Icon(Icons.verified_outlined, color: theme.colorScheme.tertiary),
-                    const SizedBox(width: RoseSpacing.s3),
-                    const Expanded(child: Text('Verify to start liking and chatting')),
-                  ],
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => context.push('/verify-intro'),
+                child: Padding(
+                  padding: const EdgeInsets.all(RoseSpacing.s4),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(Icons.verified_outlined, color: theme.colorScheme.tertiary),
+                      const SizedBox(width: RoseSpacing.s3),
+                      const Expanded(child: Text('Verify to start liking and chatting')),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -64,8 +69,15 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: RoseSpacing.s2),
           Text(
-            'Discovery is coming soon. Next: your photos and identity verification.',
+            'Discovery is coming soon. Make your profile shine in the meantime.',
             style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: RoseSpacing.s6),
+          OutlinedButton.icon(
+            key: const Key('edit-profile'),
+            onPressed: () => context.push('/profile/edit'),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit profile'),
           ),
         ],
       ),

@@ -59,6 +59,55 @@ BEGIN
 END
 $$;
 
+-- Profile limits and photo slots (sprint 2).
+DO $$
+DECLARE
+  adult uuid;
+BEGIN
+  SELECT id INTO adult FROM users WHERE phone_e164 = '+2348000000002';
+  INSERT INTO profiles (user_id, first_name, gender, intent, updated_at)
+  VALUES (adult, 'Test', 'WOMAN', 'RELATIONSHIP', now());
+
+  BEGIN
+    UPDATE profiles SET prompts = '[1,2,3,4,5,6]'::jsonb WHERE user_id = adult;
+    RAISE EXCEPTION 'profiles_prompts_chk did not reject 6 prompts';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: profiles_prompts_chk rejects more than 5 prompts';
+  END;
+
+  BEGIN
+    UPDATE profiles SET height_cm = 90 WHERE user_id = adult;
+    RAISE EXCEPTION 'profiles_height_chk did not reject 90 cm';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: profiles_height_chk rejects an implausible height';
+  END;
+
+  BEGIN
+    INSERT INTO profile_photos (id, user_id, storage_key, content_type, status, position)
+    VALUES (gen_random_uuid(), adult, 'photos/x/1.jpg', 'image/jpeg', 'UPLOADED', 6);
+    RAISE EXCEPTION 'profile_photos_position_chk did not reject slot 6';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: profile_photos_position_chk allows only slots 0-5';
+  END;
+
+  BEGIN
+    INSERT INTO profile_photos (id, user_id, storage_key, content_type, status, position)
+    VALUES (gen_random_uuid(), adult, 'photos/x/2.gif', 'image/gif', 'UPLOADED', 0);
+    RAISE EXCEPTION 'profile_photos_content_type_chk did not reject a GIF';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: profile_photos_content_type_chk allows JPEG/WebP only';
+  END;
+
+  BEGIN
+    INSERT INTO profile_photos (id, user_id, storage_key, content_type, status, position)
+    VALUES (gen_random_uuid(), adult, 'photos/x/3.jpg', 'image/jpeg', 'PENDING_UPLOAD', 0);
+    RAISE EXCEPTION 'profile_photos_pending_position_chk did not reject a pending photo holding a slot';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: pending uploads never hold a slot';
+  END;
+END
+$$;
+
 -- PostGIS is installed and the spatial index exists.
 DO $$
 BEGIN

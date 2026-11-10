@@ -123,7 +123,7 @@ resource "aws_s3_bucket_cors_configuration" "media" {
   bucket = aws_s3_bucket.media.id
 
   cors_rule {
-    allowed_methods = ["PUT"]
+    allowed_methods = ["POST"] # presigned POST uploads (size and type enforced by the policy)
     allowed_origins = var.web_origins
     allowed_headers = ["Content-Type", "Content-MD5", "x-amz-checksum-sha256"]
     max_age_seconds = 3000

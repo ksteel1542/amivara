@@ -10,6 +10,8 @@ import 'core/config.dart';
 import 'core/secure_store.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/auth_repository.dart';
+import 'features/profile/profile_providers.dart';
+import 'features/profile/profile_repository.dart';
 import 'theme/amivara_theme.dart';
 
 Future<void> main() async {
@@ -24,6 +26,7 @@ Future<void> main() async {
     overrides: [
       secureStoreProvider.overrideWithValue(store),
       authRepositoryProvider.overrideWithValue(HttpAuthRepository(api)),
+      profileRepositoryProvider.overrideWithValue(HttpProfileRepository(api)),
     ],
   );
   final restored = await container.read(sessionProvider.notifier).restore();

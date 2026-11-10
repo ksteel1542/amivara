@@ -12,6 +12,11 @@ const base = z.object({
   AWS_REGION: z.string().default('af-south-1'),
   S3_MEDIA_BUCKET: z.string().optional(),
   CLOUDFRONT_MEDIA_DOMAIN: z.string().optional(),
+  /** Local S3-compatible endpoint (MinIO) for development only. */
+  S3_ENDPOINT: z.string().url().optional(),
+  /** CloudFront key pair for signed photo URLs (secret media-signing). Required in production. */
+  MEDIA_SIGNING_KEY_PAIR_ID: z.string().optional(),
+  MEDIA_SIGNING_PRIVATE_KEY_PEM: z.string().optional(),
   SMILE_ID_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
   SMILE_ID_PARTNER_ID: z.string().optional(),
   SMILE_ID_API_KEY: z.string().optional(),
@@ -49,6 +54,19 @@ export const envSchema = base.superRefine((env, ctx) => {
   for (const key of REQUIRED_IN_DEPLOYED_ENVS) {
     if (!env[key]) {
       ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required in ${env.NODE_ENV}` });
+    }
+  }
+  // Production photos are only ever served through CloudFront signed URLs.
+  if (env.NODE_ENV === 'production') {
+    for (const key of [
+      'CLOUDFRONT_MEDIA_DOMAIN',
+      'MEDIA_SIGNING_KEY_PAIR_ID',
+      'MEDIA_SIGNING_PRIVATE_KEY_PEM',
+    ] as const) {
+      if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required in production` });
+    }
+    if (env.S3_ENDPOINT) {
+      ctx.addIssue({ code: 'custom', path: ['S3_ENDPOINT'], message: 'S3_ENDPOINT is for local development only' });
     }
   }
   // The console sender logs codes: never acceptable with real members.
