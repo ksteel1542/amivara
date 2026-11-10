@@ -82,6 +82,7 @@ export class VerificationService {
 
     return {
       verification_id: row.id,
+      method,
       environment: this.smile.environment,
       callback_url: this.smile.callbackUrl ?? null,
       partner_params: { user_id: userId, job_id: jobId, job_type: SMILE_JOB_TYPE.BIOMETRIC_KYC },

@@ -159,7 +159,19 @@ jobs:
         run: flutter test
 
       - name: Build release AAB (debug-signed until Play signing is set up)
-        run: flutter build appbundle --release
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build appbundle --release 2>&1 | tee build.log
+
+      # Job logs need sign-in to read; annotations are public. Surface Gradle's
+      # "What went wrong" section so build failures can be diagnosed from the API.
+      - name: Surface Android build errors
+        if: failure()
+        shell: bash
+        run: |
+          summary=$(grep -A 15 -E "What went wrong|^e: |ERROR:|Missing class" build.log | head -60 | awk 'BEGIN { ORS = "%0A" } { gsub(/%/, "%25"); print }')
+          echo "::error title=Android build failed::${summary}"
 
       - uses: actions/upload-artifact@v7
         with:
