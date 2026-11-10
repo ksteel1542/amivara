@@ -1,17 +1,17 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Playfair_Display } from 'next/font/google';
+import { Inter, Playfair } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import './rose-tokens.css';
 import './globals.css';
 
 // Self-hosted at build time by next/font (AMIVARA_ROSE.md §3.1).
-const display = Playfair_Display({
-  subsets: ['latin', 'latin-ext'],
-  weight: ['500', '600'],
-  variable: '--font-display',
-});
-const body = Inter({ subsets: ['latin', 'latin-ext'], variable: '--font-body' });
+// 'vietnamese' is required for Yoruba/Igbo: ẹ ọ ị ụ and the combining dot
+// below (U+0323) are only in that Google Fonts subset; Hausa ɓ ɗ ƙ ƴ and ₦
+// are in 'latin-ext'.
+const subsets: ('latin' | 'latin-ext' | 'vietnamese')[] = ['latin', 'latin-ext', 'vietnamese'];
+const display = Playfair({ subsets, axes: ['opsz', 'wdth'], variable: '--font-display' });
+const body = Inter({ subsets, variable: '--font-body' });
 
 export const metadata: Metadata = {
   title: { default: 'AMIVARA: real connections between verified adults', template: '%s · AMIVARA' },

@@ -65,7 +65,7 @@
   --am-accent-text: #8A6D12;
 
   /* Typography */
-  --am-font-display: "Playfair Display", "Georgia", serif;
+  --am-font-display: "Playfair", "Georgia", serif;
   --am-font-display-alternate: "Cormorant Garamond", "Georgia", serif;
   --am-font-body: "Inter", system-ui, "Roboto", sans-serif;
   --am-font-body-alternate: "Plus Jakarta Sans", system-ui, "Roboto", sans-serif;
@@ -87,7 +87,7 @@
   --am-type-headline-medium-tracking: 0em;
   --am-type-headline-small-size: 24px;
   --am-type-headline-small-line-height: 1.3333;
-  --am-type-headline-small-weight: 500;
+  --am-type-headline-small-weight: 600;
   --am-type-headline-small-tracking: 0em;
   --am-type-title-large-size: 22px;
   --am-type-title-large-line-height: 1.2727;

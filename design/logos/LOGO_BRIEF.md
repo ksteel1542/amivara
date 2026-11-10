@@ -47,9 +47,9 @@ The **A** of AMIVARA is drawn as **two organic curves that rise from separate po
 
 ### 2.3 Wordmark
 
-- "AMIVARA" in caps, based on **Playfair Display SemiBold (600)**, then **custom-drawn**: refine the A, M and V, and adjust kerning and stroke contrast so the result is a unique, trademarkable mark rather than plain set type.
+- "AMIVARA" in caps, based on **Playfair SemiBold (600)** (Playfair v2, which replaced Playfair Display on 2026-11-10), then **custom-drawn**: refine the A, M and V, and adjust kerning and stroke contrast so the result is a unique, trademarkable mark rather than plain set type.
 - Letter-spacing starts at +6% and is tuned by eye. Optical kerning only.
-- Playfair Display is licensed under SIL OFL 1.1, and outlined artwork derived from it may be used in the logo. The final deliverable is **outlined vector paths, never live text**.
+- Playfair is licensed under SIL OFL 1.1 with no Reserved Font Name, and outlined artwork derived from it may be used in the logo. The final deliverable is **outlined vector paths, never live text**.
 - Sentence-case "Amivara" isn't used in the logo. It's only for running text.
 
 ### 2.4 Relationship with the verified badge (important)

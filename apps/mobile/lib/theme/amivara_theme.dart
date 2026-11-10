@@ -4,9 +4,9 @@ import 'rose_tokens.g.dart';
 
 /// AMIVARA ROSE Material 3 theme, built from the generated design tokens.
 ///
-/// Brand fonts (Playfair Display, Inter) are referenced by family name. Until
-/// the subset font files are bundled under `assets/fonts/` (see
-/// AMIVARA_ROSE.md §3.1), Flutter falls back to the platform font (Roboto).
+/// Brand fonts (Playfair for headlines, Inter for UI) are bundled under
+/// `assets/fonts/` and declared in pubspec.yaml, so they work offline and
+/// cover every Yoruba, Igbo and Hausa letter and ₦ (AMIVARA_ROSE.md §3.1).
 abstract final class AmivaraTheme {
   static ThemeData light() => _build(RoseSchemes.light);
 

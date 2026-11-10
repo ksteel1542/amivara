@@ -55,7 +55,7 @@
 - [ ] Register the domain, then apply staging (needs the AWS Organization and the `af-south-1` opt-in region enabled, Stage 1 task). Steps: infra/terraform/README.md
 - [ ] CD: deploy pipeline, `prisma migrate deploy` release step, Android AAB to the Play internal testing track (needs the Play Console account and an upload key)
 - [x] CodeQL (TypeScript and GitHub Actions, security-extended, weekly) and Dependabot (npm, pub, GitHub Actions, Terraform; grouped, framework majors held back)
-- [ ] Bundle the subset Playfair Display and Inter fonts in the Android app
+- [x] Bundle the brand fonts in the Android app: Playfair 600/700 and Inter 400/500/600 as static subsets with full Yoruba, Igbo and Hausa coverage and ₦ (`scripts/fonts/build_fonts.py`, tests in `apps/mobile/test/fonts_test.dart`)
 - [ ] Smile ID sandbox wired end to end: job signature endpoint, callback webhook, Flutter and Web SDK smoke test (needs sandbox keys)
 
 ## Stage 4: MVP development

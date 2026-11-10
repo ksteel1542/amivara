@@ -25,6 +25,7 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display), var(--am-font-display);
+  font-stretch: 100%; /* Playfair wdth spans 87.5–112.5; pin it to match the Android build (wdth 100) */
   font-weight: var(--am-type-headline-large-weight);
   margin: 0;
 }

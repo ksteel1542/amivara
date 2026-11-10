@@ -22,6 +22,7 @@ h2 {
 
 h1 {
   font-family: var(--font-display), var(--am-font-display);
+  font-stretch: 100%; /* Playfair wdth spans 87.5–112.5; pin it to match the Android build (wdth 100) */
   font-size: var(--am-type-headline-medium-size);
   color: var(--am-secondary);
 }
@@ -66,6 +67,7 @@ a {
 
 .brand {
   font-family: var(--font-display), var(--am-font-display);
+  font-stretch: 100%; /* Playfair wdth spans 87.5–112.5; pin it to match the Android build (wdth 100) */
   font-size: var(--am-type-title-large-size);
   letter-spacing: 0.15em;
   margin-bottom: var(--am-space-6);
@@ -131,5 +133,6 @@ a {
 .count {
   font-size: var(--am-type-display-small-size);
   font-family: var(--font-display), var(--am-font-display);
+  font-stretch: 100%; /* Playfair wdth spans 87.5–112.5; pin it to match the Android build (wdth 100) */
   margin: var(--am-space-2) 0;
 }

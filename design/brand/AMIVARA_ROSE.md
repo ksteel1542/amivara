@@ -97,24 +97,37 @@ These tokens exist so the core palette meets WCAG 2.2 AA contrast. All ratios be
 
 | Role | Primary | Approved alternate | Licence |
 |---|---|---|---|
-| **Editorial / display** | **Playfair Display** | Cormorant Garamond | SIL OFL 1.1 |
+| **Editorial / display** | **Playfair** | Cormorant Garamond | SIL OFL 1.1 |
 | **UI / body** | **Inter** | Plus Jakarta Sans | SIL OFL 1.1 |
 
-**Recommendation:** ship **Playfair Display + Inter** as the default pair. Use Cormorant Garamond only for large editorial moments (36sp and above, such as pull-quotes and the launch campaign), because its thin strokes break up on low-density screens below that size. Plus Jakarta Sans is the alternate if we want a friendlier, rounder UI voice in testing. **Don't ship all four in the app**, to keep the APK small.
+> **Change (founder decision, 2026-11-10): Playfair replaces Playfair Display.** Playfair (v2) is the successor by the same designer, with a nearly identical look. Playfair Display can't render the Hausa hooked letters (Ɓ ɓ Ɗ ɗ Ƙ ƙ Ƴ ƴ) or the Naira sign ₦, so a Hausa name on a profile card would mix fonts. Playfair and Inter both cover **every Yoruba, Igbo and Hausa letter and ₦ natively**.
+
+**Recommendation:** ship **Playfair + Inter** as the default pair.
+- Use Cormorant Garamond only for large editorial moments (36sp and above, such as pull-quotes and the launch campaign), because its thin strokes break up on low-density screens below that size. It also lacks the Hausa hooked letters, so use it for **English marketing copy only**.
+- Plus Jakarta Sans is the alternate if we want a friendlier, rounder UI voice in testing.
+- **Don't ship all four in the app**, to keep the APK small.
 
 **Delivery:**
-- **Android:** fonts are **bundled** as subset variable TTFs (Latin and Latin Extended, so Yoruba, Igbo and Hausa diacritics like ẹ ọ ṣ ń ƙ ɗ ƴ render correctly). Don't use the `google_fonts` package's runtime download, because it costs members data and breaks when they're offline.
+- **Android:** fonts are **bundled** in `apps/mobile/assets/fonts/` as static subset TTFs, built reproducibly by `scripts/fonts/build_fonts.py` from a pinned, checksum-verified Google Fonts source:
+  - Playfair SemiBold 600 and Bold 700
+  - Inter Regular 400, Medium 500 and SemiBold 600
+  - Character set: Latin, Latin Extended, Yoruba, Igbo, Hausa and ₦
+  - Playfair is pinned at **optical size 24 and width 100**. At larger optical sizes its hairlines (including the ₦ crossbars) disappear on low-density screens, and width 100 is closest to Playfair Display's proportions.
+  - Total about 1 MB before APK compression.
+  - Never use the `google_fonts` package's runtime download: it costs members data and breaks offline.
 - **Web:** `next/font/google` with `display: swap`, self-hosted at build time.
+  - Subsets: `latin`, `latin-ext` **and `vietnamese`**. Yoruba and Igbo ẹ ọ ị ụ and the combining dot below are only in Google's `vietnamese` subset.
+  - Headings set `font-stretch: 100%` to match Android.
 
 ### 3.2 Type scale (Material 3 roles)
 
 | M3 role | Face | Size / line height (sp) | Weight | Use |
 |---|---|---|---|---|
-| `displayLarge` | Playfair Display | 48 / 56 | 600 | Welcome hero |
-| `displaySmall` | Playfair Display | 36 / 44 | 600 | Celebration ("It's a match") |
-| `headlineLarge` | Playfair Display | 32 / 40 | 600 | Screen titles in onboarding |
-| `headlineMedium` | Playfair Display | 28 / 36 | 600 | Section titles |
-| `headlineSmall` | Playfair Display | 24 / 32 | 500 | Profile name on cards |
+| `displayLarge` | Playfair | 48 / 56 | 600 | Welcome hero |
+| `displaySmall` | Playfair | 36 / 44 | 600 | Celebration ("It's a match") |
+| `headlineLarge` | Playfair | 32 / 40 | 600 | Screen titles in onboarding |
+| `headlineMedium` | Playfair | 28 / 36 | 600 | Section titles |
+| `headlineSmall` | Playfair | 24 / 32 | 600 | Profile name on cards (was 500; 600 is the lightest bundled Playfair weight) |
 | `titleLarge` | Inter | 22 / 28 | 600 | App bar titles |
 | `titleMedium` | Inter | 16 / 24 | 600 | List headers, card titles |
 | `bodyLarge` | Inter | 16 / 24 | 400 | Main body copy |
@@ -205,7 +218,7 @@ abstract final class RoseBrand {
   --am-bg: #FDFBF7;       --am-surface: #F6F0E8;
   --am-text: #2A1A20;     --am-text-muted: #6B5A60;
   --am-line: #E7DCD3;
-  --am-font-display: "Playfair Display", Georgia, serif;
+  --am-font-display: "Playfair", Georgia, serif;
   --am-font-body: "Inter", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -224,7 +237,7 @@ The canonical tokens live in [`tokens.json`](tokens.json) (W3C Design Tokens for
 
 ## 8. Logo (summary; the full brief is in `design/logos/LOGO_BRIEF.md`)
 
-- Wordmark: "AMIVARA" in Playfair Display SemiBold with custom letter-spacing, burgundy on ivory or ivory on burgundy.
+- Wordmark: "AMIVARA" based on Playfair SemiBold with custom letter-spacing, burgundy on ivory or ivory on burgundy.
 - Monogram: a stylised **A** formed by two curves meeting (mutual connection), with a small gold point at the apex.
 - The minimum clear space around the logo is the height of the "A".
 - App icon: the monogram in ivory with a gold apex point on a **Burgundy `#52182F`** background (**confirmed by the founder**. It replaces Deep Rose, because gold on rose isn't allowed). Full spec in [`design/logos/LOGO_BRIEF.md`](../logos/LOGO_BRIEF.md).

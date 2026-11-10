@@ -119,7 +119,7 @@ abstract final class RoseMotion {
 
 /// Font families. The first entry is the brand face; the rest are fallbacks.
 abstract final class RoseFonts {
-  static const String display = 'Playfair Display';
+  static const String display = 'Playfair';
   static const List<String> displayFallback = <String>[];
   static const String displayAlternate = 'Cormorant Garamond';
   static const List<String> displayAlternateFallback = <String>[];
@@ -132,7 +132,7 @@ abstract final class RoseFonts {
 /// Material 3 type roles. letterSpacing tokens are in em and are converted to dp here.
 abstract final class RoseType {
   static const TextStyle displayLarge = TextStyle(
-    fontFamily: 'Playfair Display',
+    fontFamily: 'Playfair',
     fontFamilyFallback: <String>[],
     fontSize: 48.0,
     height: 1.1667,
@@ -140,7 +140,7 @@ abstract final class RoseType {
     letterSpacing: 0.0,
   );
   static const TextStyle displaySmall = TextStyle(
-    fontFamily: 'Playfair Display',
+    fontFamily: 'Playfair',
     fontFamilyFallback: <String>[],
     fontSize: 36.0,
     height: 1.2222,
@@ -148,7 +148,7 @@ abstract final class RoseType {
     letterSpacing: 0.0,
   );
   static const TextStyle headlineLarge = TextStyle(
-    fontFamily: 'Playfair Display',
+    fontFamily: 'Playfair',
     fontFamilyFallback: <String>[],
     fontSize: 32.0,
     height: 1.25,
@@ -156,7 +156,7 @@ abstract final class RoseType {
     letterSpacing: 0.0,
   );
   static const TextStyle headlineMedium = TextStyle(
-    fontFamily: 'Playfair Display',
+    fontFamily: 'Playfair',
     fontFamilyFallback: <String>[],
     fontSize: 28.0,
     height: 1.2857,
@@ -164,11 +164,11 @@ abstract final class RoseType {
     letterSpacing: 0.0,
   );
   static const TextStyle headlineSmall = TextStyle(
-    fontFamily: 'Playfair Display',
+    fontFamily: 'Playfair',
     fontFamilyFallback: <String>[],
     fontSize: 24.0,
     height: 1.3333,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w600,
     letterSpacing: 0.0,
   );
   static const TextStyle titleLarge = TextStyle(

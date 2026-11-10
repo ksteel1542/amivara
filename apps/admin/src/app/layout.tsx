@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
-import { Inter, Playfair_Display } from 'next/font/google';
+import { Inter, Playfair } from 'next/font/google';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import './rose-tokens.css';
 import './globals.css';
 
-const display = Playfair_Display({ subsets: ['latin'], weight: ['600'], variable: '--font-display' });
-const body = Inter({ subsets: ['latin'], variable: '--font-body' });
+// Moderators read member names in Yoruba, Igbo and Hausa: same subsets as the public web app.
+const subsets: ('latin' | 'latin-ext' | 'vietnamese')[] = ['latin', 'latin-ext', 'vietnamese'];
+const display = Playfair({ subsets, axes: ['opsz', 'wdth'], variable: '--font-display' });
+const body = Inter({ subsets, variable: '--font-body' });
 
 export const metadata: Metadata = {
   title: { default: 'AMIVARA Admin', template: '%s · AMIVARA Admin' },
