@@ -68,6 +68,14 @@ locals {
           MEDIA_SIGNING_KEY_PAIR_ID     = "${aws_secretsmanager_secret.app["media-signing"].arn}:key_pair_id::"
           MEDIA_SIGNING_PRIVATE_KEY_PEM = "${aws_secretsmanager_secret.app["media-signing"].arn}:private_key_pem::"
         } : k => v if local.media_signing_enabled
+      },
+      # FCM service account: only injected once the secret has a value.
+      {
+        for k, v in {
+          FCM_PROJECT_ID      = "${aws_secretsmanager_secret.app["fcm"].arn}:project_id::"
+          FCM_CLIENT_EMAIL    = "${aws_secretsmanager_secret.app["fcm"].arn}:client_email::"
+          FCM_PRIVATE_KEY_PEM = "${aws_secretsmanager_secret.app["fcm"].arn}:private_key::"
+        } : k => v if var.push_enabled
     })
     web   = {}
     admin = {}

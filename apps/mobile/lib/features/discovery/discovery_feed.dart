@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
@@ -138,12 +139,22 @@ class _DiscoveryFeedState extends ConsumerState<DiscoveryFeed> {
   Future<void> _showMatch(DiscoveryCard card) {
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         key: const Key('match-dialog'),
-        icon: const VerifiedBadge(size: 40),
-        title: Text("It's a match", style: Theme.of(context).textTheme.headlineSmall),
-        content: Text('You and ${card.firstName} like each other. Chat is coming soon.'),
-        actions: <Widget>[TextButton(onPressed: () => Navigator.pop(context), child: const Text('Keep browsing'))],
+        icon: const VerifiedBadge(size: 48),
+        title: Text("It's a Match!", style: Theme.of(dialogContext).textTheme.headlineMedium),
+        content: Text('You and ${card.firstName} like each other.', textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Keep browsing')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              context.push('/matches');
+            },
+            child: const Text('View matches'),
+          ),
+        ],
       ),
     );
   }

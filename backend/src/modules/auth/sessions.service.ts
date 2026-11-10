@@ -52,6 +52,7 @@ export class SessionsService {
           where: { familyId: session.familyId, revokedAt: null },
           data: { revokedAt: new Date() },
         });
+        await this.prisma.pushToken.deleteMany({ where: { session: { familyId: session.familyId } } });
         this.logger.warn(`Refresh token reuse: revoked ${revoked.count} session(s) in family ${session.familyId}`);
         throw new ApiError(HttpStatus.UNAUTHORIZED, 'REFRESH_TOKEN_REUSED', 'Please sign in again.');
       }
@@ -83,6 +84,8 @@ export class SessionsService {
           expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000),
         },
       });
+      // Push tokens follow the device from the rotated session to the new one.
+      await tx.pushToken.updateMany({ where: { sessionId: session.id }, data: { sessionId: nextId } });
     });
     return pair;
   }
@@ -92,6 +95,8 @@ export class SessionsService {
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    // A signed-out phone must stop receiving this member's notifications.
+    await this.prisma.pushToken.deleteMany({ where: { sessionId, userId } });
     return result.count > 0;
   }
 

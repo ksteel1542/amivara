@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,8 @@ import 'package:amivara/features/discovery/discovery_models.dart';
 import 'package:amivara/features/discovery/discovery_providers.dart';
 import 'package:amivara/features/discovery/discovery_repository.dart';
 import 'package:amivara/features/home/home_screen.dart';
+import 'package:amivara/features/matches/matches_repository.dart';
+import 'package:amivara/features/notifications/push_registrar.dart';
 import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_models.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
@@ -348,3 +351,53 @@ class FakeLocationSource implements LocationSource {
 }
 
 Widget placeholderImage(BuildContext context, String url) => ColoredBox(color: Colors.brown, child: Text(url));
+
+MatchSummary matchOf(String id, {String name = 'Tunde', int unread = 0, String? last}) => MatchSummary(
+  matchId: id,
+  userId: 'user-$id',
+  firstName: name,
+  age: 30,
+  verified: true,
+  unreadCount: unread,
+  lastMessage: last,
+);
+
+class FakeMatchesRepository implements MatchesRepository {
+  FakeMatchesRepository({List<MatchSummary>? matches}) : matches = matches ?? <MatchSummary>[];
+
+  List<MatchSummary> matches;
+  final List<String> calls = <String>[];
+
+  @override
+  Future<List<MatchSummary>> list(String accessToken) async {
+    calls.add('list');
+    return List.of(matches);
+  }
+
+  @override
+  Future<void> unmatch(String accessToken, String matchId) async {
+    calls.add('unmatch:$matchId');
+    matches = matches.where((m) => m.matchId != matchId).toList();
+  }
+
+  @override
+  Future<void> registerPushToken(String accessToken, String token) async => calls.add('token:$token');
+}
+
+class FakePushRegistrar implements PushRegistrar {
+  final StreamController<String> controller = StreamController<String>.broadcast();
+  int starts = 0;
+  Future<void> Function(String token)? onToken;
+
+  @override
+  Stream<String> get events => controller.stream;
+
+  @override
+  Future<void> start(Future<void> Function(String token) onToken) async {
+    starts++;
+    this.onToken = onToken;
+  }
+
+  @override
+  Future<void> stop() async {}
+}

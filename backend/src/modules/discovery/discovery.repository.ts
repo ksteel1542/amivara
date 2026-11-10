@@ -105,9 +105,9 @@ export class DiscoveryRepository {
            AND NOT EXISTS (SELECT 1 FROM likes l WHERE l.liker_id = me.id AND l.likee_id = u.id)
            AND NOT EXISTS (SELECT 1 FROM passes s
                             WHERE s.passer_id = me.id AND s.passee_id = u.id AND s.expires_at > now())
+           -- Matched pairs never meet again in discovery, including after an unmatch (PRD 5.4).
            AND NOT EXISTS (SELECT 1 FROM matches m
-                            WHERE m.user_a_id = LEAST(me.id, u.id) AND m.user_b_id = GREATEST(me.id, u.id)
-                              AND m.unmatched_at IS NULL)
+                            WHERE m.user_a_id = LEAST(me.id, u.id) AND m.user_b_id = GREATEST(me.id, u.id))
            AND EXISTS (SELECT 1 FROM profile_photos ph
                         WHERE ph.user_id = u.id AND ph.status = 'UPLOADED' AND ph.moderation_status <> 'REJECTED')
       ),

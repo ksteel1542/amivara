@@ -90,7 +90,7 @@ void main() {
     await swipe(tester, 320);
     expect(discovery.calls, contains('like:a'));
     expect(find.byKey(const Key('match-dialog')), findsOneWidget);
-    expect(find.text("It's a match"), findsOneWidget);
+    expect(find.text("It's a Match!"), findsOneWidget);
   });
 
   testWidgets('unverified: swiping right opens the verify prompt instead of liking', (tester) async {

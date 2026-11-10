@@ -16,6 +16,7 @@ import { SafetyModule } from './modules/safety/safety.module';
 import { UsersModule } from './modules/users/users.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { DomainEventsModule } from './common/domain-events';
 import { HasherModule } from './common/hasher.service';
 
 /** Modular monolith: one deployable, clear module boundaries (ARCHITECTURE.md §3). */
@@ -24,6 +25,7 @@ import { HasherModule } from './common/hasher.service';
     ConfigModule.forRoot({ isGlobal: true, cache: true, validate: validateEnv }),
     PrismaModule,
     HasherModule,
+    DomainEventsModule,
     HealthModule,
     AuthModule,
     UsersModule,

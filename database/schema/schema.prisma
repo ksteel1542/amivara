@@ -140,6 +140,7 @@ model User {
   profile       Profile?
   preference    Preference?
   sessions      DeviceSession[]
+  pushTokens    PushToken[]
   verifications Verification[]
   matchesAsA    Match[]         @relation("MatchUserA")
   matchesAsB    Match[]         @relation("MatchUserB")
@@ -414,11 +415,31 @@ model DeviceSession {
   /// Set when this token was rotated: the session that replaced it.
   replacedById     String?   @map("replaced_by_id") @db.Uuid
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushTokens PushToken[]
 
   @@index([userId, revokedAt])
   @@index([familyId])
   @@map("device_sessions")
+}
+
+/// An FCM registration token for push notifications. Tied to the device
+/// session, so signing out (or revoking the session) stops pushes to that phone.
+model PushToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  sessionId  String   @map("session_id") @db.Uuid
+  token      String   @unique @db.VarChar(4096)
+  platform   String   @db.VarChar(16)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session DeviceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionId])
+  @@map("push_tokens")
 }
 
 /// Under-18 signup attempts block the phone and the device for 12 months
@@ -472,6 +493,10 @@ model SignupBlock {
 //   ALTER TABLE likes  ADD CONSTRAINT likes_not_self_chk  CHECK (liker_id <> likee_id);
 //   ALTER TABLE passes ADD CONSTRAINT passes_not_self_chk CHECK (passer_id <> passee_id);
 //   ALTER TABLE blocks ADD CONSTRAINT blocks_not_self_chk CHECK (blocker_id <> blocked_id);
+//
+//   -- Push tokens: shipped platforms only (sprint 5)
+//   ALTER TABLE push_tokens ADD CONSTRAINT push_tokens_platform_chk
+//     CHECK (platform IN ('android', 'web', 'ios'));
 //
 //   -- Profile content limits (sprint 2)
 //   ALTER TABLE profiles ADD CONSTRAINT profiles_prompts_chk

@@ -225,3 +225,9 @@ variable "create_github_oidc_provider" {
   type        = bool
   default     = true
 }
+
+variable "push_enabled" {
+  description = "Inject the FCM service account into the API (set true once the fcm secret has a value). Without it, push is disabled."
+  type        = bool
+  default     = false
+}

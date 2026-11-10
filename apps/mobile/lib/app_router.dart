@@ -5,6 +5,7 @@ import 'features/auth/auth_providers.dart';
 import 'features/auth/otp_screen.dart';
 import 'features/auth/phone_screen.dart';
 import 'features/home/home_screen.dart';
+import 'features/matches/matches_screen.dart';
 import 'features/onboarding/basics_screen.dart';
 import 'features/onboarding/dob_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
@@ -25,7 +26,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       final flow = ref.read(signupFlowProvider);
       final signedIn = ref.read(sessionProvider) != null;
       return switch (state.matchedLocation) {
-        '/home' || '/profile/setup' || '/profile/edit' || '/verify-intro' when !signedIn => '/',
+        '/home' || '/profile/setup' || '/profile/edit' || '/verify-intro' || '/matches' when !signedIn => '/',
         final String path when path.startsWith('/verify/') && !signedIn => '/',
         '/' || '/phone' when signedIn => '/home',
         '/otp' when flow.challenge == null => '/phone',
@@ -54,6 +55,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
           attemptsLeft: int.tryParse(state.uri.queryParameters['attempts'] ?? ''),
         ),
       ),
+      GoRoute(path: '/matches', builder: (_, _) => const MatchesScreen()),
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
     ],
   );

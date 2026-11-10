@@ -124,8 +124,8 @@ The app compresses every photo to **≤ 300 KB JPEG** before uploading (stepping
 | POST | `/matching/passes` | 🔑 | *(sprint 4)* Body `{ user_id }`. Returns `204`. Open before verification. The member is hidden from your stack for 30 days. |
 | POST | `/matching/rewind` | ✅ Plus | Undo your last pass. |
 | GET | `/matching/likes/received` | ✅ | Free members get a blurred count. Plus members get the full list. |
-| GET | `/matches` | ✅ | Paginated list of your matches. |
-| DELETE | `/matches/:id` | ✅ | Unmatch. Removes the conversation for both members. |
+| GET | `/matches` | ✅ | *(sprint 5)* `{ matches: [{ match_id, matched_at, photos_unlocked, user: { user_id, first_name, age, verified, photo_url }, last_message: { snippet, from_me, sent_at } \| null, unread_count }] }`, newest conversation first. Matches with members since banned or deleted are hidden. |
+| DELETE | `/matches/:id` | ✅ | *(sprint 5)* Unmatch. Returns `204`. **Final for both members:** the match and its conversation close, the pair never see each other in discovery again, and a later like never re-creates the match. Emits `match.unmatched`. Repeating it, or calling it as a non-participant, returns `404`. |
 
 ### How discovery works (sprint 4)
 
@@ -158,6 +158,29 @@ There is no scoring on ethnicity, religion or "desirability".
 - Coordinates and exact distances are never returned.
 
 **Paging:** the cursor fixes "now" for the session, so scores stay stable from page to page. A cursor expires after 6 hours.
+
+## Notifications
+
+*Implemented in Stage 4, sprint 5.* Firebase Cloud Messaging (HTTP v1), sent directly from the API with a Google service-account token. No `firebase-admin` SDK is used.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| POST | `/notifications/tokens` | 🔑 | Body `{ token, platform: "android" \| "web" }`. Returns `204`. Binds the FCM token to **this device session**. If another account registers the same token later, it moves to that account. |
+| DELETE | `/notifications/tokens` | 🔑 | Body `{ token }`. Returns `204`. |
+
+**Lifecycle:**
+- Logging out, revoking a session, or a refresh-token reuse that ends the session family deletes that session's tokens.
+- A refresh moves the tokens to the new session.
+- Tokens FCM reports as unregistered are deleted.
+
+**Pushes and their privacy** (a lock screen is visible to anyone near the phone):
+
+| Event | Recipients | Visible notification | Data |
+|---|---|---|---|
+| `match.created` | both members | "It's a match ✦ / You have a new match on AMIVARA. Open the app to see who." **No names**, Android visibility `PRIVATE` | `{ type: "match.created", match_id }` |
+| `match.unmatched` | the other member only | **none** (silent, data-only): no "X unmatched you" | `{ type: "match.removed", match_id }`. The app refreshes its list |
+
+Push payloads never contain names, photos, phone numbers or any location. Push is off until `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` and `FCM_PRIVATE_KEY_PEM` are set (Terraform: the `fcm` secret plus `push_enabled = true`).
 
 ## Messaging
 

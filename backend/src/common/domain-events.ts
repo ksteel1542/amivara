@@ -1,0 +1,40 @@
+import { EventEmitter } from 'node:events';
+
+import { Global, Injectable, Logger, Module } from '@nestjs/common';
+
+/** Domain events (in-process). Moves to a queue when the BullMQ worker exists. */
+export interface DomainEventMap {
+  /** A mutual like created a match. */
+  'match.created': { matchId: string; userIds: [string, string] };
+  /** One member unmatched; both lose the match and the conversation. */
+  'match.unmatched': { matchId: string; byUserId: string; otherUserId: string };
+}
+
+export type DomainEventName = keyof DomainEventMap;
+
+/**
+ * A tiny typed event bus. Listeners run after the emitting request's work is
+ * committed (emit is called after the transaction), and a failing listener
+ * never fails the request: errors are logged.
+ */
+@Injectable()
+export class DomainEvents {
+  private readonly logger = new Logger(DomainEvents.name);
+  private readonly emitter = new EventEmitter();
+
+  on<E extends DomainEventName>(event: E, listener: (payload: DomainEventMap[E]) => Promise<void> | void): void {
+    this.emitter.on(event, (payload: DomainEventMap[E]) => {
+      Promise.resolve()
+        .then(() => listener(payload))
+        .catch((error: unknown) => this.logger.error(`Listener for ${event} failed: ${(error as Error).message}`));
+    });
+  }
+
+  emit<E extends DomainEventName>(event: E, payload: DomainEventMap[E]): void {
+    this.emitter.emit(event, payload);
+  }
+}
+
+@Global()
+@Module({ providers: [DomainEvents], exports: [DomainEvents] })
+export class DomainEventsModule {}

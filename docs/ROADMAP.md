@@ -67,7 +67,8 @@
   - Open: Smile ID sandbox keys and a real end-to-end run, confirming the `Actions` decision against real sandbox payloads; Document Verification as a fallback for members without a NIN; the admin manual-review queue (sprints 7–8); push notification when a result arrives.
 - Sprint 4 ✅ (code complete, 2026-11-11): Discovery: the PostGIS candidate query with every PRD §6 filter (both radii, mutual gender and age, verified-only, liked, passed, blocked and matched excluded), ranking v1 (distance, activity, age fit, completeness, small shuffle), a keyset cursor and coarse, jittered distance labels. Likes (verified only, 50 a day, a mutual like creates a match) and passes (30 days). Android swipe stack with photo carousels, the gold badge, the verify prompt for unverified likes, a match dialog and a coarse-location step.
   - Open: the blocking and reporting UI (sprint 7); widening the radius in the app; a ranking v2 that learns from engagement.
-- Sprint 5: Matches list, unmatch, push notifications (new match, verification result)
+- Sprint 5 ✅ (code complete, 2026-11-11): Matches list (unread counts, last message), final unmatch (no rematch, gone from discovery both ways), domain events, FCM HTTP v1 push without firebase-admin (privacy: generic match notifications with no names, silent unmatch refresh), push tokens bound to device sessions. Android matches screen, unmatch confirmation, "It's a Match!" modal, FCM registration on sign-in.
+  - Open: a Firebase project plus the `fcm` secret (push is off until then); a push for verification results; migrating the app to `register()`/`onRegistered` (Firebase Installation IDs) once the FCM v1 sender is confirmed against them.
 - Sprint 6: Messaging (REST + WebSocket), photo unlocking
 - Sprint 7–8: Blocking and reporting, admin moderation console, account controls, data export and deletion
 

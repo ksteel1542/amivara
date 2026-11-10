@@ -11,6 +11,8 @@ import 'core/secure_store.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/discovery/discovery_providers.dart';
+import 'features/matches/matches_providers.dart';
+import 'features/matches/matches_repository.dart';
 import 'features/discovery/discovery_repository.dart';
 import 'features/profile/profile_providers.dart';
 import 'features/profile/profile_repository.dart';
@@ -35,6 +37,7 @@ Future<void> main() async {
       profileRepositoryProvider.overrideWithValue(HttpProfileRepository(api)),
       verificationRepositoryProvider.overrideWithValue(HttpVerificationRepository(api)),
       discoveryRepositoryProvider.overrideWithValue(HttpDiscoveryRepository(api)),
+      matchesRepositoryProvider.overrideWithValue(HttpMatchesRepository(api)),
       identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],
   );
@@ -70,6 +73,27 @@ class AmivaraApp extends ConsumerStatefulWidget {
 
 class _AmivaraAppState extends ConsumerState<AmivaraApp> {
   late final GoRouter _router = buildRouter(ref, initialLocation: widget.initialLocation);
+
+  @override
+  void initState() {
+    super.initState();
+    // Register for push whenever a session starts (also right away when restored at launch).
+    ref.listenManual(sessionProvider, (previous, next) {
+      if (next == null) {
+        ref.read(pushRegistrarProvider).stop();
+      } else if (previous == null) {
+        ref.read(pushRegistrarProvider).start((token) async {
+          final session = ref.read(sessionProvider);
+          if (session == null) return;
+          try {
+            await ref.read(matchesRepositoryProvider).registerPushToken(session.accessToken, token);
+          } on Object {
+            // Retried on the next launch or token refresh; never blocks the app.
+          }
+        });
+      }
+    }, fireImmediately: true);
+  }
 
   @override
   void dispose() {

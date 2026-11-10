@@ -21,6 +21,10 @@ const base = z.object({
   SMILE_ID_PARTNER_ID: z.string().optional(),
   SMILE_ID_API_KEY: z.string().optional(),
   SMILE_ID_CALLBACK_URL: z.string().url().optional(),
+  /** Firebase Cloud Messaging (HTTP v1) service account. Push is disabled when unset. */
+  FCM_PROJECT_ID: z.string().optional(),
+  FCM_CLIENT_EMAIL: z.string().email().optional(),
+  FCM_PRIVATE_KEY_PEM: z.string().optional(),
   /** Smile ID job_status fallback poll interval. 0 disables it (dev, tests). Deployed: 120. */
   VERIFICATION_POLL_SECONDS: z.coerce.number().int().min(0).max(3600).default(0),
 

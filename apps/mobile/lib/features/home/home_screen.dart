@@ -33,7 +33,15 @@ class HomeScreen extends ConsumerWidget {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text('AMIVARA', style: theme.textTheme.titleLarge?.copyWith(letterSpacing: 4)),
+            // Flexible: with the badge and three actions, the title must give way at large text sizes.
+            Flexible(
+              child: Text(
+                'AMIVARA',
+                style: theme.textTheme.titleLarge?.copyWith(letterSpacing: 4),
+                overflow: TextOverflow.fade,
+                softWrap: false,
+              ),
+            ),
             if (verified == true) ...<Widget>[
               const SizedBox(width: RoseSpacing.s2),
               const VerifiedBadge(key: Key('verified-badge'), size: 20),
@@ -41,6 +49,12 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
         actions: <Widget>[
+          IconButton(
+            key: const Key('matches-button'),
+            tooltip: 'Matches',
+            icon: const Icon(Icons.chat_bubble_outline),
+            onPressed: () => context.push('/matches'),
+          ),
           IconButton(
             key: const Key('edit-profile'),
             tooltip: 'Edit profile',

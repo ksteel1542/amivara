@@ -4,6 +4,8 @@
     <!-- Coarse only (~2 km): enough for discovery, kinder to privacy. The API
          rounds to ~100 m and never shows exact distances (SECURITY.md §4). -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Android 13+: asked once, after sign-in, for match notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="AMIVARA"
