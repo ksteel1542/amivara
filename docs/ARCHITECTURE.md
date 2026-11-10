@@ -91,7 +91,7 @@ Cross-cutting:
 
 **Like → Match:** `POST /matching/likes`. A transaction inserts the like and checks whether the other person already liked back. If they did, it creates the match and conversation, emits `match.created`, and pushes a notification to both members.
 
-**Verification gating:** a guard in the API (`@RequireAgeVerified()`) protects likes, Super Likes, rewind, messaging, the conversation endpoints and the Plus purchase. It returns `403 NOT_AGE_VERIFIED` to members who aren't verified. The discovery query only returns members where `age_verified = true`, so unverified members can browse but other members never see them (PRD §5.3a).
+**Verification gating:** a guard in the API (`@RequireAgeVerified()`) protects likes, Super Likes, rewind, messaging, the conversation endpoints and the Plus purchase. It returns `403 VERIFICATION_REQUIRED` to members who aren't verified. The discovery query only returns members where `age_verified = true`, so unverified members can browse but other members never see them (PRD §5.3a).
 
 **Verification (Smile ID):**
 1. The client calls `POST /verification/sessions`. The API creates a `Verification` row (`PENDING`) and returns the Smile ID partner parameters (`user_id`, `job_id`, `job_type`) plus a server-generated signature or token. The Smile ID API key never leaves the server.

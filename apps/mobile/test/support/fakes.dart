@@ -12,6 +12,9 @@ import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_models.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
 import 'package:amivara/features/profile/profile_repository.dart';
+import 'package:amivara/features/verification/identity_capture.dart';
+import 'package:amivara/features/verification/verification_providers.dart';
+import 'package:amivara/features/verification/verification_repository.dart';
 import 'package:amivara/main.dart';
 
 /// Scriptable AuthRepository: each call records its arguments and returns
@@ -106,6 +109,8 @@ Future<void> pumpApp(
         secureStoreProvider.overrideWithValue(store ?? MemoryStore()),
         profileRepositoryProvider.overrideWithValue(profiles ?? FakeProfileRepository()),
         photoProcessorProvider.overrideWithValue(FakePhotoProcessor()),
+        verificationRepositoryProvider.overrideWithValue(FakeVerificationRepository()),
+        identityCaptureProvider.overrideWithValue(FakeIdentityCapture()),
         ...extraOverrides.cast(),
       ],
       child: AmivaraApp(initialLocation: initialLocation),
@@ -208,4 +213,69 @@ class FakeProfileRepository implements ProfileRepository {
 class FakePhotoProcessor implements PhotoProcessor {
   @override
   Future<Uint8List?> pickAndCompress() async => Uint8List.fromList(List<int>.filled(1024, 7));
+}
+
+const VerificationTicket kTicket = VerificationTicket(
+  verificationId: 'v-1',
+  userId: 'u-1',
+  jobId: 'job-1',
+  jobType: 1,
+  callbackUrl: 'https://api.example.test/v1/verification/webhook',
+  sandbox: true,
+  attemptsLeft: 3,
+);
+
+VerificationStatus vStatus(VerificationOutcome outcome, {int attemptsLeft = 3, bool verified = false}) =>
+    VerificationStatus(ageVerified: verified, outcome: outcome, attemptsLeft: attemptsLeft);
+
+/// Returns queued statuses in order (the last one repeats).
+class FakeVerificationRepository implements VerificationRepository {
+  FakeVerificationRepository({List<VerificationStatus>? statuses, this.sessionError})
+    : _statuses = statuses ?? <VerificationStatus>[vStatus(VerificationOutcome.pending)];
+
+  final List<VerificationStatus> _statuses;
+  final ApiException? sessionError;
+  int sessions = 0;
+  int polls = 0;
+
+  @override
+  Future<VerificationTicket> startSession(String accessToken) async {
+    sessions++;
+    if (sessionError != null) throw sessionError!;
+    return kTicket;
+  }
+
+  @override
+  Future<VerificationStatus> status(String accessToken) async {
+    polls++;
+    return _statuses.length > 1 ? _statuses.removeAt(0) : _statuses.first;
+  }
+}
+
+/// Stands in for the Smile ID SDK view: two buttons simulate the SDK's callbacks.
+class FakeIdentityCapture implements IdentityCapture {
+  FakeIdentityCapture({this.available = true});
+
+  @override
+  final bool available;
+  String? lastNin;
+  VerificationTicket? lastTicket;
+
+  @override
+  Widget biometricKyc({
+    required VerificationTicket ticket,
+    required String nin,
+    required DateTime consentGrantedAt,
+    required VoidCallback onSubmitted,
+    required ValueChanged<String> onError,
+  }) {
+    lastNin = nin;
+    lastTicket = ticket;
+    return Column(
+      children: <Widget>[
+        TextButton(onPressed: onSubmitted, child: const Text('SDK: submitted')),
+        TextButton(onPressed: () => onError('Camera permission denied'), child: const Text('SDK: error')),
+      ],
+    );
+  }
 }

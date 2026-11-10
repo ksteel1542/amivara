@@ -83,7 +83,7 @@ Members can skip verification at the end of onboarding (the "I'll do it later" o
 - Unverified members are **never shown** to others. This means an unverified account can't be contacted or seen, so nobody can use the "verify later" period to reach other members.
 - Members who haven't verified see a persistent "Verify to start liking and chatting" banner. Reminder pushes are capped at 3 over 7 days.
 - Unverified accounts are browse-only. After **30 days** without verification, the account is paused automatically and the member has to verify to come back. This stops dormant unverified accounts building up.
-- The gate is enforced **on the server** (`NOT_AGE_VERIFIED`, API gate ✅). The client UI is only a convenience.
+- The gate is enforced **on the server** (`VERIFICATION_REQUIRED`, API gate ✅). The client UI is only a convenience.
 
 ### 5.4 Matching
 - A match is created **only when both members have liked each other**.

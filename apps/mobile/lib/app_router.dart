@@ -10,9 +10,13 @@ import 'features/onboarding/dob_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/profile/profile_editor_screen.dart';
+import 'features/verification/capture_screen.dart';
+import 'features/verification/nin_screen.dart';
+import 'features/verification/result_screen.dart';
+import 'features/verification/submitting_screen.dart';
 import 'features/verification/verify_intro_screen.dart';
 
-/// Routes for sprint 1. Each onboarding step redirects to the start if the
+/// App routes. Each onboarding step redirects to the start if the
 /// state it depends on is missing (e.g. a cold start on /dob).
 GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
   return GoRouter(
@@ -22,6 +26,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       final signedIn = ref.read(sessionProvider) != null;
       return switch (state.matchedLocation) {
         '/home' || '/profile/setup' || '/profile/edit' || '/verify-intro' when !signedIn => '/',
+        final String path when path.startsWith('/verify/') && !signedIn => '/',
         '/' || '/phone' when signedIn => '/home',
         '/otp' when flow.challenge == null => '/phone',
         '/dob' when flow.signupToken == null => '/',
@@ -39,6 +44,16 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       GoRoute(path: '/profile/setup', builder: (_, _) => const ProfileEditorScreen(onboarding: true)),
       GoRoute(path: '/profile/edit', builder: (_, _) => const ProfileEditorScreen()),
       GoRoute(path: '/verify-intro', builder: (_, _) => const VerifyIntroScreen()),
+      GoRoute(path: '/verify/nin', builder: (_, _) => const NinScreen()),
+      GoRoute(path: '/verify/capture', builder: (_, _) => const CaptureScreen()),
+      GoRoute(path: '/verify/submitting', builder: (_, _) => const SubmittingScreen()),
+      GoRoute(
+        path: '/verify/result',
+        builder: (_, state) => VerificationResultScreen(
+          status: state.uri.queryParameters['status'] ?? 'pending',
+          attemptsLeft: int.tryParse(state.uri.queryParameters['attempts'] ?? ''),
+        ),
+      ),
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
     ],
   );

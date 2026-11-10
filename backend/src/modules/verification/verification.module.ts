@@ -1,16 +1,19 @@
 import { Module } from '@nestjs/common';
 
 import { AgeVerifiedGuard } from './age-verified.guard';
+import { SmileIdClient } from './smile-id.client';
+import { VerificationController } from './verification.controller';
+import { VerificationPoller } from './verification.poller';
+import { VerificationService } from './verification.service';
 
 /**
- * Smile ID identity & age assurance (ARCHITECTURE.md §3, §5).
- *
- * Stage 4: VerificationProvider interface + SmileIdProvider (job signature,
- * Biometric KYC / Document Verification / SmartSelfie), the signed callback
- * webhook (POST /v1/verification/webhook), and the status-poll fallback worker.
+ * Smile ID identity & age assurance (PRD §7, ARCHITECTURE.md §5): sessions,
+ * the signed callback webhook, the job_status fallback poller, and the
+ * @RequireAgeVerified() gate (403 VERIFICATION_REQUIRED).
  */
 @Module({
-  providers: [AgeVerifiedGuard],
-  exports: [AgeVerifiedGuard],
+  controllers: [VerificationController],
+  providers: [AgeVerifiedGuard, SmileIdClient, VerificationService, VerificationPoller],
+  exports: [AgeVerifiedGuard, VerificationService],
 })
 export class VerificationModule {}

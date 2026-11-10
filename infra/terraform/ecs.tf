@@ -19,20 +19,21 @@ locals {
 
   container_env = {
     api = {
-      NODE_ENV                = local.node_env
-      PORT                    = "4000"
-      AWS_REGION              = var.region
-      DB_HOST                 = aws_db_instance.main.address
-      DB_PORT                 = tostring(aws_db_instance.main.port)
-      DB_NAME                 = aws_db_instance.main.db_name
-      REDIS_URL               = "rediss://${aws_elasticache_replication_group.main.primary_endpoint_address}:6379"
-      S3_MEDIA_BUCKET         = aws_s3_bucket.media.bucket
-      CLOUDFRONT_MEDIA_DOMAIN = local.media_hostname
-      SMILE_ID_ENVIRONMENT    = local.is_prod ? "production" : "sandbox"
-      SMILE_ID_CALLBACK_URL   = "https://${local.api_hostname}/v1/verification/webhook"
-      PHONE_COUNTRIES         = "NG"
-      TRUST_PROXY_HOPS        = "2"       # CloudFront + ALB
-      OTP_PROVIDER            = "console" # until the SMS/WhatsApp provider is chosen (refused in prod by the API)
+      NODE_ENV                  = local.node_env
+      PORT                      = "4000"
+      AWS_REGION                = var.region
+      DB_HOST                   = aws_db_instance.main.address
+      DB_PORT                   = tostring(aws_db_instance.main.port)
+      DB_NAME                   = aws_db_instance.main.db_name
+      REDIS_URL                 = "rediss://${aws_elasticache_replication_group.main.primary_endpoint_address}:6379"
+      S3_MEDIA_BUCKET           = aws_s3_bucket.media.bucket
+      CLOUDFRONT_MEDIA_DOMAIN   = local.media_hostname
+      SMILE_ID_ENVIRONMENT      = local.is_prod ? "production" : "sandbox"
+      SMILE_ID_CALLBACK_URL     = "https://${local.api_hostname}/v1/verification/webhook"
+      PHONE_COUNTRIES           = "NG"
+      TRUST_PROXY_HOPS          = "2"       # CloudFront + ALB
+      VERIFICATION_POLL_SECONDS = "120"     # Smile ID job_status fallback
+      OTP_PROVIDER              = "console" # until the SMS/WhatsApp provider is chosen (refused in prod by the API)
     }
     web = {
       NODE_ENV                = "production"

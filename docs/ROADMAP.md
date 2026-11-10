@@ -63,7 +63,8 @@
   - Open: choose the SMS/WhatsApp OTP provider (only a dev console sender exists, and production refuses to boot without a real one). Also the Android SMS User Consent API for one-tap code autofill.
 - Sprint 2 ✅ (code complete, 2026-11-10): Profile editing API (bio, intent, up to 5 prompts, interests, languages, height) with DB CHECKs; photos via S3 presigned POST (6 slots, signature-verified confirm, reorder, main photo, remove with a minimum of 2); PostGIS location with ~100 m rounding; Android profile editor (drag-to-reorder grid, ≤ 300 KB on-device compression, prompts, bio, intent) and the Smile ID explainer (screen 4).
   - Open: automated photo moderation (e.g. Rekognition) and the face match against the SmartSelfie; a location permission screen in the app (the API is ready); interests and languages pickers in the app (the API is ready).
-- Sprint 3: Smile ID integration (Biometric KYC using NIN, Document Verification as the fallback, SmartSelfie liveness), verification gating, the manual review queue
+- Sprint 3 ✅ (code complete, 2026-11-10): Smile ID Biometric KYC: signed sessions, the signature-verified idempotent webhook, the job_status fallback poller, a pure decision function (passed / manual review / failed / under-18 ban), the `VERIFICATION_REQUIRED` gate on likes and messages; Android NIN entry (screenshots blocked), Smile ID SDK capture, checking and result screens (gold-badge celebration, review, retry).
+  - Open: Smile ID sandbox keys and a real end-to-end run, confirming the `Actions` decision against real sandbox payloads; Document Verification as a fallback for members without a NIN; the admin manual-review queue (sprints 7–8); push notification when a result arrives.
 - Sprint 4: Location, discovery query, ranking v1
 - Sprint 5: Likes, passes, matches, push notifications
 - Sprint 6: Messaging (REST + WebSocket), photo unlocking

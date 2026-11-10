@@ -60,6 +60,20 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          if (verified)
+            Row(
+              key: const Key('verified-badge'),
+              children: <Widget>[
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(color: RoseColors.champagneGold, shape: BoxShape.circle),
+                  child: const Icon(Icons.check_rounded, size: 18, color: RoseColors.burgundyBlack),
+                ),
+                const SizedBox(width: RoseSpacing.s2),
+                Text('Verified', style: theme.textTheme.titleMedium),
+              ],
+            ),
           const SizedBox(height: RoseSpacing.s8),
           Text(
             name == null ? 'Welcome' : "You're in, $name",

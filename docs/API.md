@@ -88,11 +88,32 @@ The app compresses every photo to **≤ 300 KB JPEG** before uploading (stepping
 
 ## Verification
 
+*Implemented in Stage 4, sprint 3.* Smile ID Biometric KYC: the NIN is checked against NIMC, plus SmartSelfie™ liveness and a face match.
+
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| POST | `/verification/sessions` | 🔑 | Body `{ type: "id_liveness" }`. Returns the provider SDK token. |
-| GET | `/verification/status` | 🔑 | `{ phone, id_document, liveness, age_verified }`. |
-| POST | `/verification/webhook` | Provider (HMAC) | Callback from the KYC provider. |
+| POST | `/verification/sessions` | 🔑 | Body `{ method: "biometric_kyc" }`. Returns `{ verification_id, environment, callback_url, partner_params: { user_id, job_id, job_type: 1 }, id_info: { country: "NG", id_type: "NIN_V2" }, partner_id, timestamp, signature, attempts_left }`. A new session supersedes any open one. Errors: `409 ALREADY_VERIFIED`, `409 UNDER_REVIEW`, `429 VERIFICATION_RATE_LIMITED` (5 per day), `503 VERIFICATION_UNAVAILABLE`. |
+| GET | `/verification/status` | 🔑 | `{ phone, age_verified, latest: { verification_id, status: pending\|passed\|failed\|manual_review\|expired, reason, created_at } \| null, attempts_left }`. The app polls this while showing "Checking your details…". |
+| POST | `/verification/webhook` | Smile ID signature | The Smile ID callback. It must carry `signature` = base64(HMAC-SHA256(api_key, timestamp + partner_id + "sid_request")) and a `timestamp` no more than 2 hours old; otherwise `401 INVALID_SIGNATURE`. Idempotent: only a pending verification can change, so retries return `{ status: "already_processed" }`. |
+
+**Where the NIN goes:**
+- The member types it in the app (on a screen that blocks screenshots), and the **Smile ID SDK sends it straight to Smile ID**.
+- Our API never receives or stores it.
+- The Smile ID API key never leaves the server. The app only has Smile ID's SDK auth token, supplied at build time.
+
+**Decision** (`backend/src/modules/verification/decision.ts`, based on Smile ID's per-check `Actions`):
+
+| Smile ID result | Outcome |
+|---|---|
+| ID verified, liveness passed, selfie matches the NIMC photo, DOB from NIMC matches the DOB declared at signup | **passed**: `users.age_verified = true`, liking and messaging unlocked |
+| Identity confirmed but the DOB differs from the declared one, or no DOB was returned | **manual_review** |
+| Identity confirmed and the NIMC DOB shows **under 18** | **failed (UNDERAGE)**: the account is **banned** and every session is revoked at once |
+| Any check failed | **failed**, with up to 2 retries. The 3rd failure becomes **manual_review** |
+| A check still pending (human review at Smile ID) | stays **pending** |
+
+**Late or lost callbacks:** every `VERIFICATION_POLL_SECONDS` (120 in deployed environments), a poller asks Smile ID's `job_status` about sessions that have been pending for more than 2 minutes. Sessions with no result after 24 hours expire.
+
+**Gate:** liking, Super Liking, rewind, conversations and messages (and later the Plus purchase) return `403 VERIFICATION_REQUIRED` until the member passes.
 
 ## Discovery & Matching
 
@@ -145,4 +166,5 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Onboarding:** `UNDERAGE`, `SIGNUP_BLOCKED`, `PHONE_ALREADY_REGISTERED`
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `NOT_IMPLEMENTED`, `INTERNAL`
-- **Later sprints:** `NOT_AGE_VERIFIED`, `DAILY_LIKE_LIMIT`, `NOT_MATCHED`, `PHOTOS_LOCKED`, `PLUS_REQUIRED`
+- **Verification:** `VERIFICATION_REQUIRED` (403 on likes, messages and other gated routes), `VERIFICATION_UNAVAILABLE`, `ALREADY_VERIFIED`, `UNDER_REVIEW`, `INVALID_SIGNATURE`
+- **Later sprints:** `DAILY_LIKE_LIMIT`, `NOT_MATCHED`, `PHOTOS_LOCKED`, `PLUS_REQUIRED`

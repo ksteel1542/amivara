@@ -12,6 +12,9 @@ import 'features/auth/auth_providers.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/profile/profile_providers.dart';
 import 'features/profile/profile_repository.dart';
+import 'features/verification/identity_capture.dart';
+import 'features/verification/verification_providers.dart';
+import 'features/verification/verification_repository.dart';
 import 'theme/amivara_theme.dart';
 
 Future<void> main() async {
@@ -21,12 +24,15 @@ Future<void> main() async {
   const store = DeviceSecureStore();
   final deviceId = await loadOrCreateDeviceId(store);
   final api = ApiClient(baseUrl: AppConfig.apiBaseUrl, deviceId: deviceId);
+  final smileIdReady = await SmileIdCapture.initialize();
 
   final container = ProviderContainer(
     overrides: [
       secureStoreProvider.overrideWithValue(store),
       authRepositoryProvider.overrideWithValue(HttpAuthRepository(api)),
       profileRepositoryProvider.overrideWithValue(HttpProfileRepository(api)),
+      verificationRepositoryProvider.overrideWithValue(HttpVerificationRepository(api)),
+      identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],
   );
   final restored = await container.read(sessionProvider.notifier).restore();

@@ -35,9 +35,9 @@ describe('AgeVerifiedGuard (PRD §5.3a)', () => {
     expect(() => guard.canActivate(contextFor(undefined))).toThrow(UnauthorizedException);
   });
 
-  it('blocks an unverified member with NOT_AGE_VERIFIED (verify later = browse only)', () => {
+  it('blocks an unverified member with VERIFICATION_REQUIRED (verify later = browse only)', () => {
     expect(() => guard.canActivate(contextFor(member({ ageVerified: false })))).toThrow(ForbiddenException);
-    expect(codeOf(() => guard.canActivate(contextFor(member({ ageVerified: false }))))).toBe('NOT_AGE_VERIFIED');
+    expect(codeOf(() => guard.canActivate(contextFor(member({ ageVerified: false }))))).toBe('VERIFICATION_REQUIRED');
   });
 
   it.each(['SUSPENDED', 'BANNED'] as const)('blocks a %s member even if verified', (status) => {

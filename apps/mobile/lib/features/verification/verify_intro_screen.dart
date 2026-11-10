@@ -8,12 +8,11 @@ import '../../theme/rose_tokens.g.dart';
 /// keep, before any camera permission is asked for.
 ///
 /// "I'll do it later" leads to browse-only mode (PRD §5.3a). "Start
-/// verification" will open the Smile ID flow (sprint 3); until then it explains
-/// that verification is coming.
+/// verification" opens the Smile ID flow (NIN → SmartSelfie → result).
 class VerifyIntroScreen extends StatelessWidget {
   const VerifyIntroScreen({super.key, this.onStartVerification});
 
-  /// Sprint 3 wires the Smile ID SDK here.
+  /// Test hook; by default Start opens the NIN screen.
   final VoidCallback? onStartVerification;
 
   void _start(BuildContext context) {
@@ -21,12 +20,7 @@ class VerifyIntroScreen extends StatelessWidget {
       onStartVerification!();
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        key: Key('verify-coming-soon'),
-        content: Text("Identity verification opens in the next update. We'll remind you."),
-      ),
-    );
+    context.push('/verify/nin');
   }
 
   void _showSmileIdDetails(BuildContext context) {

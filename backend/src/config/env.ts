@@ -21,6 +21,8 @@ const base = z.object({
   SMILE_ID_PARTNER_ID: z.string().optional(),
   SMILE_ID_API_KEY: z.string().optional(),
   SMILE_ID_CALLBACK_URL: z.string().url().optional(),
+  /** Smile ID job_status fallback poll interval. 0 disables it (dev, tests). Deployed: 120. */
+  VERIFICATION_POLL_SECONDS: z.coerce.number().int().min(0).max(3600).default(0),
 
   // ── Auth (sprint 1) ──
   /** ES256 (P-256) key pair for access/signup JWTs. Dev and test generate an ephemeral pair if unset. */

@@ -29,7 +29,7 @@ export class AgeVerifiedGuard implements CanActivate {
     }
     if (!member.ageVerified) {
       throw new ForbiddenException({
-        code: 'NOT_AGE_VERIFIED',
+        code: 'VERIFICATION_REQUIRED',
         message: 'Verify your identity with Smile ID to like and chat.',
       });
     }

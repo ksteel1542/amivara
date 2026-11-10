@@ -77,6 +77,18 @@ describe('AMIVARA API (e2e, no database)', () => {
     );
   });
 
+  it('the Smile ID webhook is public but refuses unsigned callbacks', async () => {
+    const res = await http()
+      .post('/v1/verification/webhook')
+      .send({ PartnerParams: { user_id: 'x', job_id: 'y' }, ResultCode: '1020' })
+      .expect(401);
+    expect(res.body.error.code).toBe('INVALID_SIGNATURE');
+  });
+
+  it('verification sessions require sign-in', async () => {
+    await http().post('/v1/verification/sessions').send({}).expect(401);
+  });
+
   it('rejects non-Nigerian numbers at launch', async () => {
     const res = await http().post('/v1/auth/otp/request').send({ phone: '+447911123456' }).expect(400);
     expect(res.body.error.code).toBe('INVALID_PHONE');

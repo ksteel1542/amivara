@@ -43,6 +43,10 @@ Future<void> pumpSignedIn(
         builder: (_, _) => const Scaffold(body: Text('VERIFY INTRO')),
       ),
       GoRoute(
+        path: '/verify/nin',
+        builder: (_, _) => const Scaffold(body: Text('NIN SCREEN')),
+      ),
+      GoRoute(
         path: '/home',
         builder: (_, _) => const Scaffold(body: Text('HOME')),
       ),
@@ -244,11 +248,11 @@ void main() {
       expect(started, isTrue);
     });
 
-    testWidgets('until Smile ID is wired, Start explains it is coming', (tester) async {
+    testWidgets('Start verification opens the NIN screen by default', (tester) async {
       await pumpSignedIn(tester, screen: () => const VerifyIntroScreen());
       await tester.tap(find.text('Start verification'));
-      await tester.pump();
-      expect(find.byKey(const Key('verify-coming-soon')), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('NIN SCREEN'), findsOneWidget);
     });
 
     testWidgets('"Secured by Smile ID" opens the details sheet', (tester) async {

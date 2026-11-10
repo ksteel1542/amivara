@@ -328,7 +328,7 @@ describe('Auth + onboarding (integration, PostgreSQL)', () => {
     const tokens = await onboard('08012345678');
     const auth = { Authorization: `Bearer ${tokens.access_token}` };
     const like = await http().post('/v1/matching/likes').set(auth).expect(403);
-    expect(like.body.error.code).toBe('NOT_AGE_VERIFIED');
+    expect(like.body.error.code).toBe('VERIFICATION_REQUIRED');
     await http().post('/v1/matching/passes').set(auth).expect(501);
   });
 });
