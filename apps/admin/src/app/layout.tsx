@@ -7,9 +7,13 @@ import './rose-tokens.css';
 import './globals.css';
 
 // Moderators read member names in Yoruba, Igbo and Hausa: same subsets as the public web app.
-const subsets: ('latin' | 'latin-ext' | 'vietnamese')[] = ['latin', 'latin-ext', 'vietnamese'];
-const display = Playfair({ subsets, axes: ['opsz', 'wdth'], variable: '--font-display' });
-const body = Inter({ subsets, variable: '--font-body' });
+// next/font arguments must be literals (they are read at compile time).
+const display = Playfair({
+  subsets: ['latin', 'latin-ext', 'vietnamese'],
+  axes: ['opsz', 'wdth'],
+  variable: '--font-display',
+});
+const body = Inter({ subsets: ['latin', 'latin-ext', 'vietnamese'], variable: '--font-body' });
 
 export const metadata: Metadata = {
   title: { default: 'AMIVARA Admin', template: '%s · AMIVARA Admin' },
