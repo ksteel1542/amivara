@@ -2,7 +2,7 @@
 
 **Status:** Draft v0.2. Durations are indicative and will be set once the team size is confirmed.
 
-**Locked decisions:** Smile ID (KYC and liveness) · Prisma ORM · Android-only Flutter MVP plus Next.js web. iOS is a post-launch milestone (Stage 8).
+**Locked decisions:** Smile ID (KYC and liveness) · Prisma ORM · Android-only Flutter MVP plus Next.js web. iOS is a post-launch milestone (Stage 8) · AWS `af-south-1` with CloudFront Lagos edges · "Verify later" (browse open, like and message need verification) · `design/brand/tokens.json`.
 
 | # | Stage | Indicative duration | Exit criteria |
 |---|---|---|---|
@@ -22,14 +22,20 @@
 - [x] Decision: ORM → **Prisma**
 - [x] Decision: MVP platform → **Android-only (Flutter) plus Next.js web. iOS after launch.**
 - [x] Initial Prisma schema (`database/schema/schema.prisma`): User, Profile, Verification, Match, Message
-- [ ] Decision: cloud region (AWS `af-south-1` or GCP `africa-south1`)
+- [x] Decision: cloud region → **AWS Cape Town (`af-south-1`) with CloudFront Lagos edge locations**
+- [x] Decision: verification gating → **"verify later" allowed. Browsing is open, liking and messaging need Smile ID.**
+- [ ] Create the AWS Organization (`dev`, `staging` and `prod` accounts), **turn on the `af-south-1` opt-in region**, set up billing alerts
 - [ ] Sign the Smile ID commercial agreement and DPA. Get sandbox API keys and agree per-check pricing.
 - [ ] Google Play Console developer account (organisation) and the dating-app policy declaration
 - [ ] Register the domain, trademark search for "AMIVARA" in Nigeria (NIPO)
 - [ ] Engage Nigerian counsel (terms, NDPA registration)
 
 ## Stage 2: Brand & UI prototypes
-- Logo, palette, typography and voice → `design/brand`, `design/logos`
+- [x] AMIVARA ROSE palette, typography and voice → `design/brand/AMIVARA_ROSE.md`
+- [x] Design tokens → `design/brand/tokens.json`
+- [x] Onboarding and verification wireframes spec → `docs/UI_WIREFRAMES.md`
+- [ ] Logo and app icon → `design/logos`
+- [ ] Browse-only ("verify later") states: the Like button's verification prompt, the persistent banner, the 30-day auto-pause notice
 - Wireframes, then hi-fi screens: onboarding, verification, discovery, match, chat, safety, settings. Android (Material 3) and responsive web layouts only.
 - Design the Smile ID verification moments: the pre-check explainer, SmartSelfie™ capture guidance, and the failure and retry screens
 - A component library → `design/ui-components`
@@ -37,7 +43,8 @@
 
 ## Stage 3: Technical setup
 - Flutter (Android target only), Next.js (web and admin) and NestJS skeletons, plus a shared lint and format setup
-- Terraform for dev and staging. PostgreSQL + PostGIS, Redis and object storage
+- Terraform for dev and staging in **`af-south-1`**: VPC, ECS Fargate, RDS PostgreSQL 16 + PostGIS, ElastiCache Redis, S3, CloudFront (Lagos edges, OAC, WAF), Secrets Manager and KMS
+- Theme code generated from `design/brand/tokens.json` (Flutter `ColorScheme`/`TextTheme` and CSS variables), with CI checking that the generated code matches
 - GitHub Actions: lint, test, build, deploy. CodeQL and Dependabot. Android AAB builds to the Play internal testing track.
 - Prisma set up in NestJS. Generate the first migration from `schema.prisma`, add the raw-SQL CHECK constraints, and run `prisma migrate deploy` in the pipeline.
 - Smile ID sandbox wired end to end: job signature endpoint, callback webhook, Flutter and Web SDK smoke test

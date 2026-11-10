@@ -421,7 +421,7 @@ The camera screens and quality checks are provided by the **Smile ID Flutter SDK
 
 ## 6. Open design questions for founder review
 
-1. Should "I'll do it later" exist at all, or should verification be required before browsing? (This is still open from PRD §10.2. These wireframes assume it's deferrable.)
+1. ~~Should "I'll do it later" exist?~~ **Decided: yes.** Browsing is open, but liking and messaging require Smile ID (PRD §5.3a).
 2. Should the **WhatsApp OTP** option be visible straight away, or only appear after an SMS failure? It changes costs.
 3. Should the **confirmation dialog** on Screen 3 show the age only, or the age and the full date?
 4. Does Smile ID's commercial plan allow the white-label theming level we've assumed, including removing their branding from the SDK screens?

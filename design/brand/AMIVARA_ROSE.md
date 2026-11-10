@@ -220,7 +220,7 @@ abstract final class RoseBrand {
 }
 ```
 
-A canonical `tokens.json` (W3C Design Tokens format) will be generated from this document in Stage 3 and kept as the single source for both platforms.
+The canonical tokens live in [`tokens.json`](tokens.json) (W3C Design Tokens format). It is the single source for both platforms, and the snippets above will be generated from it in Stage 3.
 
 ## 8. Logo (placeholder brief, to be designed in `design/logos/`)
 

@@ -2,7 +2,7 @@
 
 **Status:** Draft v0.2
 
-**Decisions in effect:** Smile ID (KYC and liveness) · Prisma ORM · Android-only Flutter MVP plus Next.js web (iOS after launch).
+**Decisions in effect:** Smile ID (KYC and liveness) · Prisma ORM · Android-only Flutter MVP plus Next.js web (iOS after launch) · AWS `af-south-1` (Cape Town) with CloudFront Lagos edges · Browse-before-verify gating · `design/brand/tokens.json` as the design source of truth.
 
 ## 1. System diagram
 
@@ -91,6 +91,8 @@ Cross-cutting:
 
 **Like → Match:** `POST /matching/likes`. A transaction inserts the like and checks whether the other person already liked back. If they did, it creates the match and conversation, emits `match.created`, and pushes a notification to both members.
 
+**Verification gating:** a guard in the API (`@RequireAgeVerified()`) protects likes, Super Likes, rewind, messaging, the conversation endpoints and the Plus purchase. It returns `403 NOT_AGE_VERIFIED` to members who aren't verified. The discovery query only returns members where `age_verified = true`, so unverified members can browse but other members never see them (PRD §5.3a).
+
 **Verification (Smile ID):**
 1. The client calls `POST /verification/sessions`. The API creates a `Verification` row (`PENDING`) and returns the Smile ID partner parameters (`user_id`, `job_id`, `job_type`) plus a server-generated signature or token. The Smile ID API key never leaves the server.
 2. The Smile ID SDK captures the SmartSelfie™ (and the document, or the NIN for Biometric KYC) and submits the job directly to Smile ID.
@@ -99,10 +101,39 @@ Cross-cutting:
 
 ## 6. Infrastructure
 
-- Containers (Docker) on a managed platform. We recommend AWS `af-south-1` (Cape Town) or GCP `africa-south1` for latency, with a CDN that has Lagos edge POPs.
-- Environments: `dev`, `staging`, `prod`. Infrastructure as code with Terraform.
+### 6.1 Region & edge
+- **Primary region: AWS Africa (Cape Town), `af-south-1`.** All compute, data and object storage for `staging` and `prod` live here. `dev` can use the same region.
+- **Edge: Amazon CloudFront**, with Nigerian traffic served from the **Lagos edge locations**:
+  - Static and web assets (Next.js), media through signed URLs or signed cookies, and the public marketing site.
+  - The API (`api.amivara.com`) also goes through CloudFront, with caching turned off (`CachingDisabled` plus `AllViewerExceptHostHeader`). That way TLS is terminated in Lagos and the long trip to Cape Town runs over AWS's own network. WebSockets are supported.
+  - Note: the TLS certificates CloudFront uses must be issued in ACM's `us-east-1` region. Regional ALB certificates are issued in `af-south-1`.
+- `af-south-1` is an **opt-in region**, so it has to be enabled on the AWS account before any resources can be created there.
+
+### 6.2 Service map (af-south-1)
+
+| Concern | AWS service |
+|---|---|
+| API and workers (NestJS, BullMQ) | ECS on Fargate behind an Application Load Balancer, autoscaled |
+| Web and admin (Next.js) | ECS Fargate (SSR) with CloudFront in front. Admin goes through a separate internal ALB plus SSO and an IP allowlist |
+| Database | **RDS for PostgreSQL 16** (Multi-AZ, PostGIS extension, with a read replica for discovery reads) |
+| Cache, queues, pub/sub | ElastiCache for Redis (or Valkey), Multi-AZ |
+| Media | S3 (private, SSE-KMS) → CloudFront with Origin Access Control |
+| Secrets and keys | Secrets Manager (Smile ID API key, OTP provider, DB credentials) and KMS (app-level encryption keys) |
+| Edge security | AWS WAF on CloudFront (managed rule sets, rate-based rules on `/auth/otp/*`), plus Shield Standard |
+| DNS | Route 53 |
+| Email | Amazon SES. Push goes through FCM, and SMS and WhatsApp through the chosen OTP provider |
+| Observability | CloudWatch (logs and metrics) and OpenTelemetry → the chosen APM, plus Sentry |
+
+### 6.3 Data residency (NDPA)
+Cape Town is outside Nigeria, so storing member data in `af-south-1` is a **cross-border transfer** under NDPA Part VIII. Before launch we need to:
+- Record the transfer basis (adequacy assessment or contractual safeguards) in the DPIA.
+- Tell members about it in the privacy policy.
+- Keep the transfer on the list of things to revisit. If AWS offers a Lagos region or Local Zone suitable for regulated data, or the NDPC issues residency requirements for this category, we look at moving.
+
+### 6.4 Environments & delivery
+- Environments: `dev`, `staging`, `prod`, each in its own AWS account (AWS Organizations). Infrastructure as code with Terraform.
 - CI/CD with GitHub Actions: lint, test, build and deploy. `prisma migrate deploy` runs as a separate release step before the API rolls out. Android builds (AAB) go to the Play Console internal, closed and production tracks through Fastlane or Codemagic.
-- Backups: PostgreSQL point-in-time recovery, daily snapshots kept for 30 days, and quarterly restore drills.
+- Backups: RDS point-in-time recovery, daily snapshots kept for 30 days, and quarterly restore drills. Cross-region snapshot copies for disaster recovery are **not yet decided**. Any second region is another cross-border transfer and needs DPIA cover first.
 
 ## 7. Non-functional targets
 

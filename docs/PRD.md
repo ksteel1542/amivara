@@ -9,6 +9,9 @@
 | Identity verification provider | **Smile ID** for KYC, liveness (SmartSelfie™) and document/ID verification |
 | Database ORM | **Prisma** on PostgreSQL + PostGIS |
 | Launch platform | **Android-only** mobile app (Flutter) plus the Next.js web ecosystem. **iOS comes after launch.** |
+| Verification gating | **"Verify later" is allowed.** Members who haven't verified can **browse** profiles. **Liking, Super Liking and messaging require a passed Smile ID verification** (see §5.3a) |
+| Cloud region | **AWS Cape Town (`af-south-1`)** as the primary region, with **Amazon CloudFront** serving Nigerian members from its Lagos edge locations |
+| Design tokens | `design/brand/tokens.json` (AMIVARA ROSE) is the single source of truth for colour, type and spacing |
 
 ## 1. Summary
 
@@ -60,6 +63,26 @@ AMIVARA is a mobile-first dating and connection platform **for adults aged 18 an
 - Distance is shown rounded (for example "~5 km away") and never as exact coordinates.
 - Actions: **Like**, **Pass**, **Super Like** (premium, limited).
 - Daily free like limit (configurable, 50 to start).
+
+### 5.3a Verification gating ("Verify later")
+
+Members can skip verification at the end of onboarding (the "I'll do it later" option in UI_WIREFRAMES Screen 4). Until Smile ID verification passes:
+
+| Capability | Unverified (phone-verified, 18+ declared) | Verified (Smile ID passed, 18+ confirmed) |
+|---|---|---|
+| Browse the discovery stack and view profiles | ✅ | ✅ |
+| Edit their own profile and photos | ✅ | ✅ |
+| **Appear in other members' discovery** | ❌ Hidden | ✅ |
+| **Like / Super Like** | ❌ The Like button opens the verification prompt | ✅ |
+| Pass | ✅ (only affects their own stack) | ✅ |
+| **Messaging** | ❌ | ✅ |
+| Block / report | ✅ | ✅ |
+| AMIVARA Plus purchase | ❌ (so nobody pays for features they can't use yet) | ✅ |
+
+- Unverified members are **never shown** to others. This means an unverified account can't be contacted or seen, so nobody can use the "verify later" period to reach other members.
+- Members who haven't verified see a persistent "Verify to start liking and chatting" banner. Reminder pushes are capped at 3 over 7 days.
+- Unverified accounts are browse-only. After **30 days** without verification, the account is paused automatically and the member has to verify to come back. This stops dormant unverified accounts building up.
+- The gate is enforced **on the server** (`NOT_AGE_VERIFIED`, API gate ✅). The client UI is only a convenience.
 
 ### 5.4 Matching
 - A match is created **only when both members have liked each other**.
@@ -131,7 +154,7 @@ Ranking (v1): verified photo quality, recent activity, profile completeness and 
 ## 10. Open questions
 
 1. ~~Which KYC provider?~~ **Decided: Smile ID.**
-2. Should we require full verification before browsing, or only before interacting (current proposal)?
+2. ~~Should we require verification before browsing?~~ **Decided: "verify later" is allowed. Browsing is open, but liking and messaging require Smile ID (§5.3a).**
 3. ~~Should iOS ship at MVP?~~ **Decided: Android-only MVP, iOS after launch.**
 4. What price should Plus have in NGN, and should there be weekly plans?
 5. What does a Smile ID check cost per verification at our expected volumes? Should we charge for re-verification attempts?

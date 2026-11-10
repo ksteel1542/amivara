@@ -38,7 +38,7 @@
 | POST | `/me/pause` · `/me/resume` | 🔑 | Hide or show your profile in discovery. |
 | POST | `/me/data-export` | 🔑 | Queues an export of your data (NDPA access right). |
 | DELETE | `/me` | 🔑 | Schedules deletion with a 30-day recovery window. |
-| GET | `/profiles/:userId` | ✅ | Someone else's public profile. Only returned if they're discoverable to you or you're matched. |
+| GET | `/profiles/:userId` | 🔑 | Someone else's public profile. Only returned if they're discoverable to you or you're matched. Unverified members can view profiles, because browsing is open (PRD §5.3a). |
 
 ## Verification
 
