@@ -33,6 +33,7 @@ locals {
       PHONE_COUNTRIES           = "NG"
       TRUST_PROXY_HOPS          = "2"       # CloudFront + ALB
       VERIFICATION_POLL_SECONDS = "120"     # Smile ID job_status fallback
+      ACCOUNT_PURGE_SECONDS     = "3600"    # erase accounts 30 days after deletion
       OTP_PROVIDER              = "console" # until the SMS/WhatsApp provider is chosen (refused in prod by the API)
     }
     web = {

@@ -18,11 +18,12 @@
 | Method | Path | Gate | Description |
 |---|---|---|---|
 | POST | `/auth/otp/request` | 🔓 | Body `{ phone, channel: "sms" \| "whatsapp" }`. Returns `202 { challenge_id, channel, expires_in: 300, resend_in }`. Same response whether or not the number has an account. |
-| POST | `/auth/otp/verify` | 🔓 | Body `{ challenge_id, code }`. Existing member: `{ status: "signed_in", access_token, refresh_token, token_type, expires_in }`. New number: `{ status: "signup_required", signup_token, expires_in: 1800 }`. |
+| POST | `/auth/otp/verify` | 🔓 | Body `{ challenge_id, code }`. Existing member: `{ status: "signed_in", access_token, refresh_token, token_type, expires_in }`, plus `restored: true` when signing in cancelled a pending account deletion. New number: `{ status: "signup_required", signup_token, expires_in: 1800 }`. |
 | POST | `/auth/refresh` | 🔓 | Body `{ refresh_token }`. Rotates the token. Replaying an already-rotated token returns `REFRESH_TOKEN_REUSED` and revokes every session in that family. |
-| POST | `/auth/logout` | 🔑 | Revokes the current device session (takes effect immediately). |
+| POST | `/auth/logout` | 🔑 | Revokes the current device session (takes effect immediately, and closes that device's chat socket). |
 | GET | `/auth/sessions` | 🔑 | `{ sessions: [{ id, platform, device_model, created_at, last_used_at, current }] }`. |
-| DELETE | `/auth/sessions/:id` | 🔑 | Revokes one of your sessions. |
+| DELETE | `/auth/sessions/:id` | 🔑 | Signs one of your devices out: `204`, or `404` if it isn't an active session of yours. Its push token is dropped and its chat socket closes (`4401`). |
+| DELETE | `/auth/sessions` | 🔑 | *(sprint 8)* "Sign out other devices": revokes every session except the current one. `{ revoked }`. |
 
 **OTP limits** (SECURITY.md §2):
 - **Codes:** 6 digits, 5-minute expiry, single use, at most 5 wrong attempts. The 5th wrong attempt locks the number for 15 minutes.
@@ -53,10 +54,38 @@ Age is 18+ only if it holds on both the Lagos and the UTC calendar date, so the 
 |---|---|---|---|
 | GET | `/me` | 🔑 | *(sprint 1)* `{ id, status, phone_last4, age, verification: { phone, age_verified, can_like_and_message }, profile, preferences }`. Never returns the full phone number or date of birth. |
 | PATCH | `/me/preferences` | 🔑 | `age_min` must be at least 18, `max_distance_km` must be 1–300, plus `interested_in`. |
-| POST | `/me/pause` · `/me/resume` | 🔑 | Hide or show your profile in discovery. |
-| POST | `/me/data-export` | 🔑 | Queues an export of your data (NDPA access right). |
-| DELETE | `/me` | 🔑 | Schedules deletion with a 30-day recovery window. |
 | GET | `/profiles/:userId` | 🔑 | Someone else's public profile. Only returned if they're discoverable to you or you're matched. Unverified members can view profiles, because browsing is open (PRD §5.3a). |
+
+## Account controls & privacy
+
+*Implemented in Stage 4, sprint 8.* Replaces the earlier `/me/pause`, `/me/data-export` and `DELETE /me` sketches.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/users/me/settings` | 🔑 | `{ paused, incognito }`. |
+| PATCH | `/users/me/settings` | 🔑 | Body `{ paused?, incognito? }` (at least one). Returns the new settings. **Pause:** status `paused`: hidden from discovery and can't be liked, while existing matches and chats carry on. A suspended or banned member can't pause or unpause (`403 ACCOUNT_SUSPENDED`). **Incognito:** shown in discovery only to people you've liked. PRD §5.6 makes it a Plus feature; until billing ships it needs a verified account (`403 VERIFICATION_REQUIRED`). |
+| GET | `/users/me/export` | 🔑 | The NDPA access-right export, returned straight away as a JSON download (`Content-Disposition: attachment; filename="amivara-data-YYYY-MM-DD.json"`, `Cache-Control: no-store`). See below. |
+| DELETE | `/users/me` | 🔑 | Deletes the account. `202 { purge_after }`. See below. |
+
+**What the export contains** (`format: "amivara-export/1"`):
+- **account:** phone, date of birth, status, created, phone and age verification times
+- **profile:** every field, signed links to your photos (download them straight away; they expire), and the location on file. That is the latest point only, rounded to about 100 m. Other members never see it.
+- **preferences**
+- **verifications:** Smile ID results and timestamps only. We never hold ID images or the NIN.
+- **likes sent, passes and blocks**
+- **matches:** each one with the other member's first name, and **only the messages you sent**
+- **reports you made**, **account actions** (warnings, suspensions) and **devices** (sessions)
+
+Other people's data is kept to what's needed to make sense of yours.
+
+**Deletion:** these happen immediately:
+- Every session is revoked and every socket closed.
+- Push tokens are dropped.
+- The PostGIS location and its geohash are cleared, so you leave the spatial index.
+- Status becomes `pending_deletion`, so you're out of discovery.
+- Every active match is archived. Partners get `match.removed` and a silent list refresh.
+
+**Signing in again within 30 days restores the account.** Archived matches stay archived, and you'll need to share your location again. A suspension that was running still applies. After 30 days the purge job (every `ACCOUNT_PURGE_SECONDS`, 3600 in deployed environments) deletes the photos from S3 and the user row. Every table cascades from it: profile, preferences, photos, sessions, likes, passes, blocks, matches, messages, verifications, reports and enforcement history. Backups age out within 35 days (SECURITY.md §4).
 
 ## Profiles
 

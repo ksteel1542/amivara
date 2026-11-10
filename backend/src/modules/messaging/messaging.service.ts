@@ -8,6 +8,8 @@ import { RealtimeRegistry } from './realtime.registry';
 
 /** WebSocket close code for "not allowed" (API.md "Messaging"). */
 export const CLOSE_FORBIDDEN = 4403;
+/** WebSocket close code for 'sign in again'. */
+export const CLOSE_UNAUTHENTICATED = 4401;
 
 /** PRD §5.5: photos in chat unlock once both members have sent at least this many messages. */
 export const PHOTO_UNLOCK_MESSAGES = 3;
@@ -50,6 +52,13 @@ export class MessagingService implements OnModuleInit {
     // Suspended and banned members lose their live connection at once.
     this.events.on('member.restricted', ({ userId }) => {
       this.realtime.disconnect(userId, CLOSE_FORBIDDEN, 'ACCOUNT_SUSPENDED');
+    });
+    this.events.on('member.deleted', ({ userId }) => {
+      this.realtime.disconnect(userId, CLOSE_UNAUTHENTICATED, 'ACCOUNT_DELETED');
+    });
+    // A signed-out device loses its live connection too, not just its tokens.
+    this.events.on('sessions.revoked', ({ userId, sessionIds }) => {
+      this.realtime.disconnectSessions(userId, sessionIds, CLOSE_UNAUTHENTICATED, 'INVALID_TOKEN');
     });
   }
 

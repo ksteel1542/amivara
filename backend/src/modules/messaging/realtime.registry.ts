@@ -18,8 +18,11 @@ export type ChatEvent =
 @Injectable()
 export class RealtimeRegistry {
   private readonly sockets = new Map<string, Set<WebSocket>>();
+  /** The device session behind each socket, so signing a device out closes its socket. */
+  private readonly sessionOf = new WeakMap<WebSocket, string>();
 
-  add(userId: string, socket: WebSocket): void {
+  add(userId: string, socket: WebSocket, sessionId?: string): void {
+    if (sessionId) this.sessionOf.set(socket, sessionId);
     const set = this.sockets.get(userId) ?? new Set<WebSocket>();
     set.add(socket);
     this.sockets.set(userId, set);
@@ -47,6 +50,15 @@ export class RealtimeRegistry {
       }
     }
     return delivered;
+  }
+
+  /** Closes the sockets opened with any of these device sessions. */
+  disconnectSessions(userId: string, sessionIds: string[], code: number, reason: string): void {
+    const ids = new Set(sessionIds);
+    for (const socket of this.sockets.get(userId) ?? []) {
+      const sid = this.sessionOf.get(socket);
+      if (sid && ids.has(sid)) socket.close(code, reason);
+    }
   }
 
   /** Closes every socket of a member (ban, logout everywhere). */

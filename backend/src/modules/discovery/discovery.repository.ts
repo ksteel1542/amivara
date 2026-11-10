@@ -93,7 +93,9 @@ export class DiscoveryRepository {
           JOIN preferences pr ON pr.user_id = u.id
          WHERE u.id <> me.id
            AND u.status = 'ACTIVE' AND u.deleted_at IS NULL AND u.age_verified
-           AND pr.show_me_in_discovery AND NOT pr.incognito
+           AND pr.show_me_in_discovery
+           -- Incognito members are only shown to people they've liked (PRD §5.6).
+           AND (NOT pr.incognito OR EXISTS (SELECT 1 FROM likes il WHERE il.liker_id = u.id AND il.likee_id = me.id))
            AND p.gender = ANY (me.interested_in)
            AND me.gender = ANY (pr.interested_in)
            AND date_part('year', age(CURRENT_DATE, u.date_of_birth)) BETWEEN me.age_min AND me.age_max

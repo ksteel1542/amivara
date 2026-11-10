@@ -32,6 +32,6 @@ import { PhotosService } from './photos.service';
       },
     },
   ],
-  exports: [PhotosService],
+  exports: [PhotosService, MEDIA_STORAGE],
 })
 export class MediaModule {}

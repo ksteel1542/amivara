@@ -13,6 +13,7 @@ import 'features/onboarding/dob_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/profile/profile_editor_screen.dart';
+import 'features/settings/settings_screen.dart';
 import 'features/verification/capture_screen.dart';
 import 'features/verification/nin_screen.dart';
 import 'features/verification/result_screen.dart';
@@ -28,7 +29,12 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       final flow = ref.read(signupFlowProvider);
       final signedIn = ref.read(sessionProvider) != null;
       return switch (state.matchedLocation) {
-        '/home' || '/profile/setup' || '/profile/edit' || '/verify-intro' || '/matches' when !signedIn => '/',
+        '/home' ||
+        '/profile/setup' ||
+        '/profile/edit' ||
+        '/verify-intro' ||
+        '/matches' ||
+        '/settings' when !signedIn => '/',
         final String path when (path.startsWith('/verify/') || path.startsWith('/chat/')) && !signedIn => '/',
         '/' || '/phone' when signedIn => '/home',
         '/otp' when flow.challenge == null => '/phone',
@@ -58,6 +64,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         ),
       ),
       GoRoute(path: '/matches', builder: (_, _) => const MatchesScreen()),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       // Opened from the matches list with the match as `extra`; a cold deep link falls back to the list.
       GoRoute(
         path: '/chat/:matchId',

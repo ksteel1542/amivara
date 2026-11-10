@@ -22,6 +22,7 @@ import 'package:amivara/features/profile/profile_models.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
 import 'package:amivara/features/profile/profile_repository.dart';
 import 'package:amivara/features/safety/safety_repository.dart';
+import 'package:amivara/features/settings/settings_repository.dart';
 import 'package:amivara/features/verification/identity_capture.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
 import 'package:amivara/features/verification/verification_repository.dart';
@@ -528,4 +529,82 @@ class FakeSafetyRepository implements SafetyRepository {
     if (error != null) throw error!;
     calls.add('report:$userId:${category.apiValue}:${details ?? ''}:${messageId ?? '-'}');
   }
+}
+
+// ── Settings ────────────────────────────────────────────────
+
+class FakeSettingsRepository implements SettingsRepository {
+  FakeSettingsRepository({this.paused = false, this.incognito = false, List<DeviceSession>? sessions})
+    : sessionList =
+          sessions ??
+          <DeviceSession>[
+            DeviceSession(
+              id: 's-me',
+              current: true,
+              lastUsedAt: DateTime.now(),
+              platform: 'android',
+              deviceModel: 'Tecno Spark 20',
+            ),
+            DeviceSession(
+              id: 's-old',
+              current: false,
+              lastUsedAt: DateTime.now().subtract(const Duration(days: 3)),
+              platform: 'android',
+              deviceModel: 'Infinix Hot 40',
+            ),
+          ];
+
+  bool paused;
+  bool incognito;
+  List<DeviceSession> sessionList;
+  final List<String> calls = <String>[];
+  ApiException? updateError;
+
+  @override
+  Future<AccountSettings> settings(String accessToken) async => AccountSettings(paused: paused, incognito: incognito);
+
+  @override
+  Future<AccountSettings> update(String accessToken, {bool? paused, bool? incognito}) async {
+    calls.add('update:${paused ?? '-'}:${incognito ?? '-'}');
+    if (updateError != null) throw updateError!;
+    this.paused = paused ?? this.paused;
+    this.incognito = incognito ?? this.incognito;
+    return AccountSettings(paused: this.paused, incognito: this.incognito);
+  }
+
+  @override
+  Future<List<DeviceSession>> sessions(String accessToken) async => List.of(sessionList);
+
+  @override
+  Future<void> revokeSession(String accessToken, String sessionId) async {
+    calls.add('revoke:$sessionId');
+    sessionList = sessionList.where((s) => s.id != sessionId).toList();
+  }
+
+  @override
+  Future<int> revokeOtherSessions(String accessToken) async {
+    calls.add('revoke-others');
+    final count = sessionList.where((s) => !s.current).length;
+    sessionList = sessionList.where((s) => s.current).toList();
+    return count;
+  }
+
+  @override
+  Future<String> exportData(String accessToken) async {
+    calls.add('export');
+    return '{"format": "amivara-export/1"}';
+  }
+
+  @override
+  Future<DateTime> deleteAccount(String accessToken) async {
+    calls.add('delete');
+    return DateTime.utc(2026, 12, 10);
+  }
+}
+
+class FakeDataSaver implements DataSaver {
+  final List<String> saved = <String>[];
+
+  @override
+  Future<void> save(String fileName, String json) async => saved.add('$fileName:$json');
 }

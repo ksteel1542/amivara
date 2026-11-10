@@ -6,6 +6,7 @@ import { ApiError } from '../../common/api-error';
 import { randomToken, sha256Hex } from '../../common/crypto';
 import { HasherService } from '../../common/hasher.service';
 import type { RequestContext } from '../../common/request-context';
+import { DomainEvents } from '../../common/domain-events';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ACCESS_TOKEN_TTL_SECONDS, TokensService } from './tokens.service';
 
@@ -33,6 +34,7 @@ export class SessionsService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokensService,
     private readonly hasher: HasherService,
+    private readonly events: DomainEvents,
   ) {}
 
   async create(userId: string, ctx: RequestContext): Promise<TokenPair> {
@@ -98,7 +100,25 @@ export class SessionsService {
     });
     // A signed-out phone must stop receiving this member's notifications.
     await this.prisma.pushToken.deleteMany({ where: { sessionId, userId } });
+    if (result.count > 0) this.events.emit('sessions.revoked', { userId, sessionIds: [sessionId] });
     return result.count > 0;
+  }
+
+  /** "Sign out other devices": every active session except the current one. Returns how many. */
+  async revokeOthers(userId: string, currentSessionId: string): Promise<number> {
+    const others = await this.prisma.deviceSession.findMany({
+      where: { userId, revokedAt: null, id: { not: currentSessionId } },
+      select: { id: true },
+    });
+    const ids = others.map((o) => o.id);
+    if (ids.length === 0) return 0;
+    await this.prisma.deviceSession.updateMany({
+      where: { id: { in: ids }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.prisma.pushToken.deleteMany({ where: { sessionId: { in: ids } } });
+    this.events.emit('sessions.revoked', { userId, sessionIds: ids });
+    return ids.length;
   }
 
   async list(userId: string) {

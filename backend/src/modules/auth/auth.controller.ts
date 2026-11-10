@@ -64,8 +64,10 @@ export class AuthController {
       if (user.status === 'BANNED') {
         throw new ApiError(HttpStatus.FORBIDDEN, 'ACCOUNT_SUSPENDED', 'This account is not active.');
       }
+      // Signing back in within the 30-day grace period cancels a deletion (API.md "Account controls").
+      const restored = user.status === 'PENDING_DELETION' && (await this.restore(user.id));
       const tokens = await this.sessions.create(user.id, ctx);
-      return { status: 'signed_in', ...tokens };
+      return { status: 'signed_in', ...tokens, ...(restored ? { restored: true } : {}) };
     }
 
     const deviceHash = this.hasher.hashOptional('device', ctx.deviceId);
@@ -77,6 +79,25 @@ export class AuthController {
       signup_token: this.tokens.issueSignup(phone, deviceHash),
       expires_in: SIGNUP_TOKEN_TTL_SECONDS,
     };
+  }
+
+  /**
+   * Cancels a pending deletion. A suspension that was running when the
+   * member deleted their account still applies; archived matches stay
+   * archived and the location must be shared again.
+   */
+  private async restore(userId: string): Promise<boolean> {
+    const last = await this.prisma.enforcementAction.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { action: true, expiresAt: true },
+    });
+    const stillSuspended = last?.action === 'SUSPEND' && (!last.expiresAt || last.expiresAt > new Date());
+    const restored = await this.prisma.user.updateMany({
+      where: { id: userId, status: 'PENDING_DELETION' },
+      data: { status: stillSuspended ? 'SUSPENDED' : 'ACTIVE', deletedAt: null },
+    });
+    return restored.count > 0;
   }
 
   @Public()
@@ -105,6 +126,13 @@ export class AuthController {
         current: s.id === sessionId,
       })),
     };
+  }
+
+  /** "Sign out other devices": everything except this session. */
+  @Delete('sessions')
+  @HttpCode(HttpStatus.OK)
+  async revokeOtherSessions(@CurrentMember() member: AuthenticatedMember, @CurrentSessionId() sessionId: string) {
+    return { revoked: await this.sessions.revokeOthers(member.id, sessionId) };
   }
 
   @Delete('sessions/:id')

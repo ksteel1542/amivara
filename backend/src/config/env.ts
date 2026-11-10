@@ -27,6 +27,8 @@ const base = z.object({
   FCM_PRIVATE_KEY_PEM: z.string().optional(),
   /** AES-256-GCM key for message bodies at rest (secret message-key), 32 bytes base64. */
   MESSAGE_ENC_KEY: z.string().optional(),
+  /** How often deleted accounts past their 30 days are erased. 0 disables it (dev, tests). Deployed: 3600. */
+  ACCOUNT_PURGE_SECONDS: z.coerce.number().int().min(0).max(86400).default(0),
   /** Smile ID job_status fallback poll interval. 0 disables it (dev, tests). Deployed: 120. */
   VERIFICATION_POLL_SECONDS: z.coerce.number().int().min(0).max(3600).default(0),
 

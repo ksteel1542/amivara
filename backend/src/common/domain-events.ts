@@ -10,6 +10,10 @@ export interface DomainEventMap {
   'match.unmatched': { matchId: string; byUserId: string; otherUserId: string };
   /** A member was suspended or banned: open sockets close (the WebSocket checks status only on connect). */
   'member.restricted': { userId: string; action: 'SUSPEND' | 'BAN' };
+  /** A member deleted their account: every socket closes. */
+  'member.deleted': { userId: string };
+  /** Device sessions were signed out (logout, "sign out other devices"): their sockets close. */
+  'sessions.revoked': { userId: string; sessionIds: string[] };
   /** A moderator warned a member: a generic push asks them to review the guidelines. */
   'member.warned': { userId: string };
   /** A chat message was stored. Never carries the body. */

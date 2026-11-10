@@ -9,13 +9,12 @@ import { z } from 'zod';
 import { ApiError } from '../../common/api-error';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TokensService } from '../auth/tokens.service';
-import { CLOSE_FORBIDDEN, MessagingService } from './messaging.service';
+import { CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED, MessagingService } from './messaging.service';
 import { RealtimeRegistry } from './realtime.registry';
 
 export const CHAT_PATH = '/ws/chat';
 /** Close codes (API.md "Messaging"): 4401 sign in again, 4403 verification required / not allowed. */
-export const CLOSE_UNAUTHENTICATED = 4401;
-export { CLOSE_FORBIDDEN };
+export { CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED };
 const HEARTBEAT_MS = 30_000;
 const MAX_FRAME_BYTES = 16 * 1024;
 
@@ -94,21 +93,25 @@ export class ChatGateway implements OnApplicationBootstrap, OnApplicationShutdow
     const state: { handle?: (raw: RawData) => void } = {};
     ws.on('message', (raw) => (state.handle ? state.handle(raw) : pending.push(raw)));
 
-    const userId = await this.authenticate(req, ws);
-    if (!userId) return;
+    const auth = await this.authenticate(req, ws);
+    if (!auth) return;
+    const { userId, sessionId } = auth;
 
     ws.alive = true;
     ws.on('pong', () => (ws.alive = true));
     ws.on('close', () => this.realtime.remove(userId, ws));
     ws.on('error', () => this.realtime.remove(userId, ws));
-    this.realtime.add(userId, ws);
+    this.realtime.add(userId, ws, sessionId);
     const handle = (raw: RawData) => void this.onFrame(userId, ws, raw);
     state.handle = handle;
     for (const raw of pending.splice(0)) handle(raw);
   }
 
   /** Same checks as JwtAuthGuard + AgeVerifiedGuard. Returns the member id, or closes the socket. */
-  private async authenticate(req: IncomingMessage, ws: WebSocket): Promise<string | undefined> {
+  private async authenticate(
+    req: IncomingMessage,
+    ws: WebSocket,
+  ): Promise<{ userId: string; sessionId: string } | undefined> {
     const [scheme, token] = (req.headers.authorization ?? '').split(' ');
     if (scheme?.toLowerCase() !== 'bearer' || !token) {
       ws.close(CLOSE_UNAUTHENTICATED, 'UNAUTHENTICATED');
@@ -129,7 +132,7 @@ export class ChatGateway implements OnApplicationBootstrap, OnApplicationShutdow
         ws.close(CLOSE_UNAUTHENTICATED, 'INVALID_TOKEN');
         return undefined;
       }
-      if (session.user.status === 'BANNED' || session.user.status === 'SUSPENDED') {
+      if (['BANNED', 'SUSPENDED', 'PENDING_DELETION'].includes(session.user.status)) {
         ws.close(CLOSE_FORBIDDEN, 'ACCOUNT_SUSPENDED');
         return undefined;
       }
@@ -137,7 +140,7 @@ export class ChatGateway implements OnApplicationBootstrap, OnApplicationShutdow
         ws.close(CLOSE_FORBIDDEN, 'VERIFICATION_REQUIRED');
         return undefined;
       }
-      return session.userId;
+      return { userId: session.userId, sessionId: claims.sid };
     } catch {
       ws.close(CLOSE_UNAUTHENTICATED, 'INVALID_TOKEN');
       return undefined;
