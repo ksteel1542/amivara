@@ -5,29 +5,48 @@ import 'package:go_router/go_router.dart';
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
 import '../auth/auth_repository.dart';
+import '../discovery/discovery_feed.dart';
+import '../discovery/profile_card.dart';
 
-final _meProvider = FutureProvider.autoDispose<MemberSummary?>((ref) async {
+final currentMemberProvider = FutureProvider.autoDispose<MemberSummary?>((ref) async {
   final session = ref.watch(sessionProvider);
   if (session == null) return null;
   return ref.read(authRepositoryProvider).me(session.accessToken);
 });
 
-/// Placeholder home for sprint 1: confirms sign-in and shows the browse-only
-/// banner (PRD §5.3a). Discovery arrives in sprint 4, Smile ID in sprint 3.
+/// Card images: the network in the app, a placeholder in widget tests.
+final cardImageBuilderProvider = Provider<CardImageBuilder>((ref) => networkCardImage);
+
+/// Home = discovery (Stage 4, sprint 4). Unverified members browse and pass;
+/// the banner and the like gate lead to Smile ID verification (PRD §5.3a).
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final me = ref.watch(_meProvider);
-    final name = me.value?.firstName;
-    final verified = me.value?.ageVerified ?? false;
+    final me = ref.watch(currentMemberProvider);
+    final verified = me.value?.ageVerified;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('AMIVARA', style: theme.textTheme.titleLarge?.copyWith(letterSpacing: 4)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text('AMIVARA', style: theme.textTheme.titleLarge?.copyWith(letterSpacing: 4)),
+            if (verified == true) ...<Widget>[
+              const SizedBox(width: RoseSpacing.s2),
+              const VerifiedBadge(key: Key('verified-badge'), size: 20),
+            ],
+          ],
+        ),
         actions: <Widget>[
+          IconButton(
+            key: const Key('edit-profile'),
+            tooltip: 'Edit profile',
+            icon: const Icon(Icons.person_outline),
+            onPressed: () => context.push('/profile/edit'),
+          ),
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),
@@ -38,20 +57,19 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(RoseSpacing.gutterOnboarding),
+      body: Column(
         children: <Widget>[
-          if (!verified)
-            Card(
+          if (verified == false)
+            Material(
               key: const Key('verify-banner'),
-              clipBehavior: Clip.antiAlias,
+              color: theme.colorScheme.surfaceContainer,
               child: InkWell(
                 onTap: () => context.push('/verify-intro'),
                 child: Padding(
-                  padding: const EdgeInsets.all(RoseSpacing.s4),
+                  padding: const EdgeInsets.symmetric(horizontal: RoseSpacing.s4, vertical: RoseSpacing.s3),
                   child: Row(
                     children: <Widget>[
-                      Icon(Icons.verified_outlined, color: theme.colorScheme.tertiary),
+                      Icon(Icons.verified_outlined, color: theme.colorScheme.tertiary, size: 20),
                       const SizedBox(width: RoseSpacing.s3),
                       const Expanded(child: Text('Verify to start liking and chatting')),
                       const Icon(Icons.chevron_right),
@@ -60,38 +78,8 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          if (verified)
-            Row(
-              key: const Key('verified-badge'),
-              children: <Widget>[
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: const BoxDecoration(color: RoseColors.champagneGold, shape: BoxShape.circle),
-                  child: const Icon(Icons.check_rounded, size: 18, color: RoseColors.burgundyBlack),
-                ),
-                const SizedBox(width: RoseSpacing.s2),
-                Text('Verified', style: theme.textTheme.titleMedium),
-              ],
-            ),
-          const SizedBox(height: RoseSpacing.s8),
-          Text(
-            name == null ? 'Welcome' : "You're in, $name",
-            style: theme.textTheme.headlineLarge?.copyWith(
-              color: theme.brightness == Brightness.dark ? theme.colorScheme.onSurface : theme.colorScheme.secondary,
-            ),
-          ),
-          const SizedBox(height: RoseSpacing.s2),
-          Text(
-            'Discovery is coming soon. Make your profile shine in the meantime.',
-            style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: RoseSpacing.s6),
-          OutlinedButton.icon(
-            key: const Key('edit-profile'),
-            onPressed: () => context.push('/profile/edit'),
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Edit profile'),
+          Expanded(
+            child: DiscoveryFeed(verified: verified, imageBuilder: ref.watch(cardImageBuilderProvider)),
           ),
         ],
       ),

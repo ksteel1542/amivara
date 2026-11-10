@@ -126,7 +126,12 @@ describe('Smile ID verification (integration, PostgreSQL)', () => {
       .set(auth())
       .expect(403);
     expect(message.body.error.code).toBe('VERIFICATION_REQUIRED');
-    await http().post('/v1/matching/passes').set(auth()).expect(501); // browsing actions stay open
+    // Browsing actions stay open: an unknown target is 404, not 403.
+    await http()
+      .post('/v1/matching/passes')
+      .set(auth())
+      .send({ user_id: '00000000-0000-4000-8000-0000000000ff' })
+      .expect(404);
   });
 
   // ── Webhook ───────────────────────────────────────────────
@@ -165,7 +170,12 @@ describe('Smile ID verification (integration, PostgreSQL)', () => {
     const status = await http().get('/v1/verification/status').set(auth()).expect(200);
     expect(status.body).toMatchObject({ age_verified: true, latest: { status: 'passed' } });
 
-    await http().post('/v1/matching/likes').set(auth()).expect(501); // past the gate
+    // Past the gate: an unknown target is 404, not 403.
+    await http()
+      .post('/v1/matching/likes')
+      .set(auth())
+      .send({ user_id: '00000000-0000-4000-8000-0000000000ff' })
+      .expect(404);
     await http().post('/v1/conversations/00000000-0000-4000-8000-000000000000/messages').set(auth()).expect(501);
 
     // Smile ID retries: a replay changes nothing.

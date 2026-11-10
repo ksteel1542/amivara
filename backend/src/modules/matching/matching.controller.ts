@@ -1,24 +1,38 @@
-import { Controller, HttpCode, NotImplementedException, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { z } from 'zod';
 
+import type { AuthenticatedMember } from '../../common/authenticated-member';
+import { ZodValidationPipe } from '../../common/zod-validation.pipe';
+import { CurrentMember } from '../auth/auth.guards';
 import { RequireAgeVerified } from '../verification/require-age-verified.decorator';
+import { MatchingService } from './matching.service';
 
-/**
- * Likes, passes and matches (API.md "Discovery & Matching").
- * The verification gate is wired now so it can't be forgotten later.
- */
+const likeSchema = z.object({ user_id: z.string().uuid(), is_super: z.boolean().default(false) }).strict();
+const passSchema = z.object({ user_id: z.string().uuid() }).strict();
+
+/** Likes, passes and matches (API.md "Discovery & Matching"). */
 @Controller('matching')
 export class MatchingController {
+  constructor(private readonly matching: MatchingService) {}
+
+  /** 403 VERIFICATION_REQUIRED until Smile ID passes (PRD §5.3a). */
   @Post('likes')
-  @HttpCode(201)
+  @HttpCode(HttpStatus.CREATED)
   @RequireAgeVerified()
-  like(): never {
-    throw new NotImplementedException('Likes arrive in Stage 4, sprint 5');
+  like(
+    @CurrentMember() member: AuthenticatedMember,
+    @Body(new ZodValidationPipe(likeSchema)) body: z.infer<typeof likeSchema>,
+  ) {
+    return this.matching.like(member.id, body.user_id, body.is_super);
   }
 
-  /** Passing only affects the member's own stack, so it is allowed before verification. */
+  /** Open before verification: passing only changes the member's own stack. */
   @Post('passes')
-  @HttpCode(201)
-  pass(): never {
-    throw new NotImplementedException('Passes arrive in Stage 4, sprint 5');
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async pass(
+    @CurrentMember() member: AuthenticatedMember,
+    @Body(new ZodValidationPipe(passSchema)) body: z.infer<typeof passSchema>,
+  ): Promise<void> {
+    await this.matching.pass(member.id, body.user_id);
   }
 }

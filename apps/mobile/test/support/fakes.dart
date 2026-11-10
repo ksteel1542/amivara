@@ -8,6 +8,10 @@ import 'package:amivara/core/api_client.dart';
 import 'package:amivara/core/secure_store.dart';
 import 'package:amivara/features/auth/auth_providers.dart';
 import 'package:amivara/features/auth/auth_repository.dart';
+import 'package:amivara/features/discovery/discovery_models.dart';
+import 'package:amivara/features/discovery/discovery_providers.dart';
+import 'package:amivara/features/discovery/discovery_repository.dart';
+import 'package:amivara/features/home/home_screen.dart';
 import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_models.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
@@ -74,10 +78,13 @@ class FakeAuthRepository implements AuthRepository {
     return _next<TokenPair>();
   }
 
+  /// What GET /me reports.
+  bool verified = false;
+
   @override
   Future<MemberSummary> me(String accessToken) async {
     calls.add('me');
-    return const MemberSummary(firstName: 'Adaeze', ageVerified: false);
+    return MemberSummary(firstName: 'Adaeze', ageVerified: verified);
   }
 }
 
@@ -95,6 +102,7 @@ Future<void> pumpApp(
   WidgetTester tester, {
   required FakeAuthRepository repo,
   FakeProfileRepository? profiles,
+  FakeDiscoveryRepository? discovery,
   MemoryStore? store,
   String initialLocation = '/',
   List<dynamic> extraOverrides = const <dynamic>[],
@@ -111,6 +119,9 @@ Future<void> pumpApp(
         photoProcessorProvider.overrideWithValue(FakePhotoProcessor()),
         verificationRepositoryProvider.overrideWithValue(FakeVerificationRepository()),
         identityCaptureProvider.overrideWithValue(FakeIdentityCapture()),
+        discoveryRepositoryProvider.overrideWithValue(discovery ?? FakeDiscoveryRepository()),
+        locationSourceProvider.overrideWithValue(FakeLocationSource()),
+        cardImageBuilderProvider.overrideWithValue(placeholderImage),
         ...extraOverrides.cast(),
       ],
       child: AmivaraApp(initialLocation: initialLocation),
@@ -279,3 +290,61 @@ class FakeIdentityCapture implements IdentityCapture {
     );
   }
 }
+
+DiscoveryCard card(String id, {String? name, int photos = 2}) => DiscoveryCard(
+  userId: id,
+  firstName: name ?? 'Member $id',
+  age: 29,
+  distanceLabel: '6 km away',
+  photoUrls: <String>[for (var i = 0; i < photos; i++) 'https://media.example.test/$id/$i'],
+  intent: 'relationship',
+  bio: 'Bio of $id',
+  prompts: const <CardPrompt>[CardPrompt('The green flag I look for…', 'Kindness.')],
+  interests: const <String>['afrobeats', 'cooking'],
+);
+
+/// Scriptable discovery backend.
+class FakeDiscoveryRepository implements DiscoveryRepository {
+  FakeDiscoveryRepository({
+    List<DiscoveryCard>? cards,
+    this.locationRequired = false,
+    this.matchOnLike = false,
+    this.likeError,
+  }) : _cards = cards ?? <DiscoveryCard>[card('a', name: 'Tunde'), card('b', name: 'Emeka'), card('c', name: 'Kunle')];
+
+  final List<DiscoveryCard> _cards;
+  bool locationRequired;
+  final bool matchOnLike;
+  final ApiException? likeError;
+  final List<String> calls = <String>[];
+
+  @override
+  Future<DiscoveryPage> feed(String accessToken, {String? cursor}) async {
+    calls.add('feed');
+    if (locationRequired) throw const ApiException(409, 'LOCATION_REQUIRED', 'Share your location');
+    return DiscoveryPage(cursor == null ? List.of(_cards) : const <DiscoveryCard>[], null);
+  }
+
+  @override
+  Future<LikeResult> like(String accessToken, String userId) async {
+    calls.add('like:$userId');
+    if (likeError != null) throw likeError!;
+    return LikeResult(matched: matchOnLike);
+  }
+
+  @override
+  Future<void> pass(String accessToken, String userId) async => calls.add('pass:$userId');
+
+  @override
+  Future<void> updateLocation(String accessToken, double lat, double lng) async {
+    calls.add('location:$lat,$lng');
+    locationRequired = false;
+  }
+}
+
+class FakeLocationSource implements LocationSource {
+  @override
+  Future<({double lat, double lng})?> currentPosition() async => (lat: 6.5244, lng: 3.3792);
+}
+
+Widget placeholderImage(BuildContext context, String url) => ColoredBox(color: Colors.brown, child: Text(url));

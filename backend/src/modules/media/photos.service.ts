@@ -119,6 +119,23 @@ export class PhotosService {
     );
   }
 
+  /** Approved-or-pending photos for several members at once (discovery cards), in order, with signed URLs. */
+  async viewsForUsers(userIds: string[]): Promise<Map<string, Array<{ id: string; url: string }>>> {
+    const result = new Map<string, Array<{ id: string; url: string }>>();
+    if (userIds.length === 0) return result;
+    const photos = await this.prisma.profilePhoto.findMany({
+      where: { userId: { in: userIds }, status: 'UPLOADED', moderationStatus: { not: 'REJECTED' } },
+      orderBy: [{ userId: 'asc' }, { position: 'asc' }],
+      select: { id: true, userId: true, storageKey: true },
+    });
+    for (const p of photos) {
+      const list = result.get(p.userId) ?? [];
+      list.push({ id: p.id, url: await this.storage.viewUrl(p.storageKey) });
+      result.set(p.userId, list);
+    }
+    return result;
+  }
+
   /** Sets the full order. `photoIds` must list every uploaded photo exactly once; the first becomes primary. */
   async reorder(userId: string, photoIds: string[]): Promise<PhotoView[]> {
     const current = await this.prisma.profilePhoto.findMany({

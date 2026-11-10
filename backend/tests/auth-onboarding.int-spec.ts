@@ -329,6 +329,11 @@ describe('Auth + onboarding (integration, PostgreSQL)', () => {
     const auth = { Authorization: `Bearer ${tokens.access_token}` };
     const like = await http().post('/v1/matching/likes').set(auth).expect(403);
     expect(like.body.error.code).toBe('VERIFICATION_REQUIRED');
-    await http().post('/v1/matching/passes').set(auth).expect(501);
+    // Past the gate: an unknown target is 404 (not 403).
+    await http()
+      .post('/v1/matching/passes')
+      .set(auth)
+      .send({ user_id: '00000000-0000-4000-8000-0000000000ff' })
+      .expect(404);
   });
 });

@@ -14,6 +14,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TokensService } from './tokens.service';
 
 const IS_PUBLIC = 'amivara:isPublic';
+const ACTIVITY_WRITE_INTERVAL_MS = 15 * 60 * 1000;
 
 /** Opens a route to unauthenticated callers (health, OTP, refresh, onboarding). */
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC, true);
@@ -55,7 +56,7 @@ export class JwtAuthGuard implements CanActivate {
         userId: true,
         revokedAt: true,
         expiresAt: true,
-        user: { select: { id: true, status: true, ageVerified: true, deletedAt: true } },
+        user: { select: { id: true, status: true, ageVerified: true, deletedAt: true, lastActiveAt: true } },
       },
     });
     if (!session || session.userId !== claims.sub || session.revokedAt || session.expiresAt <= new Date()) {
@@ -72,6 +73,14 @@ export class JwtAuthGuard implements CanActivate {
     };
     req.member = member;
     req.sessionId = claims.sid;
+
+    // Activity drives discovery recency ranking. Written at most every 15 minutes, off the request path.
+    const last = session.user.lastActiveAt?.getTime() ?? 0;
+    if (Date.now() - last > ACTIVITY_WRITE_INTERVAL_MS) {
+      void this.prisma.user
+        .update({ where: { id: member.id }, data: { lastActiveAt: new Date() } })
+        .catch(() => undefined);
+    }
     return true;
   }
 }

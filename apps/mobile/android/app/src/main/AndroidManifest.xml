@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- The app talks to the AMIVARA API (HTTPS only in release builds). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Coarse only (~2 km): enough for discovery, kinder to privacy. The API
+         rounds to ~100 m and never shows exact distances (SECURITY.md §4). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <application
         android:label="AMIVARA"

@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:amivara/core/secure_store.dart';
 import 'package:amivara/features/auth/auth_providers.dart';
+import 'package:amivara/features/discovery/discovery_providers.dart';
+import 'package:amivara/features/home/home_screen.dart';
 import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
@@ -33,6 +35,9 @@ Future<ProviderContainer> pumpVerification(
       photoProcessorProvider.overrideWithValue(FakePhotoProcessor() as PhotoProcessor),
       verificationRepositoryProvider.overrideWithValue(verification),
       identityCaptureProvider.overrideWithValue(capture ?? FakeIdentityCapture()),
+      discoveryRepositoryProvider.overrideWithValue(FakeDiscoveryRepository()),
+      locationSourceProvider.overrideWithValue(FakeLocationSource()),
+      cardImageBuilderProvider.overrideWithValue(placeholderImage),
     ],
   );
   addTearDown(container.dispose);

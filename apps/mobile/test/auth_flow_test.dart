@@ -166,7 +166,9 @@ void main() {
     await goToPhone(tester);
     await enterPhoneAndSend(tester, '08012345678');
     await enterCode(tester, '654321');
-    expect(find.text("You're in, Adaeze"), findsOneWidget);
+    // Home is the discovery feed.
+    expect(find.byKey(const Key('edit-profile')), findsOneWidget);
+    expect(find.text('Tunde, 29'), findsOneWidget);
   });
 
   testWidgets('a wrong code shows the tries left and clears the boxes', (tester) async {

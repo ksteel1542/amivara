@@ -145,6 +145,12 @@ model User {
   matchesAsB    Match[]         @relation("MatchUserB")
   unmatchedByMe Match[]         @relation("MatchUnmatchedBy")
   sentMessages  Message[]       @relation("MessageSender")
+  likesGiven    Like[]          @relation("LikeLiker")
+  likesReceived Like[]          @relation("LikeLikee")
+  passesGiven   Pass[]          @relation("PassPasser")
+  passesGot     Pass[]          @relation("PassPassee")
+  blocksMade    Block[]         @relation("BlockBlocker")
+  blockedBy     Block[]         @relation("BlockBlocked")
 
   @@index([status, ageVerified])
   @@index([lastActiveAt])
@@ -223,6 +229,50 @@ model Verification {
   @@index([userId, type, createdAt(sort: Desc)])
   @@index([status])
   @@map("verifications")
+}
+
+/// A like (PRD §5.3). Two likes in opposite directions create a Match.
+model Like {
+  likerId   String   @map("liker_id") @db.Uuid
+  likeeId   String   @map("likee_id") @db.Uuid
+  isSuper   Boolean  @default(false) @map("is_super")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  liker User @relation("LikeLiker", fields: [likerId], references: [id], onDelete: Cascade)
+  likee User @relation("LikeLikee", fields: [likeeId], references: [id], onDelete: Cascade)
+
+  @@id([likerId, likeeId])
+  @@index([likeeId, createdAt(sort: Desc)])
+  @@index([likerId, createdAt(sort: Desc)])
+  @@map("likes")
+}
+
+/// A pass. Hidden from the passer's discovery until it expires (30 days, PRD §6).
+model Pass {
+  passerId  String   @map("passer_id") @db.Uuid
+  passeeId  String   @map("passee_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  passer User @relation("PassPasser", fields: [passerId], references: [id], onDelete: Cascade)
+  passee User @relation("PassPassee", fields: [passeeId], references: [id], onDelete: Cascade)
+
+  @@id([passerId, passeeId])
+  @@map("passes")
+}
+
+/// A block hides both members from each other everywhere (PRD §5.6).
+model Block {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  blocker User @relation("BlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
 }
 
 /// One row per matched pair. Canonical ordering: userAId < userBId (enforced by a CHECK in SQL).
@@ -417,6 +467,11 @@ model SignupBlock {
 //   -- OTP attempts are capped at 5 by the API; the DB refuses anything absurd
 //   ALTER TABLE otp_challenges ADD CONSTRAINT otp_challenges_attempts_chk
 //     CHECK (attempts BETWEEN 0 AND 10);
+//
+//   -- Nobody can like, pass or block themselves (sprint 4)
+//   ALTER TABLE likes  ADD CONSTRAINT likes_not_self_chk  CHECK (liker_id <> likee_id);
+//   ALTER TABLE passes ADD CONSTRAINT passes_not_self_chk CHECK (passer_id <> passee_id);
+//   ALTER TABLE blocks ADD CONSTRAINT blocks_not_self_chk CHECK (blocker_id <> blocked_id);
 //
 //   -- Profile content limits (sprint 2)
 //   ALTER TABLE profiles ADD CONSTRAINT profiles_prompts_chk

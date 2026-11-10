@@ -10,6 +10,8 @@ import 'core/config.dart';
 import 'core/secure_store.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/auth_repository.dart';
+import 'features/discovery/discovery_providers.dart';
+import 'features/discovery/discovery_repository.dart';
 import 'features/profile/profile_providers.dart';
 import 'features/profile/profile_repository.dart';
 import 'features/verification/identity_capture.dart';
@@ -32,6 +34,7 @@ Future<void> main() async {
       authRepositoryProvider.overrideWithValue(HttpAuthRepository(api)),
       profileRepositoryProvider.overrideWithValue(HttpProfileRepository(api)),
       verificationRepositoryProvider.overrideWithValue(HttpVerificationRepository(api)),
+      discoveryRepositoryProvider.overrideWithValue(HttpDiscoveryRepository(api)),
       identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],
   );
