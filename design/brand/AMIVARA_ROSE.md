@@ -222,9 +222,9 @@ abstract final class RoseBrand {
 
 The canonical tokens live in [`tokens.json`](tokens.json) (W3C Design Tokens format). It is the single source for both platforms, and the snippets above will be generated from it in Stage 3.
 
-## 8. Logo (placeholder brief, to be designed in `design/logos/`)
+## 8. Logo (summary; the full brief is in `design/logos/LOGO_BRIEF.md`)
 
 - Wordmark: "AMIVARA" in Playfair Display SemiBold with custom letter-spacing, burgundy on ivory or ivory on burgundy.
 - Monogram: a stylised **A** formed by two curves meeting (mutual connection), with a small gold point at the apex.
 - The minimum clear space around the logo is the height of the "A".
-- App icon: the monogram in ivory on a Deep Rose `#88304E` background, as an adaptive icon (with foreground and background layers).
+- App icon: the monogram in ivory with a gold apex point on a **Burgundy `#52182F`** background (proposed in place of Deep Rose, because gold on rose isn't allowed; founder to confirm). Full spec in [`design/logos/LOGO_BRIEF.md`](../logos/LOGO_BRIEF.md).

@@ -34,7 +34,8 @@
 - [x] AMIVARA ROSE palette, typography and voice → `design/brand/AMIVARA_ROSE.md`
 - [x] Design tokens → `design/brand/tokens.json`
 - [x] Onboarding and verification wireframes spec → `docs/UI_WIREFRAMES.md`
-- [ ] Logo and app icon → `design/logos`
+- [x] Logo & brand identity brief → `design/logos/LOGO_BRIEF.md`
+- [ ] Logo and app icon design (rounds 1–4 in the brief) → `design/logos`
 - [ ] Browse-only ("verify later") states: the Like button's verification prompt, the persistent banner, the 30-day auto-pause notice
 - Wireframes, then hi-fi screens: onboarding, verification, discovery, match, chat, safety, settings. Android (Material 3) and responsive web layouts only.
 - Design the Smile ID verification moments: the pre-check explainer, SmartSelfie™ capture guidance, and the failure and retry screens

@@ -12,6 +12,7 @@
 | Verification gating | **"Verify later" is allowed.** Members who haven't verified can **browse** profiles. **Liking, Super Liking and messaging require a passed Smile ID verification** (see §5.3a) |
 | Cloud region | **AWS Cape Town (`af-south-1`)** as the primary region, with **Amazon CloudFront** serving Nigerian members from its Lagos edge locations |
 | Design tokens | `design/brand/tokens.json` (AMIVARA ROSE) is the single source of truth for colour, type and spacing |
+| Unverified accounts | **Confirmed:** auto-pause after 30 days without verification, and AMIVARA Plus can only be bought after verification (§5.3a) |
 
 ## 1. Summary
 
