@@ -129,6 +129,6 @@ export class DiscoveryRepository {
         FROM scored
        WHERE ${afterScore}::float8 IS NULL OR (score, id) < (${afterScore}::float8, ${afterId}::uuid)
        ORDER BY score DESC, id DESC
-       LIMIT ${opts.limit}`;
+       LIMIT ${opts.limit}::int`;
   }
 }

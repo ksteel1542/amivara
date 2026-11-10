@@ -27,6 +27,14 @@ android {
         versionName = flutter.versionName
     }
 
+    packaging {
+        resources {
+            // OSGi metadata shipped by both okhttp logging-interceptor (via the Smile ID SDK)
+            // and jspecify. Android never reads it; keeping both copies fails the merge.
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

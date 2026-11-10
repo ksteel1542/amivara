@@ -112,11 +112,11 @@ describe('Discovery and matching (integration, PostgreSQL + PostGIS)', () => {
         },
       });
     }
-    // Profile edits also count as activity; age them to match activeHoursAgo.
-    await prisma.$executeRaw`UPDATE profiles SET updated_at = ${new Date(Date.now() - (s.activeHoursAgo ?? 1) * 3600_000)}
-                             WHERE user_id = ${user.id}::uuid`;
     const at = s.at ?? north(5);
     await app.get(GeoRepository).setLocation(user.id, at.lat, at.lng);
+    // After setLocation (which stamps updated_at = now()): profile edits count as activity, so age them too.
+    await prisma.$executeRaw`UPDATE profiles SET updated_at = ${new Date(Date.now() - (s.activeHoursAgo ?? 1) * 3600_000)}
+                             WHERE user_id = ${user.id}::uuid`;
     return user.id;
   }
 

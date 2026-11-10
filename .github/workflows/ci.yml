@@ -120,8 +120,19 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @amivara/backend prisma:generate
 
-      - name: API integration tests (auth + onboarding against PostGIS)
-        run: pnpm --filter @amivara/backend test:integration
+      - name: API integration tests (against PostGIS)
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @amivara/backend test:integration 2>&1 | tee integration.log
+
+      # Job logs need sign-in to read; annotations are public. Publish the failing tests and their errors.
+      - name: Surface integration test failures
+        if: failure()
+        shell: bash
+        run: |
+          summary=$(grep -A 18 -E "^\s+● " integration.log | grep -vE "^\s+at " | head -90 | awk 'BEGIN { ORS = "%0A" } { gsub(/%/, "%25"); print }')
+          echo "::error title=Integration tests failed::${summary}"
 
   # ─── Android: analyze, test and build a release AAB ───
   android:
