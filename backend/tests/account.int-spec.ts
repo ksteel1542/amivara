@@ -263,9 +263,12 @@ describe('Account controls, export and deletion (integration, PostgreSQL)', () =
     expect(data.profile).toMatchObject({ first_name: 'Chidinma', gender: 'woman' });
     expect(data.profile.location).toEqual({ latitude: 6.524, longitude: 3.379 }); // the rounded point on file
     expect(data.profile.photos).toHaveLength(1);
+    // Phone OTP (from onboarding) and the Smile ID check.
     expect(data.verifications).toEqual([
+      expect.objectContaining({ type: 'phone_otp', provider: 'internal', status: 'passed' }),
       expect.objectContaining({
         type: 'biometric_kyc',
+        provider: 'smile_id',
         status: 'passed',
         id_type: 'NIN',
         completed_at: expect.any(String),
