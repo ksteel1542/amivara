@@ -11,3 +11,10 @@ onlyBuiltDependencies:
   - prisma
   - sharp
   - unrs-resolver
+
+# Prisma resolves @prisma/client upward from the schema's folder
+# (database/schema/), not from backend/. Hoisting it to the root node_modules
+# makes `prisma generate` find it; otherwise Prisma tries to auto-install it
+# at the workspace root, which pnpm refuses.
+publicHoistPattern:
+  - '@prisma/client'
