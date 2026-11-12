@@ -12,6 +12,9 @@ abstract interface class ProfileRepository {
   Future<MyProfile> myProfile(String accessToken);
   Future<MyProfile> updateProfile(String accessToken, {String? bio, DatingIntent? intent, List<PromptAnswer>? prompts});
 
+  /// Interests and languages (PATCH /profiles/me): other members see them on your card.
+  Future<MyProfile> updateTags(String accessToken, {required List<String> interests, required List<String> languages});
+
   /// Reserve → direct upload to S3 → confirm. Returns the updated photo list.
   Future<List<ProfilePhoto>> uploadPhoto(String accessToken, Uint8List jpegBytes);
   Future<List<ProfilePhoto>> reorderPhotos(String accessToken, List<String> photoIds);
@@ -32,6 +35,19 @@ class HttpProfileRepository implements ProfileRepository {
   @override
   Future<MyProfile> myProfile(String accessToken) async =>
       MyProfile.fromJson(await _api.get('/profiles/me', bearer: accessToken));
+
+  @override
+  Future<MyProfile> updateTags(
+    String accessToken, {
+    required List<String> interests,
+    required List<String> languages,
+  }) async => MyProfile.fromJson(
+    await _api.patch(
+      '/profiles/me',
+      bearer: accessToken,
+      body: <String, dynamic>{'interests': interests, 'languages': languages},
+    ),
+  );
 
   @override
   Future<MyProfile> updateProfile(

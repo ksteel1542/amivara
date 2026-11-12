@@ -220,6 +220,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// The full profile; reporting or blocking there ends this chat too.
+  Future<void> _openProfile() async {
+    final outcome = await context.push<SafetyOutcome>('/member/${_match.userId}');
+    if (outcome == null || !mounted) return;
+    _gone = true;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/matches');
+    }
+  }
+
   void _matchGone() {
     if (_gone || !mounted) return;
     _gone = true;
@@ -278,11 +290,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: Row(
-          children: <Widget>[
-            Flexible(child: Text('${_match.firstName}, ${_match.age}', overflow: TextOverflow.ellipsis)),
-            if (_match.verified) ...<Widget>[const SizedBox(width: RoseSpacing.s1), const VerifiedBadge(size: 16)],
-          ],
+        title: InkWell(
+          key: const Key('chat-open-profile'),
+          onTap: _openProfile,
+          child: Row(
+            children: <Widget>[
+              Flexible(child: Text('${_match.firstName}, ${_match.age}', overflow: TextOverflow.ellipsis)),
+              if (_match.verified) ...<Widget>[const SizedBox(width: RoseSpacing.s1), const VerifiedBadge(size: 16)],
+            ],
+          ),
         ),
         actions: <Widget>[
           IconButton(

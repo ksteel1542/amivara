@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { MediaModule } from '../media/media.module';
 import { GeoRepository } from './geo.repository';
+import { ProfileViewService } from './profile-view.service';
 import { ProfilesController } from './profiles.controller';
 import { ProfilesService } from './profiles.service';
 
@@ -9,7 +10,7 @@ import { ProfilesService } from './profiles.service';
 @Module({
   imports: [MediaModule],
   controllers: [ProfilesController],
-  providers: [ProfilesService, GeoRepository],
+  providers: [ProfilesService, ProfileViewService, GeoRepository],
   exports: [GeoRepository],
 })
 export class ProfilesModule {}

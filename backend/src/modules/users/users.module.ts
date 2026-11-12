@@ -8,6 +8,7 @@ import { AccountService } from './account.service';
 import { MeController } from './me.controller';
 import { OnboardingController } from './onboarding.controller';
 import { OnboardingService } from './onboarding.service';
+import { PreferencesController } from './preferences.controller';
 
 /**
  * Account lifecycle: onboarding (18+ gate), GET /me, account controls
@@ -16,7 +17,7 @@ import { OnboardingService } from './onboarding.service';
  */
 @Module({
   imports: [AuthModule, MediaModule],
-  controllers: [OnboardingController, MeController, AccountController],
+  controllers: [OnboardingController, MeController, AccountController, PreferencesController],
   providers: [OnboardingService, AccountService, AccountPurger],
 })
 export class UsersModule {}

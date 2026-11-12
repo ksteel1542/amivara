@@ -9,6 +9,9 @@ abstract interface class DiscoveryRepository {
   Future<LikeResult> like(String accessToken, String userId);
   Future<void> pass(String accessToken, String userId);
   Future<void> updateLocation(String accessToken, double lat, double lng);
+
+  /// Another member's full profile (GET /profiles/:userId). 404 if you can't see them.
+  Future<DiscoveryCard> viewProfile(String accessToken, String userId);
 }
 
 class HttpDiscoveryRepository implements DiscoveryRepository {
@@ -39,6 +42,10 @@ class HttpDiscoveryRepository implements DiscoveryRepository {
   @override
   Future<void> updateLocation(String accessToken, double lat, double lng) =>
       _api.put('/profiles/me/location', bearer: accessToken, body: <String, dynamic>{'lat': lat, 'lng': lng});
+
+  @override
+  Future<DiscoveryCard> viewProfile(String accessToken, String userId) async =>
+      DiscoveryCard.fromJson(await _api.get('/profiles/$userId', bearer: accessToken));
 }
 
 /// The device's approximate position. Coarse accuracy only (the manifest asks

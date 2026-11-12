@@ -6,6 +6,12 @@ class PromptOption {
   final String text;
 }
 
+class LanguageOption {
+  const LanguageOption(this.code, this.name);
+  final String code;
+  final String name;
+}
+
 class ProfileCatalog {
   const ProfileCatalog({
     required this.prompts,
@@ -13,6 +19,10 @@ class ProfileCatalog {
     required this.maxBio,
     required this.maxPhotos,
     required this.minPhotos,
+    this.interests = const <String>[],
+    this.languages = const <LanguageOption>[],
+    this.maxInterests = 10,
+    this.maxLanguages = 8,
   });
 
   factory ProfileCatalog.fromJson(Map<String, dynamic> json) {
@@ -27,6 +37,13 @@ class ProfileCatalog {
       maxBio: (limits['bio'] as num).toInt(),
       maxPhotos: (photos['max'] as num).toInt(),
       minPhotos: (photos['min'] as num).toInt(),
+      interests: ((json['interests'] as List<dynamic>?) ?? const <dynamic>[]).cast<String>(),
+      languages: ((json['languages'] as List<dynamic>?) ?? const <dynamic>[])
+          .cast<Map<String, dynamic>>()
+          .map((l) => LanguageOption(l['code'] as String, l['name'] as String))
+          .toList(),
+      maxInterests: (limits['interests'] as num?)?.toInt() ?? 10,
+      maxLanguages: (limits['languages'] as num?)?.toInt() ?? 8,
     );
   }
 
@@ -35,6 +52,13 @@ class ProfileCatalog {
   final int maxBio;
   final int maxPhotos;
   final int minPhotos;
+  final List<String> interests;
+  final List<LanguageOption> languages;
+  final int maxInterests;
+  final int maxLanguages;
+
+  String languageName(String code) =>
+      languages.firstWhere((l) => l.code == code, orElse: () => LanguageOption(code, code)).name;
 
   String promptText(String id) => prompts.firstWhere((p) => p.id == id, orElse: () => PromptOption(id, id)).text;
 }
@@ -69,6 +93,8 @@ class MyProfile {
     required this.intent,
     required this.prompts,
     required this.photos,
+    this.interests = const <String>[],
+    this.languages = const <String>[],
   });
 
   factory MyProfile.fromJson(Map<String, dynamic> json) => MyProfile(
@@ -77,6 +103,8 @@ class MyProfile {
     intent: intentFromApi(json['intent'] as String),
     prompts: (json['prompts'] as List<dynamic>).cast<Map<String, dynamic>>().map(PromptAnswer.fromJson).toList(),
     photos: photosFromJson(json['photos'] as List<dynamic>),
+    interests: ((json['interests'] as List<dynamic>?) ?? const <dynamic>[]).cast<String>(),
+    languages: ((json['languages'] as List<dynamic>?) ?? const <dynamic>[]).cast<String>(),
   );
 
   final String firstName;
@@ -84,7 +112,12 @@ class MyProfile {
   final DatingIntent intent;
   final List<PromptAnswer> prompts;
   final List<ProfilePhoto> photos;
+  final List<String> interests;
+  final List<String> languages;
 }
+
+/// Interest ids are lowercase tags ("afrobeats"); this is how they read on screen.
+String interestLabel(String id) => id.isEmpty ? id : id[0].toUpperCase() + id.substring(1).replaceAll('_', ' ');
 
 List<ProfilePhoto> photosFromJson(List<dynamic> list) =>
     list.cast<Map<String, dynamic>>().map(ProfilePhoto.fromJson).toList();

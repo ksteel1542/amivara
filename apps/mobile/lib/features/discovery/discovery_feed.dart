@@ -145,6 +145,13 @@ class _DiscoveryFeedState extends ConsumerState<DiscoveryFeed> {
     if (_cards.length <= 3) _load();
   }
 
+  Future<void> _openProfile(DiscoveryCard card) async {
+    final outcome = await context.push<SafetyOutcome>('/member/${card.userId}');
+    if (outcome == null || !mounted) return;
+    setState(() => _cards.removeWhere((c) => c.userId == card.userId));
+    if (_cards.length <= 3) _load();
+  }
+
   Future<void> _showMatch(DiscoveryCard card) {
     return showDialog<void>(
       context: context,
@@ -218,6 +225,7 @@ class _DiscoveryFeedState extends ConsumerState<DiscoveryFeed> {
                 card: _cards[i],
                 imageBuilder: widget.imageBuilder,
                 onSafety: () => _openSafety(_cards[i]),
+                onOpenProfile: () => _openProfile(_cards[i]),
               ),
             ),
           ),

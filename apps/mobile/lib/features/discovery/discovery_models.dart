@@ -24,7 +24,7 @@ class DiscoveryCard {
     firstName: json['first_name'] as String,
     age: (json['age'] as num).toInt(),
     verified: json['verified'] as bool? ?? true,
-    distanceLabel: (json['distance'] as Map<String, dynamic>)['label'] as String,
+    distanceLabel: (json['distance'] as Map<String, dynamic>?)?['label'] as String? ?? '',
     intent: json['intent'] as String?,
     bio: json['bio'] as String?,
     prompts: (json['prompts'] as List<dynamic>? ?? const <dynamic>[])

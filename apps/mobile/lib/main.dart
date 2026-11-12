@@ -16,6 +16,7 @@ import 'features/discovery/discovery_providers.dart';
 import 'features/matches/matches_providers.dart';
 import 'features/matches/matches_repository.dart';
 import 'features/discovery/discovery_repository.dart';
+import 'features/preferences/preferences_repository.dart';
 import 'features/profile/profile_providers.dart';
 import 'features/safety/safety_repository.dart';
 import 'features/settings/settings_repository.dart';
@@ -45,6 +46,7 @@ Future<void> main() async {
       chatRepositoryProvider.overrideWithValue(HttpChatRepository(api)),
       safetyRepositoryProvider.overrideWithValue(HttpSafetyRepository(api)),
       settingsRepositoryProvider.overrideWithValue(HttpSettingsRepository(api)),
+      preferencesRepositoryProvider.overrideWithValue(HttpPreferencesRepository(api)),
       identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],
   );

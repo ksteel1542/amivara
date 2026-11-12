@@ -19,9 +19,26 @@ enum ReportCategory {
   final String hint;
 }
 
+/// Someone you've blocked (GET /safety/blocks).
+class BlockedMember {
+  const BlockedMember({required this.userId, required this.firstName, required this.blockedAt});
+
+  factory BlockedMember.fromJson(Map<String, dynamic> json) => BlockedMember(
+    userId: json['user_id'] as String,
+    firstName: json['first_name'] as String?,
+    blockedAt: DateTime.parse(json['blocked_at'] as String),
+  );
+
+  final String userId;
+  final String? firstName;
+  final DateTime blockedAt;
+}
+
 /// API.md "Safety". Open to every signed-in member, verified or not.
 abstract interface class SafetyRepository {
   Future<void> block(String accessToken, String userId);
+  Future<List<BlockedMember>> blocks(String accessToken);
+  Future<void> unblock(String accessToken, String userId);
   Future<void> report(
     String accessToken, {
     required String userId,
@@ -39,6 +56,16 @@ class HttpSafetyRepository implements SafetyRepository {
   @override
   Future<void> block(String accessToken, String userId) =>
       _api.post('/safety/blocks', bearer: accessToken, body: <String, dynamic>{'user_id': userId});
+
+  @override
+  Future<List<BlockedMember>> blocks(String accessToken) async =>
+      ((await _api.get('/safety/blocks', bearer: accessToken))['blocks'] as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(BlockedMember.fromJson)
+          .toList();
+
+  @override
+  Future<void> unblock(String accessToken, String userId) => _api.delete('/safety/blocks/$userId', bearer: accessToken);
 
   @override
   Future<void> report(

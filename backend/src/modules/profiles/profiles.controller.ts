@@ -1,15 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Put } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Put } from '@nestjs/common';
 
 import type { AuthenticatedMember } from '../../common/authenticated-member';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { CurrentMember } from '../auth/auth.guards';
 import { type LocationInput, locationSchema, type UpdateProfileInput, updateProfileSchema } from './profile.schemas';
+import { ProfileViewService } from './profile-view.service';
 import { ProfilesService } from './profiles.service';
 
-/** API.md "Profiles". Other members' profiles arrive with discovery (sprint 4). */
+/** API.md "Profiles": your own profile, the catalogue, and other members' full profiles. */
 @Controller('profiles')
 export class ProfilesController {
-  constructor(private readonly profiles: ProfilesService) {}
+  constructor(
+    private readonly profiles: ProfilesService,
+    private readonly views: ProfileViewService,
+  ) {}
 
   /** Prompts, interests, languages and limits for the profile editor. */
   @Get('catalog')
@@ -38,5 +42,11 @@ export class ProfilesController {
     @Body(new ZodValidationPipe(locationSchema)) body: LocationInput,
   ): Promise<void> {
     await this.profiles.setLocation(member.id, body);
+  }
+
+  /** Another member's full profile. Declared last, after the fixed `catalog` and `me` paths. */
+  @Get(':userId')
+  view(@CurrentMember() member: AuthenticatedMember, @Param('userId', new ParseUUIDPipe()) userId: string) {
+    return this.views.view(member.id, userId);
   }
 }

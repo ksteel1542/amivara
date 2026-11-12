@@ -9,6 +9,7 @@ import 'package:amivara/features/discovery/discovery_providers.dart';
 import 'package:amivara/features/home/home_screen.dart';
 import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
+import 'package:amivara/features/safety/safety_repository.dart';
 import 'package:amivara/features/settings/settings_repository.dart';
 import 'package:amivara/features/settings/settings_screen.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
@@ -21,6 +22,7 @@ Future<ProviderContainer> pumpSettings(
   WidgetTester tester, {
   FakeSettingsRepository? settings,
   FakeDataSaver? saver,
+  FakeSafetyRepository? safety,
 }) async {
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 3.0;
@@ -39,6 +41,7 @@ Future<ProviderContainer> pumpSettings(
       cardImageBuilderProvider.overrideWithValue(placeholderImage),
       settingsRepositoryProvider.overrideWithValue(settings ?? FakeSettingsRepository()),
       dataSaverProvider.overrideWithValue(saver ?? FakeDataSaver()),
+      safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
     ],
   );
   addTearDown(container.dispose);
@@ -56,10 +59,18 @@ Future<ProviderContainer> pumpSettings(
   return container;
 }
 
+/// Settings is a lazy ListView: scroll a row fully into view before tapping it.
+Future<void> revealSetting(WidgetTester tester, String key) async {
+  final scrollable = find.descendant(of: find.byKey(const Key('settings-list')), matching: find.byType(Scrollable));
+  await tester.scrollUntilVisible(find.byKey(Key(key)), 150, scrollable: scrollable.first);
+  await tester.ensureVisible(find.byKey(Key(key)));
+  await tester.pumpAndSettle();
+}
+
 bool switchValue(WidgetTester tester, String key) => tester.widget<SwitchListTile>(find.byKey(Key(key))).value;
 
 Future<void> openDeleteDialog(WidgetTester tester) async {
-  await tester.scrollUntilVisible(find.byKey(const Key('delete-account')), 200);
+  await revealSetting(tester, 'delete-account');
   await tester.tap(find.byKey(const Key('delete-account')));
   await tester.pumpAndSettle();
   expect(find.byKey(const Key('delete-dialog')), findsOneWidget);
@@ -125,6 +136,7 @@ void main() {
       ],
     );
     await pumpSettings(tester, settings: repo);
+    await revealSetting(tester, 'revoke-others');
     await tester.tap(find.byKey(const Key('revoke-others')));
     await tester.pumpAndSettle();
     expect(repo.calls, ['revoke-others']);
@@ -138,7 +150,7 @@ void main() {
     final repo = FakeSettingsRepository();
     final saver = FakeDataSaver();
     await pumpSettings(tester, settings: repo, saver: saver);
-    await tester.scrollUntilVisible(find.byKey(const Key('export-button')), 200);
+    await revealSetting(tester, 'export-button');
     await tester.tap(find.byKey(const Key('export-button')));
     await tester.pumpAndSettle();
     expect(repo.calls, ['export']);
@@ -187,8 +199,7 @@ void main() {
 
   testWidgets('sign out lives in settings now', (tester) async {
     final container = await pumpSettings(tester);
-    await tester.ensureVisible(find.byKey(const Key('sign-out')));
-    await tester.pumpAndSettle();
+    await revealSetting(tester, 'sign-out');
     await tester.tap(find.byKey(const Key('sign-out')));
     await tester.pumpAndSettle();
     expect(container.read(sessionProvider), isNull);

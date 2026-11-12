@@ -5,6 +5,7 @@ import 'features/auth/auth_providers.dart';
 import 'features/auth/otp_screen.dart';
 import 'features/auth/phone_screen.dart';
 import 'features/chat/chat_screen.dart';
+import 'features/discovery/member_profile_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/matches/matches_repository.dart';
 import 'features/matches/matches_screen.dart';
@@ -12,7 +13,9 @@ import 'features/onboarding/basics_screen.dart';
 import 'features/onboarding/dob_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
+import 'features/preferences/preferences_screen.dart';
 import 'features/profile/profile_editor_screen.dart';
+import 'features/safety/blocked_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/verification/capture_screen.dart';
 import 'features/verification/nin_screen.dart';
@@ -34,8 +37,13 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         '/profile/edit' ||
         '/verify-intro' ||
         '/matches' ||
-        '/settings' when !signedIn => '/',
-        final String path when (path.startsWith('/verify/') || path.startsWith('/chat/')) && !signedIn => '/',
+        '/settings' ||
+        '/preferences' ||
+        '/blocked' when !signedIn => '/',
+        final String path
+            when (path.startsWith('/verify/') || path.startsWith('/chat/') || path.startsWith('/member/')) &&
+                !signedIn =>
+          '/',
         '/' || '/phone' when signedIn => '/home',
         '/otp' when flow.challenge == null => '/phone',
         '/dob' when flow.signupToken == null => '/',
@@ -65,6 +73,12 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       ),
       GoRoute(path: '/matches', builder: (_, _) => const MatchesScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(path: '/preferences', builder: (_, _) => const PreferencesScreen()),
+      GoRoute(path: '/blocked', builder: (_, _) => const BlockedScreen()),
+      GoRoute(
+        path: '/member/:userId',
+        builder: (_, state) => MemberProfileScreen(userId: state.pathParameters['userId']!),
+      ),
       // Opened from the matches list with the match as `extra`; a cold deep link falls back to the list.
       GoRoute(
         path: '/chat/:matchId',

@@ -177,6 +177,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: settings.incognito,
             onChanged: _saving ? null : (v) => _update(incognito: v),
           ),
+          ListTile(
+            key: const Key('preferences-tile'),
+            leading: const Icon(Icons.tune_rounded),
+            title: const Text('Discovery preferences'),
+            subtitle: const Text('Who you see, age range, distance, interests and languages'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/preferences'),
+          ),
+          ListTile(
+            key: const Key('blocked-tile'),
+            leading: const Icon(Icons.block_rounded),
+            title: const Text('Blocked members'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/blocked'),
+          ),
           const Divider(),
           _Header('Signed-in devices'),
           for (final s in sessions)

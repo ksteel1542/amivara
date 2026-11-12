@@ -69,7 +69,7 @@ export const LANGUAGES = [
   { code: 'ibb', name: 'Ibibio' },
   { code: 'efi', name: 'Efik' },
   { code: 'tiv', name: 'Tiv' },
-  { code: 'ur', name: 'Urhobo' },
+  { code: 'urh', name: 'Urhobo' },
   { code: 'bin', name: 'Edo' },
   { code: 'fr', name: 'French' },
   { code: 'ar', name: 'Arabic' },

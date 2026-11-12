@@ -20,6 +20,7 @@ import 'package:amivara/features/notifications/push_registrar.dart';
 import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_models.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
+import 'package:amivara/features/preferences/preferences_repository.dart';
 import 'package:amivara/features/profile/profile_repository.dart';
 import 'package:amivara/features/safety/safety_repository.dart';
 import 'package:amivara/features/settings/settings_repository.dart';
@@ -148,6 +149,16 @@ const ProfileCatalog kCatalog = ProfileCatalog(
   maxBio: 500,
   maxPhotos: 6,
   minPhotos: 2,
+  interests: <String>['afrobeats', 'amapiano', 'football', 'cooking', 'owambe'],
+  languages: <LanguageOption>[
+    LanguageOption('en', 'English'),
+    LanguageOption('pcm', 'Pidgin'),
+    LanguageOption('yo', 'Yorùbá'),
+    LanguageOption('ig', 'Igbo'),
+    LanguageOption('ha', 'Hausa'),
+  ],
+  maxInterests: 3,
+  maxLanguages: 2,
 );
 
 ProfilePhoto photo(String id, {bool primary = false}) =>
@@ -164,6 +175,8 @@ class FakeProfileRepository implements ProfileRepository {
   String? savedBio;
   DatingIntent? savedIntent;
   List<PromptAnswer>? savedPrompts;
+  List<String> interests = <String>[];
+  List<String> languages = <String>[];
   int _next = 0;
 
   List<ProfilePhoto> get _photos => <ProfilePhoto>[
@@ -180,7 +193,21 @@ class FakeProfileRepository implements ProfileRepository {
     intent: savedIntent ?? DatingIntent.relationship,
     prompts: savedPrompts ?? const <PromptAnswer>[],
     photos: _photos,
+    interests: interests,
+    languages: languages,
   );
+
+  @override
+  Future<MyProfile> updateTags(
+    String accessToken, {
+    required List<String> interests,
+    required List<String> languages,
+  }) async {
+    calls.add('updateTags:${interests.join(',')}|${languages.join(',')}');
+    this.interests = List.of(interests);
+    this.languages = List.of(languages);
+    return myProfile(accessToken);
+  }
 
   @override
   Future<MyProfile> updateProfile(
@@ -343,6 +370,16 @@ class FakeDiscoveryRepository implements DiscoveryRepository {
 
   @override
   Future<void> pass(String accessToken, String userId) async => calls.add('pass:$userId');
+
+  /// Profiles that answer 404 (blocked, gone).
+  final Set<String> hidden = <String>{};
+
+  @override
+  Future<DiscoveryCard> viewProfile(String accessToken, String userId) async {
+    calls.add('view:$userId');
+    if (hidden.contains(userId)) throw const ApiException(404, 'NOT_FOUND', 'Profile not found.');
+    return _cards.firstWhere((c) => c.userId == userId, orElse: () => card(userId, name: 'Kunle'));
+  }
 
   @override
   Future<void> updateLocation(String accessToken, double lat, double lng) async {
@@ -511,6 +548,16 @@ Map<String, dynamic> messageJson(ChatMessage m) => <String, dynamic>{
 class FakeSafetyRepository implements SafetyRepository {
   final List<String> calls = <String>[];
   ApiException? error;
+  List<BlockedMember> blocked = <BlockedMember>[];
+
+  @override
+  Future<List<BlockedMember>> blocks(String accessToken) async => List.of(blocked);
+
+  @override
+  Future<void> unblock(String accessToken, String userId) async {
+    calls.add('unblock:$userId');
+    blocked = blocked.where((b) => b.userId != userId).toList();
+  }
 
   @override
   Future<void> block(String accessToken, String userId) async {
@@ -607,4 +654,27 @@ class FakeDataSaver implements DataSaver {
 
   @override
   Future<void> save(String fileName, String json) async => saved.add('$fileName:$json');
+}
+
+// ── Preferences ─────────────────────────────────────────────
+
+class FakePreferencesRepository implements PreferencesRepository {
+  DiscoveryPreferences prefs = const DiscoveryPreferences(
+    interestedIn: <SeekGender>{SeekGender.man},
+    ageMin: 22,
+    ageMax: 32,
+    maxDistanceKm: 50,
+  );
+  final List<String> calls = <String>[];
+  ApiException? updateError;
+
+  @override
+  Future<DiscoveryPreferences> get(String accessToken) async => prefs;
+
+  @override
+  Future<DiscoveryPreferences> update(String accessToken, DiscoveryPreferences next) async {
+    calls.add('update:${next.toJson()}');
+    if (updateError != null) throw updateError!;
+    return prefs = next;
+  }
 }

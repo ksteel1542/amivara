@@ -53,8 +53,9 @@ Age is 18+ only if it holds on both the Lagos and the UTC calendar date, so the 
 | Method | Path | Gate | Description |
 |---|---|---|---|
 | GET | `/me` | 🔑 | *(sprint 1)* `{ id, status, phone_last4, age, verification: { phone, age_verified, can_like_and_message }, profile, preferences }`. Never returns the full phone number or date of birth. |
-| PATCH | `/me/preferences` | 🔑 | `age_min` must be at least 18, `max_distance_km` must be 1–300, plus `interested_in`. |
-| GET | `/profiles/:userId` | 🔑 | Someone else's public profile. Only returned if they're discoverable to you or you're matched. Unverified members can view profiles, because browsing is open (PRD §5.3a). |
+| GET | `/me/preferences` | 🔑 | `{ interested_in[], age_min, age_max, max_distance_km }`. |
+| PATCH | `/me/preferences` | 🔑 | Any of `interested_in` (1–3 of `woman`, `man`, `non_binary`, no repeats), `age_min` / `age_max` (whole years, 18–99), `max_distance_km` (1–300). The merged range must keep `age_min ≤ age_max` (`400 VALIDATION_FAILED`). Unknown fields are rejected. Returns the full preferences; discovery uses them on the next request. Interests and languages are profile fields: `PATCH /profiles/me`. |
+| GET | `/profiles/:userId` | 🔑 | Another member's full profile: the discovery card shape (`first_name, age, verified, distance { km, label } \| null, intent, bio, prompts[], interests[], languages[], height_cm, job_title, education, photos[]`) plus `match_id` when you're matched. Distance is the same coarse, per-pair-jittered label as discovery, never coordinates. Visible only if neither of you has blocked the other, you haven't unmatched, and they're a verified member in good standing (a paused member stays visible to an active match only). Anything else is the same `404`. Unverified members can view, because browsing is open (PRD §5.3a). |
 
 ## Account controls & privacy
 
