@@ -21,9 +21,29 @@ export interface SpendResult extends Balances {
   promoSpent: number;
   /** Coins taken from bought coins: the only part a Host can earn from (M3). */
   paidSpent: number;
+  /** Held coins credited to the Host (0 without an earner). */
+  hostEarned: number;
 }
 
+/** Who earns from a spend, and their share of its bought-coin part. */
+export interface SpendEarner {
+  userId: string;
+  shareBps: number;
+  holdDays: number;
+}
+
+type Tx = Prisma.TransactionClient;
+
 const kobo = (n: bigint) => Number(n);
+
+export interface SpendInput {
+  userId: string;
+  coins: number;
+  kind?: TransactionKind;
+  idempotencyKey: string;
+  metadata?: Record<string, unknown>;
+  earner?: SpendEarner;
+}
 
 /**
  * Member wallets (MONETIZATION_PLAN.md M1): balances, starter coins, spending
@@ -141,67 +161,97 @@ export class WalletService {
    * overdraft. 402 INSUFFICIENT_COINS when the balance can't cover it, which
    * the app turns into the in-place top-up sheet.
    */
-  async spend(input: {
-    userId: string;
-    coins: number;
-    kind?: TransactionKind;
-    idempotencyKey: string;
-    metadata?: Record<string, unknown>;
-  }): Promise<SpendResult> {
+  async spend(input: SpendInput): Promise<SpendResult> {
     if (!Number.isInteger(input.coins) || input.coins <= 0) throw new Error('Spend must be a positive whole number');
     const existing = await this.prisma.ledgerTransaction.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
     });
     if (existing)
       return {
+        hostEarned: 0,
         ...(await this.balances(input.userId)),
         ...(existing.metadata as object),
         transactionId: existing.id,
       } as SpendResult;
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Lock the member's coin accounts for the rest of the transaction.
-      const rows = await tx.$queryRaw<Array<{ kind: string; balance: bigint }>>`
+    const result = await this.prisma.$transaction((tx) => this.spendIn(tx, input));
+    return { ...(await this.balances(input.userId)), ...result };
+  }
+
+  /**
+   * The spend itself, inside the caller's transaction (e.g. together with the
+   * message it pays for, so a refused spend stores nothing). With an earner,
+   * their share of the bought-coin part is credited as held earnings
+   * (MEMBER_EARNINGS_PENDING) and released after the hold period.
+   */
+  async spendIn(
+    tx: Tx,
+    input: SpendInput,
+  ): Promise<{ transactionId: string; promoSpent: number; paidSpent: number; hostEarned: number }> {
+    // Lock the member's coin accounts for the rest of the transaction.
+    const rows = await tx.$queryRaw<Array<{ kind: string; balance: bigint }>>`
         SELECT kind::text AS kind, balance FROM ledger_accounts
          WHERE owner_id = ${input.userId}::uuid AND kind IN ('MEMBER_COINS_PAID', 'MEMBER_COINS_PROMO')
          FOR UPDATE`;
-      const promo = Number(rows.find((r) => r.kind === 'MEMBER_COINS_PROMO')?.balance ?? 0n);
-      const paid = Number(rows.find((r) => r.kind === 'MEMBER_COINS_PAID')?.balance ?? 0n);
-      if (promo + paid < input.coins) {
-        throw new ApiError(HttpStatus.PAYMENT_REQUIRED, 'INSUFFICIENT_COINS', "You don't have enough coins.", {
-          balance: promo + paid,
-          required: input.coins,
-        });
-      }
-      const promoSpent = Math.min(promo, input.coins);
-      const paidSpent = input.coins - promoSpent;
-      const postings = [
-        ...(promoSpent
-          ? [
-              { ownerId: input.userId, kind: 'MEMBER_COINS_PROMO' as const, amount: -promoSpent },
-              { ownerId: null, kind: 'PLATFORM_PROMO' as const, amount: promoSpent },
-            ]
-          : []),
-        ...(paidSpent
-          ? [
-              { ownerId: input.userId, kind: 'MEMBER_COINS_PAID' as const, amount: -paidSpent },
-              { ownerId: null, kind: 'PLATFORM_REVENUE' as const, amount: paidSpent },
-            ]
-          : []),
-      ];
-      const posted = await this.ledger.post(
-        {
-          kind: input.kind ?? 'SPEND',
-          idempotencyKey: input.idempotencyKey,
-          userId: input.userId,
-          metadata: { ...(input.metadata ?? {}), promoSpent, paidSpent },
-          postings,
+    const promo = Number(rows.find((r) => r.kind === 'MEMBER_COINS_PROMO')?.balance ?? 0n);
+    const paid = Number(rows.find((r) => r.kind === 'MEMBER_COINS_PAID')?.balance ?? 0n);
+    if (promo + paid < input.coins) {
+      throw new ApiError(HttpStatus.PAYMENT_REQUIRED, 'INSUFFICIENT_COINS', "You don't have enough coins.", {
+        balance: promo + paid,
+        required: input.coins,
+      });
+    }
+    const promoSpent = Math.min(promo, input.coins);
+    const paidSpent = input.coins - promoSpent;
+    const earner = input.earner && input.earner.userId !== input.userId ? input.earner : undefined;
+    // Rounded down: the platform keeps any fraction of a coin.
+    const hostEarned = earner ? Math.floor((paidSpent * earner.shareBps) / 10_000) : 0;
+    const postings = [
+      ...(promoSpent
+        ? [
+            { ownerId: input.userId, kind: 'MEMBER_COINS_PROMO' as const, amount: -promoSpent },
+            { ownerId: null, kind: 'PLATFORM_PROMO' as const, amount: promoSpent },
+          ]
+        : []),
+      ...(paidSpent
+        ? [
+            { ownerId: input.userId, kind: 'MEMBER_COINS_PAID' as const, amount: -paidSpent },
+            ...(paidSpent - hostEarned > 0
+              ? [{ ownerId: null, kind: 'PLATFORM_REVENUE' as const, amount: paidSpent - hostEarned }]
+              : []),
+            ...(hostEarned > 0
+              ? [{ ownerId: earner!.userId, kind: 'MEMBER_EARNINGS_PENDING' as const, amount: hostEarned }]
+              : []),
+          ]
+        : []),
+    ];
+    const posted = await this.ledger.post(
+      {
+        kind: input.kind ?? 'SPEND',
+        idempotencyKey: input.idempotencyKey,
+        userId: input.userId,
+        metadata: {
+          ...(input.metadata ?? {}),
+          promoSpent,
+          paidSpent,
+          hostEarned,
+          ...(earner ? { earner_id: earner.userId } : {}),
         },
-        tx,
-      );
-      return { transactionId: posted.id, promoSpent, paidSpent };
-    });
-    return { ...(await this.balances(input.userId)), ...result };
+        postings,
+      },
+      tx,
+    );
+    if (hostEarned > 0) {
+      await tx.hostEarning.create({
+        data: {
+          hostId: earner!.userId,
+          ledgerTransactionId: posted.id,
+          coins: hostEarned,
+          availableAt: new Date(Date.now() + earner!.holdDays * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+    return { transactionId: posted.id, promoSpent, paidSpent, hostEarned };
   }
 
   /** Staff credit (+) or debit (−) of promo or paid coins. Audited by the caller. */

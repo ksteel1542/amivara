@@ -59,6 +59,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   int? _coins;
   bool _topUpOpen = false;
 
+  /// Paid conversation with a Verified Host (M3): free messages left today, then the price.
+  ChatBilling _billing = ChatBilling.free;
+
+  /// The viewer is a Verified Host: one-tap conversation starters above the composer.
+  List<String> _icebreakers = <String>[];
+
   MatchSummary get _match => widget.match;
   String get _token => ref.read(sessionProvider)!.accessToken;
   ChatRepository get _repo => ref.read(chatRepositoryProvider);
@@ -123,9 +129,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _messages = _merge(page.messages, _messages);
         _nextBefore = page.nextBefore;
         _photos = page.photos;
+        _billing = page.billing;
         _loading = false;
       });
       _markRead();
+      if (page.hostTools) unawaited(_loadIcebreakers());
     } on ApiException catch (e) {
       if (e.statusCode == 404) return _matchGone();
       if (mounted) {
@@ -135,6 +143,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         });
       }
     }
+  }
+
+  Future<void> _loadIcebreakers() async {
+    try {
+      final list = await _repo.icebreakers(_token, _match.matchId);
+      if (mounted) setState(() => _icebreakers = list);
+    } on ApiException {
+      // Optional: the chat works without them.
+    }
+  }
+
+  /// After a send (REST response or the socket's wallet.updated): new balance and free messages left.
+  void _applyCharge({required int? balance, required int? freeRemaining}) {
+    setState(() {
+      if (balance != null) _coins = balance;
+      if (freeRemaining != null && _billing.paid) _billing = _billing.withFreeRemaining(freeRemaining);
+    });
   }
 
   void _maybeLoadOlder() {
@@ -186,6 +211,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           _countTowardsUnlock(message);
         });
         if (_fromThem(message)) _markRead();
+      case 'wallet.updated':
+        _applyCharge(
+          balance: (e.data['balance'] as num?)?.toInt(),
+          freeRemaining: (e.data['free_remaining_today'] as num?)?.toInt(),
+        );
       case 'typing':
         if (e.data['user_id'] != _match.userId) return;
         _typingTimer?.cancel();
@@ -307,8 +337,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _socket.emit('typing', <String, dynamic>{'match_id': _match.matchId});
   }
 
-  Future<void> _send() async {
-    final body = _input.text.trim();
+  Future<void> _send([String? text]) async {
+    final body = (text ?? _input.text).trim();
     if (body.isEmpty || _sending) return;
     _input.clear();
     setState(() {});
@@ -326,6 +356,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _countTowardsUnlock(message);
         if (message.safetyNotice == 'contact_sharing') _contactNotice = 'sender';
       });
+      _applyCharge(balance: message.balanceAfter, freeRemaining: message.freeRemainingToday);
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.statusCode == 404) return _matchGone();
@@ -420,6 +451,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: const Text('Get verified'),
                 ),
               ),
+            if (_billing.paid) _HostBillingNote(billing: _billing, name: _match.firstName),
+            if (_icebreakers.isNotEmpty) _icebreakerBar(),
             _composer(theme),
           ],
         ),
@@ -463,6 +496,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  /// Host tool: tap fills the box, long-press sends straight away.
+  Widget _icebreakerBar() {
+    return SizedBox(
+      key: const Key('icebreaker-bar'),
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: RoseSpacing.s3),
+        itemCount: _icebreakers.length,
+        separatorBuilder: (_, _) => const SizedBox(width: RoseSpacing.s2),
+        itemBuilder: (context, i) {
+          final text = _icebreakers[i];
+          return Material(
+            key: Key('icebreaker-$i'),
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            shape: const StadiumBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                _input.text = text;
+                _input.selection = TextSelection.collapsed(offset: text.length);
+                setState(() {});
+              },
+              onLongPress: () => _send(text),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: RoseSpacing.s3, vertical: RoseSpacing.s2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(Icons.auto_awesome_rounded, size: 16, color: RoseColors.gold700),
+                    const SizedBox(width: RoseSpacing.s1),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 260),
+                      child: Text(text, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _composer(ThemeData theme) {
     final canSend = _input.text.trim().isNotEmpty && !_sending;
     return Padding(
@@ -489,6 +567,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPressed: canSend ? _send : null,
             icon: const Icon(Icons.send_rounded),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Cost note above the composer in a conversation with a Verified Host.
+class _HostBillingNote extends StatelessWidget {
+  const _HostBillingNote({required this.billing, required this.name});
+
+  final ChatBilling billing;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final free = billing.freeRemainingToday;
+    final text = free > 0
+        ? '$name is a Verified Host. $free free ${free == 1 ? 'message' : 'messages'} left today, '
+              'then ${billing.priceCoins} coins each.'
+        : '$name is a Verified Host. Messages cost ${billing.priceCoins} coins each '
+              '(${billing.freePerDay} free again tomorrow).';
+    return Padding(
+      key: const Key('chat-host-billing'),
+      padding: const EdgeInsets.fromLTRB(RoseSpacing.s4, 0, RoseSpacing.s4, RoseSpacing.s1),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.toll_rounded, size: 16, color: RoseColors.gold700),
+          const SizedBox(width: RoseSpacing.s1),
+          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
         ],
       ),
     );

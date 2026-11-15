@@ -117,6 +117,13 @@ The database enforces the same limits with CHECK constraints: prompts ≤ 5, lan
 | PUT | `/media/photos/:id/primary` | 🔑 | Makes this the main photo and keeps the others in order. |
 | DELETE | `/media/photos/:id` | 🔑 | Removes the photo and its object. Returns `409 MIN_PHOTOS` if it would take you from 2 photos to 1. |
 
+**Local development without S3:**
+- **Setting.** With `MEDIA_LOCAL_DIR` set and no `S3_MEDIA_BUCKET`, photos are stored on disk. `MEDIA_LOCAL_BASE_URL` (e.g. `http://localhost:4000/v1` over adb reverse) is how the phone reaches the API.
+- **Same flow.** The upload target becomes `POST /media/local/upload`, the same contract as the S3 presigned POST: fields, then `file`, `204`. It's guarded by a signed token that pins the key, the content type and the size.
+- **Viewing.** Photos are served by `GET /media/local/file` with signed, expiring links.
+- **Never deployed.** env.ts refuses `MEDIA_LOCAL_DIR` in staging and production.
+- **No storage at all.** With neither setting, uploads answer `503 MEDIA_UNAVAILABLE`.
+
 The app compresses every photo to **≤ 300 KB JPEG** before uploading (stepping quality and then size down), and strips EXIF data including GPS. Uploads that are never confirmed release their slot after 1 hour. New photos stay `moderation_status: pending` until automated moderation lands in a later sprint.
 
 ## Verification
@@ -221,8 +228,8 @@ Chat lives inside a match. Every route needs a verified member (`403 VERIFICATIO
 
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| GET | `/matches/:id/messages?before=&limit=` | ✅ | History, newest first. `limit` 1–50 (default 30); pass the previous `next_before` as `before` for older pages. Returns `{ messages, next_before, photos }`. |
-| POST | `/matches/:id/messages` | ✅ | Send fallback when the socket is down. Body `{ body }`, 1–2,000 characters after trimming. `201` with the message. Delivered live to both members' sockets too. |
+| GET | `/matches/:id/messages?before=&limit=` | ✅ | History, newest first. `limit` 1–50 (default 30); pass the previous `next_before` as `before` for older pages. Returns `{ messages, next_before, photos, billing, host_tools }` (see "Hosts and paid messages"). |
+| POST | `/matches/:id/messages` | ✅ | Send fallback when the socket is down. Body `{ body }`, 1–2,000 characters after trimming. `201` with the message plus `coins_charged`, `balance`, `free_remaining_today`. Delivered live to both members' sockets too. |
 | POST | `/matches/:id/read` | ✅ | Body `{ up_to_message_id }`: marks the other member's messages up to that one as read. Returns `{ read }` and sends `message.read` to the sender. |
 
 A message: `{ id, match_id, sender_id, type: "text", body, created_at, read_at }`.
@@ -284,6 +291,29 @@ The socket registry is in-process for now (one API task). Running several tasks 
 - **Bonus coins.** Bought coins are credited as paid coins. The package bonus and the first-purchase bonus (given on the member's first successful top-up only) are credited as **promo** coins, so they never become Host earnings.
 - **Reconciliation.** Every `PAYMENT_RECONCILE_SECONDS` (600 when deployed), unfinished top-ups older than 2 minutes are re-checked. One still unpaid after 24 hours becomes `abandoned`; a late payment still credits.
 - **Data shared with Paystack.** The amount, our reference, ids in `metadata`, and a receipt email: the member's verified email, or a pseudonymous `m-…@members.amivara.com` address. No names, phone numbers or profile data. Card and bank details are entered on Paystack's page and never reach AMIVARA.
+
+## Hosts and paid messages
+
+*Milestone 3 of docs/MONETIZATION_PLAN.md.* Any NIN-verified member can opt in as a **Verified Host**; there is no gender rule.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/me/host` | 🔑 | `{ host: null \| { status: active\|paused, revenue_share_bps, earning_since, hold_days } }` |
+| POST | `/me/host` | 🔑 verified | Opt in, or resume after pausing. `403 VERIFICATION_REQUIRED` without a passed Smile ID check. |
+| POST | `/me/host/pause` | 🔑 | Messages to them become free and nothing new is earned. Held earnings stay theirs. |
+| GET | `/me/host/earnings` | 🔑 | `{ pending_coins, available_coins, hold_days, recent: [{ id, coins, created_at, available_at, released }] }` |
+| GET | `/matches/:id/icebreakers` | 🔑 Host | `{ icebreakers: [{ text }] }`: 3–5 starters built from the other member's public profile (shared interests first, their interests, a prompt they answered, their city). Stable for the day. `403 HOST_ONLY`, `429 ICEBREAKER_RATE_LIMITED` (60 an hour). |
+
+**Paid messages:**
+- **Price.** Messaging an active Host is free for `FREE_HOST_MESSAGES_PER_DAY` (3) messages per conversation per Lagos day. After that each message costs `MESSAGE_PRICE_COINS` (10) coins. Both values were confirmed on 16 Nov 2026.
+- **Who pays.** The Host's own replies are free. Conversations between members who aren't Hosts are never billed.
+- **Charging.** The charge happens in the same transaction as the message, so a `402 INSUFFICIENT_COINS` (`details: { balance, required }`) stores nothing. A member's concurrent sends are serialised, so two at once can't both use the last free message.
+- **Responses.** `POST /matches/:id/messages` returns `coins_charged`, `balance` and `free_remaining_today`. Over `/ws/chat`, the sender gets a `wallet.updated` event with the same fields.
+- **Chat history.** History includes `billing: { paid, price_coins, free_per_day, free_remaining_today }` and `host_tools` (the viewer is an active Host, so the app shows the icebreaker bar).
+
+**Earnings:**
+- **Split.** Spending uses promo coins first. The Host earns `revenue_share_bps` (default 5000 = 50%, confirmed 16 Nov 2026) of the **bought** coins only, rounded down. The rest goes to platform revenue. Promo coins never become earnings.
+- **Hold.** Earnings sit in `MEMBER_EARNINGS_PENDING` for `HOST_EARNINGS_HOLD_DAYS` (7). The release job (`HOST_RELEASE_SECONDS`, hourly when deployed) then moves them to `MEMBER_EARNINGS_AVAILABLE`. Withdrawals arrive in M7.
 
 ## Safety
 

@@ -180,3 +180,15 @@ Founder decision, superseding "unverified = browse only":
 - [ ] Google Play Billing (Android Publisher API purchase verification), for the Play Store build.
 - [ ] Daily settlement comparison against Paystack's transaction list (the reconciler covers unfinished top-ups only).
 
+### 16 Nov 2026: monetisation milestone 3 (Hosts, paid messages, icebreakers) and local photo storage
+
+- [x] `host_profiles`, `host_earnings`, ledger kind `EARNINGS_RELEASE` (CHECKs: share 0–10,000 bps, paused ⇔ paused_at, positive coins).
+- [x] Opt-in Verified Host for any NIN-verified member (`/me/host`, pause, earnings). No gender rule.
+- [x] Paid messages to active Hosts after 3 free per conversation per Lagos day (10 coins each). Charged in the message's transaction; concurrent sends serialised.
+- [x] Host share of bought coins only (50%, rounded down), held 7 days, then released by an hourly job (SKIP LOCKED, exactly once).
+- [x] `GET /matches/:id/icebreakers`: templates from the other member's public profile, Host-only, rate-limited.
+- [x] Flutter: Host price note in chat, coin chip updates after paid sends, icebreaker bar (tap fills, long-press sends), Verified Host screen in Settings.
+- [x] Local photo storage for development (`MEDIA_LOCAL_DIR`), refused in deployed envs. It fixes "Photo uploads are not available right now" on the local stack.
+- [x] Confirmed 16 Nov 2026: 3 free messages per conversation per day, 10 coins each after, 50% Host share, 7-day hold.
+- [ ] Spend/earn caps in a member's first days (MONETIZATION_PLAN.md section 2, point 4).
+

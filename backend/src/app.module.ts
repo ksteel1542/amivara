@@ -15,6 +15,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { SafetyModule } from './modules/safety/safety.module';
 import { UsersModule } from './modules/users/users.module';
 import { VerificationModule } from './modules/verification/verification.module';
+import { HostsModule } from './modules/hosts/hosts.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -44,6 +45,7 @@ import { MessageCipherModule } from './common/message-cipher';
     BillingModule,
     WalletModule,
     PaymentsModule,
+    HostsModule,
     AdminModule,
   ],
 })

@@ -187,6 +187,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/verify-intro'),
             ),
+          if (ref.watch(currentMemberProvider).value?.ageVerified == true)
+            ListTile(
+              key: const Key('host-tile'),
+              leading: const Icon(Icons.toll_rounded),
+              title: const Text('Verified Host'),
+              subtitle: const Text('Earn coins from your conversations'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/host'),
+            ),
           ListTile(
             key: const Key('preferences-tile'),
             leading: const Icon(Icons.tune_rounded),

@@ -12,6 +12,11 @@ export type ChatEvent =
       event: 'safety.notice';
       data: { match_id: string; kind: 'contact_sharing'; role: 'sender' | 'recipient'; message_id: string };
     }
+  | {
+      /** Sent to the sender after a message to a Host: new balance and free messages left. */
+      event: 'wallet.updated';
+      data: { match_id: string; coins_charged: number; balance: number | null; free_remaining_today: number | null };
+    }
   | { event: 'error'; data: { code: string; message: string } };
 
 /**

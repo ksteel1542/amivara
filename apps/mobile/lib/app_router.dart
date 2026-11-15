@@ -15,6 +15,7 @@ import 'features/onboarding/dob_screen.dart';
 import 'features/onboarding/guidelines_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
+import 'features/hosts/host_screen.dart';
 import 'features/preferences/preferences_screen.dart';
 import 'features/profile/profile_editor_screen.dart';
 import 'features/safety/blocked_screen.dart';
@@ -41,6 +42,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         '/matches' ||
         '/settings' ||
         '/preferences' ||
+        '/host' ||
         '/blocked' ||
         '/guidelines' when !signedIn => '/',
         final String path
@@ -79,6 +81,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       GoRoute(path: '/matches', builder: (_, _) => const MatchesScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(path: '/preferences', builder: (_, _) => const PreferencesScreen()),
+      GoRoute(path: '/host', builder: (_, _) => const HostScreen()),
       GoRoute(path: '/blocked', builder: (_, _) => const BlockedScreen()),
       GoRoute(
         path: '/member/:userId',

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:amivara/features/hosts/host_screen.dart';
 import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -559,6 +560,15 @@ class FakeChatRepository implements ChatRepository {
   /// Thrown by [send] (e.g. VERIFICATION_REQUIRED once the unverified daily cap is hit).
   ApiException? sendError;
 
+  /// Served by icebreakers() (Host tools).
+  List<String> icebreakerList = const <String>[];
+
+  @override
+  Future<List<String>> icebreakers(String accessToken, String matchId) async {
+    calls.add('icebreakers');
+    return icebreakerList;
+  }
+
   /// Returned on every sent message (e.g. 'contact_sharing').
   String? safetyNoticeOnSend;
 
@@ -811,5 +821,30 @@ class FakeCheckoutLauncher implements CheckoutLauncher {
   Future<bool> open(Uri url) async {
     opened.add(url);
     return succeed;
+  }
+}
+
+class FakeHostRepository implements HostRepository {
+  FakeHostRepository({this.state = const HostState()});
+
+  HostState state;
+  final List<String> calls = <String>[];
+
+  @override
+  Future<HostState> load(String accessToken) async {
+    calls.add('load');
+    return state;
+  }
+
+  @override
+  Future<HostState> optIn(String accessToken) async {
+    calls.add('optIn');
+    return state = HostState(status: 'active', pendingCoins: state.pendingCoins, availableCoins: state.availableCoins);
+  }
+
+  @override
+  Future<HostState> pause(String accessToken) async {
+    calls.add('pause');
+    return state = HostState(status: 'paused', pendingCoins: state.pendingCoins, availableCoins: state.availableCoins);
   }
 }

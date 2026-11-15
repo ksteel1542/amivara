@@ -15,6 +15,8 @@ import 'package:amivara/features/settings/settings_screen.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
 import 'package:amivara/main.dart';
 
+import 'package:amivara/features/hosts/host_screen.dart';
+
 import 'support/fakes.dart';
 
 /// Signed in, opened on Settings & Privacy from the home app bar.
@@ -23,6 +25,7 @@ Future<ProviderContainer> pumpSettings(
   FakeSettingsRepository? settings,
   FakeDataSaver? saver,
   FakeSafetyRepository? safety,
+  FakeHostRepository? host,
   bool verified = true,
 }) async {
   tester.view.physicalSize = const Size(1080, 2400);
@@ -43,6 +46,7 @@ Future<ProviderContainer> pumpSettings(
       settingsRepositoryProvider.overrideWithValue(settings ?? FakeSettingsRepository()),
       dataSaverProvider.overrideWithValue(saver ?? FakeDataSaver()),
       safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
+      hostRepositoryProvider.overrideWithValue(host ?? FakeHostRepository()),
     ],
   );
   addTearDown(container.dispose);
@@ -120,6 +124,8 @@ void main() {
     expect(find.text('Infinix Hot 40'), findsOneWidget);
     expect(find.text('Last active 3 days ago'), findsOneWidget);
 
+    await tester.ensureVisible(find.byKey(const Key('revoke-s-old')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('revoke-s-old')));
     await tester.pumpAndSettle();
     expect(repo.calls, ['revoke:s-old']);

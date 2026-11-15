@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../auth/auth.module';
+import { HostsModule } from '../hosts/hosts.module';
 import { VerificationModule } from '../verification/verification.module';
+import { WalletModule } from '../wallet/wallet.module';
 import { ChatGateway } from './chat.gateway';
 import { MessagesController } from './messages.controller';
 import { MessagingService } from './messaging.service';
@@ -13,7 +15,7 @@ import { RealtimeRegistry } from './realtime.registry';
  * members only. Bodies are encrypted at rest (MessageCipher).
  */
 @Module({
-  imports: [AuthModule, VerificationModule],
+  imports: [AuthModule, VerificationModule, WalletModule, HostsModule],
   controllers: [MessagesController],
   providers: [MessagingService, RealtimeRegistry, ChatGateway],
   exports: [MessagingService, RealtimeRegistry],

@@ -21,6 +21,7 @@ export class MeController {
       include: {
         profile: { select: { firstName: true, gender: true, intent: true, city: true, bio: true } },
         preference: { select: { interestedIn: true, ageMin: true, ageMax: true, maxDistanceKm: true } },
+        hostProfile: { select: { status: true } },
       },
     });
     if (!user || !user.profile || !user.preference) {
@@ -52,7 +53,10 @@ export class MeController {
         chat_photos: user.ageVerified,
         voice_calls: user.ageVerified,
         video_calls: user.ageVerified,
+        // Opt-in Verified Host mode (MONETIZATION_PLAN.md 2a): any NIN-verified member.
+        host: user.ageVerified,
       },
+      host_status: user.hostProfile ? lower(user.hostProfile.status) : null,
       guidelines_accepted: user.guidelinesAcceptedAt !== null,
       profile: {
         first_name: user.profile.firstName,

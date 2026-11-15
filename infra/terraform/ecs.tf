@@ -39,6 +39,8 @@ locals {
       PAYSTACK_CALLBACK_URL     = "https://${local.api_hostname}/v1/payments/paystack/return"
       # Re-check unfinished top-ups every 10 minutes (lost or late webhooks).
       PAYMENT_RECONCILE_SECONDS = "600"
+      # Release Host earnings past their hold, hourly.
+      HOST_RELEASE_SECONDS = "3600"
     }
     web = {
       NODE_ENV                = "production"

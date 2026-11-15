@@ -4,6 +4,9 @@ import { ApiError } from '../../common/api-error';
 import { DomainEvents } from '../../common/domain-events';
 import { MessageCipher } from '../../common/message-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
+import { HostsService } from '../hosts/hosts.service';
+import { MessageBilling, type MessageQuote } from '../hosts/message-billing';
+import { WalletService } from '../wallet/wallet.service';
 import { detectContactSharing } from './contact-detector';
 import { RealtimeRegistry } from './realtime.registry';
 
@@ -23,6 +26,24 @@ export const MESSAGES_PER_MINUTE = 30;
  * unlock for them. Verifying lifts the cap.
  */
 export const UNVERIFIED_DAILY_MESSAGES = 10;
+
+/** What a conversation costs the member viewing it (MONETIZATION_PLAN.md M3). */
+export interface ChatBilling {
+  /** The other member is an active Verified Host. */
+  paid: boolean;
+  price_coins: number;
+  free_per_day: number;
+  free_remaining_today: number;
+}
+
+/** What sending one message cost. */
+export interface MessageCharge {
+  coins_charged: number;
+  /** Balance after the charge (null when nothing was charged). */
+  balance: number | null;
+  /** Free messages left today in this conversation, after this one (null when it isn't paid). */
+  free_remaining_today: number | null;
+}
 
 /** Shown in-app when a message looks like it moves the conversation off AMIVARA. */
 export type SafetyNotice = 'contact_sharing';
@@ -53,6 +74,9 @@ export class MessagingService implements OnModuleInit {
     private readonly cipher: MessageCipher,
     private readonly realtime: RealtimeRegistry,
     private readonly events: DomainEvents,
+    private readonly billing: MessageBilling,
+    private readonly wallets: WalletService,
+    private readonly hosts: HostsService,
   ) {}
 
   onModuleInit(): void {
@@ -96,10 +120,18 @@ export class MessagingService implements OnModuleInit {
       take: opts.limit + 1,
     });
     const page = rows.slice(0, opts.limit);
+    const [photos, quote, meHost] = await Promise.all([
+      this.unlockProgress(userId, match),
+      this.billing.quote(userId, match.otherUserId, match.id),
+      this.hosts.activeEarner(userId),
+    ]);
     return {
       messages: page.map((m) => this.view(m)),
       next_before: rows.length > opts.limit ? (page.at(-1)?.id ?? null) : null,
-      photos: await this.unlockProgress(userId, match),
+      photos,
+      billing: this.billingView(quote),
+      /** The viewer is an active Host: the app shows the icebreaker bar. */
+      host_tools: meHost !== undefined,
     };
   }
 
@@ -107,7 +139,7 @@ export class MessagingService implements OnModuleInit {
     userId: string,
     matchId: string,
     rawBody: string,
-  ): Promise<MessageView & { safety_notice?: SafetyNotice }> {
+  ): Promise<MessageView & MessageCharge & { safety_notice?: SafetyNotice }> {
     const body = rawBody.trim();
     if (body.length === 0 || body.length > MAX_MESSAGE_LENGTH) {
       throw new ApiError(
@@ -140,10 +172,24 @@ export class MessagingService implements OnModuleInit {
       }
     }
 
-    const { message, unlockedNow } = await this.prisma.$transaction(async (tx) => {
+    const { message, unlockedNow, quote, coinsCharged } = await this.prisma.$transaction(async (tx) => {
+      // Messages to an active Verified Host cost coins after the daily free allowance.
+      // Charged in the same transaction: a 402 INSUFFICIENT_COINS stores nothing.
+      const quote = await this.billing.quote(userId, match.otherUserId, match.id, tx);
       const message = await tx.message.create({
         data: { matchId: match.id, senderId: userId, type: 'TEXT', body: this.cipher.encrypt(body) },
       });
+      let coinsCharged = 0;
+      if (quote.charge > 0) {
+        await this.wallets.spendIn(tx, {
+          userId,
+          coins: quote.charge,
+          idempotencyKey: `message:${message.id}`,
+          metadata: { reason: 'paid_message', match_id: match.id, message_id: message.id },
+          earner: quote.earner,
+        });
+        coinsCharged = quote.charge;
+      }
       let unlockedNow = false;
       if (!match.photosUnlocked && match.meVerified && match.otherVerified) {
         const counts = await tx.message.groupBy({
@@ -161,9 +207,18 @@ export class MessagingService implements OnModuleInit {
         }
       }
       await tx.match.update({ where: { id: match.id }, data: { lastMessageAt: message.createdAt } });
-      return { message, unlockedNow };
+      return { message, unlockedNow, quote, coinsCharged };
     });
 
+    const charge: MessageCharge = {
+      coins_charged: coinsCharged,
+      balance: coinsCharged > 0 ? (await this.wallets.balances(userId)).balance : null,
+      free_remaining_today: quote.paid ? Math.max(0, quote.freeRemaining - 1) : null,
+    };
+    if (quote.paid) {
+      // The sender's chat updates its coin chip and free-message count.
+      this.realtime.send(userId, { event: 'wallet.updated', data: { match_id: match.id, ...charge } });
+    }
     const view = this.view(message);
     for (const id of [userId, match.otherUserId]) this.realtime.send(id, { event: 'message.new', data: { ...view } });
     if (unlockedNow) {
@@ -181,7 +236,7 @@ export class MessagingService implements OnModuleInit {
 
     // Off-platform contact sharing: delivered, but logged and both members get a gentle reminder.
     const signals = detectContactSharing(body);
-    if (signals.length === 0) return view;
+    if (signals.length === 0) return { ...view, ...charge };
     await this.prisma.safetyEvent.create({
       data: { userId, kind: 'CONTACT_SHARING', signals, matchId: match.id, messageId: message.id },
     });
@@ -193,7 +248,16 @@ export class MessagingService implements OnModuleInit {
       event: 'safety.notice',
       data: { match_id: match.id, kind: 'contact_sharing', role: 'recipient', message_id: message.id },
     });
-    return { ...view, safety_notice: 'contact_sharing' };
+    return { ...view, ...charge, safety_notice: 'contact_sharing' };
+  }
+
+  private billingView(q: MessageQuote): ChatBilling {
+    return {
+      paid: q.paid,
+      price_coins: q.priceCoins,
+      free_per_day: q.freePerDay,
+      free_remaining_today: q.paid ? q.freeRemaining : 0,
+    };
   }
 
   /** Read receipts: marks the other member's messages up to (and including) one as read. */

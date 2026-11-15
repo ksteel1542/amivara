@@ -189,6 +189,14 @@ enum LedgerCurrency {
   @@map("ledger_currency")
 }
 
+enum HostStatus {
+  ACTIVE
+  /// Opted out for now: messages to them are free and nothing new is earned
+  PAUSED
+
+  @@map("host_status")
+}
+
 enum PaymentProvider {
   PAYSTACK
   GOOGLE_PLAY
@@ -211,6 +219,8 @@ enum LedgerTransactionKind {
   SPEND
   ADJUSTMENT
   REFUND
+  /// Held Host earnings becoming withdrawable after the hold period
+  EARNINGS_RELEASE
 
   @@map("ledger_transaction_kind")
 }
@@ -262,6 +272,8 @@ model User {
   safetyEvents   SafetyEvent[]
   ledgerAccounts LedgerAccount[]
   paymentIntents PaymentIntent[]
+  hostProfile    HostProfile?
+  hostEarnings   HostEarning[]
 
   @@index([status, ageVerified])
   @@index([lastActiveAt])
@@ -685,6 +697,8 @@ model LedgerTransaction {
 
   entries       LedgerEntry[]
   paymentIntent PaymentIntent?
+  earning       HostEarning?   @relation("EarningCredit")
+  releases      HostEarning[]  @relation("EarningRelease")
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("ledger_transactions")
@@ -773,6 +787,46 @@ model PromoClaim {
 
   @@unique([kind, subject])
   @@map("promo_claims")
+}
+
+/// Opt-in "Verified Host" (MONETIZATION_PLAN.md 2a): any NIN-verified member, no gender rule.
+/// Members pay coins to message an active Host after a daily free allowance; the Host
+/// earns a share of the bought-coin part only.
+model HostProfile {
+  userId          String     @id @map("user_id") @db.Uuid
+  status          HostStatus @default(ACTIVE)
+  /// Host share of the bought-coin part of each spend, in basis points (5000 = 50%)
+  revenueShareBps Int        @map("revenue_share_bps")
+  earningSince    DateTime   @default(now()) @map("earning_since") @db.Timestamptz(6)
+  pausedAt        DateTime?  @map("paused_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("host_profiles")
+}
+
+/// One credit of held Host earnings (coins), released to available after the hold period.
+/// Kept when the Host is erased (financial record).
+model HostEarning {
+  id                   String   @id @default(uuid()) @db.Uuid
+  hostId               String?  @map("host_id") @db.Uuid
+  /// The spend that earned it
+  ledgerTransactionId  String   @unique @map("ledger_transaction_id") @db.Uuid
+  coins                Int
+  availableAt          DateTime @map("available_at") @db.Timestamptz(6)
+  /// The EARNINGS_RELEASE transaction that made it withdrawable (null while held)
+  releaseTransactionId String?  @map("release_transaction_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  host               User?              @relation(fields: [hostId], references: [id], onDelete: SetNull)
+  ledgerTransaction  LedgerTransaction  @relation("EarningCredit", fields: [ledgerTransactionId], references: [id], onDelete: Restrict)
+  releaseTransaction LedgerTransaction? @relation("EarningRelease", fields: [releaseTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([releaseTransactionId, availableAt])
+  @@index([hostId, createdAt(sort: Desc)])
+  @@map("host_earnings")
 }
 
 // ─────────────────────── Raw SQL requirements ───────────────────────

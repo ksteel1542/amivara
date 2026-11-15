@@ -12,6 +12,13 @@ const base = z.object({
   AWS_REGION: z.string().default('af-south-1'),
   S3_MEDIA_BUCKET: z.string().optional(),
   CLOUDFRONT_MEDIA_DOMAIN: z.string().optional(),
+  /**
+   * Development only: keep photos in this directory instead of S3 (no MinIO needed).
+   * Ignored when S3_MEDIA_BUCKET is set; refused in staging and production.
+   */
+  MEDIA_LOCAL_DIR: z.string().optional(),
+  /** How the app reaches this API for local photos, e.g. http://localhost:4000/v1 over adb reverse. */
+  MEDIA_LOCAL_BASE_URL: z.string().url().optional(),
   /** Local S3-compatible endpoint (MinIO) for development only. */
   S3_ENDPOINT: z.string().url().optional(),
   /** CloudFront key pair for signed photo URLs (secret media-signing). Required in production. */
@@ -44,6 +51,17 @@ const base = z.object({
   EMAIL_PROVIDER: z.enum(['console']).default('console'),
   /** Free promo coins for a new member (once per member and per device). 0 disables. MONETIZATION_PLAN.md 3a. */
   STARTER_COINS: z.coerce.number().int().min(0).max(100000).default(100),
+  // ── Paid messages and Hosts (MONETIZATION_PLAN.md M3). Confirmed 16 Nov 2026. ──
+  /** Coins per message to an active Verified Host, after the free allowance. */
+  MESSAGE_PRICE_COINS: z.coerce.number().int().min(1).max(10000).default(10),
+  /** Free messages per member, per Host conversation, per day (Lagos time). */
+  FREE_HOST_MESSAGES_PER_DAY: z.coerce.number().int().min(0).max(1000).default(3),
+  /** New Hosts' share of the bought-coin part of what they're paid, in basis points. */
+  HOST_REVENUE_SHARE_BPS: z.coerce.number().int().min(0).max(10000).default(5000),
+  /** Days Host earnings are held before they can be withdrawn. */
+  HOST_EARNINGS_HOLD_DAYS: z.coerce.number().int().min(0).max(90).default(7),
+  /** How often held earnings past their hold are released. 0 disables it (dev, tests). Deployed: 3600. */
+  HOST_RELEASE_SECONDS: z.coerce.number().int().min(0).max(86400).default(0),
   /**
    * Checkout providers this API accepts (MONETIZATION_PLAN.md 2a), comma-separated:
    * 'paystack' (direct APK and web) and/or 'google_play' (Play Store build).
@@ -97,6 +115,9 @@ export const envSchema = base.superRefine((env, ctx) => {
     }
   }
   if (!deployed) return;
+  if (env.MEDIA_LOCAL_DIR) {
+    ctx.addIssue({ code: 'custom', path: ['MEDIA_LOCAL_DIR'], message: 'Local photo storage is for development only' });
+  }
 
   for (const key of REQUIRED_IN_DEPLOYED_ENVS) {
     if (!env[key]) {

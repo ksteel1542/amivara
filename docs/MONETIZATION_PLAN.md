@@ -205,8 +205,8 @@ Starter coins: **100** per new member and device. Still to set: the price of a p
 | M0 | Decisions | Section 2 answered; prices and shares set | — |
 | M1 | Coin ledger, starter coins, wallet API (no real money) | Double-entry ledger, coin packages (placeholder prices), promo vs paid coins, starter grant (once per device), `GET /v1/wallet` and transactions, audited admin adjustments, internal spend (promo first) | Entries always balance, no overdraft under concurrency, idempotency, one starter grant per device |
 | M2 | Top-ups ✅ (Paystack; Play Billing pending) | Paystack and/or Play Billing (per M0) in test mode, webhook, verify, reconciliation, in-chat top-up sheet, "Payment successful" dialog | Forged and duplicate webhooks, first-purchase bonus |
-| M3 | Spending and earning | Paid messages, gifts (Rose, Kiss), host revenue split into pending earnings, hold period, basic earnings view | Split arithmetic, refunds |
-| M3a | Host icebreakers | `GET /v1/matches/:id/icebreakers` (templates from shared profile fields), Flutter starter bar for Hosts | Host-only, no private data used, rate limit |
+| M3 | Spending and earning ✅ (paid messages; gifts pending) | Paid messages, gifts (Rose, Kiss), host revenue split into pending earnings, hold period, basic earnings view | Split arithmetic, refunds |
+| M3a | Host icebreakers ✅ | `GET /v1/matches/:id/icebreakers` (templates from shared profile fields), Flutter starter bar for Hosts | Host-only, no private data used, rate limit |
 | M3b | AI Companion personas | `is_ai_companion` flag, badge on every surface, own discovery section, LLM hook (provider TBD) with safety filters, 100% platform revenue, spend caps and self-exclusion | Label always present, no earnings entries, caps enforced, never claims to be human |
 | M4 | Calls without billing | LiveKit tokens, WS ringing, incoming-call push and full-screen notification, call screen, in-call report/block, gating | Gating, ring timeouts, decline/busy |
 | M5 | Per-minute billing | Server ticks, 1-minute warning, in-call top-up, auto-hangup at zero | Dropped connections, mid-minute disconnects, clock edge cases |
