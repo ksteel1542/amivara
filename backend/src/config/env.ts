@@ -42,6 +42,8 @@ const base = z.object({
   OTP_PROVIDER: z.enum(['console']).default('console'),
   /** Email OTP delivery (the primary sign-in). 'console' logs codes and is refused in production. */
   EMAIL_PROVIDER: z.enum(['console']).default('console'),
+  /** Free promo coins for a new member (once per member and per device). 0 disables. MONETIZATION_PLAN.md 3a. */
+  STARTER_COINS: z.coerce.number().int().min(0).max(100000).default(100),
   /** Google Sign-In: comma-separated OAuth client ids the app's ID tokens are issued to. Empty = Google sign-in off. */
   GOOGLE_CLIENT_IDS: z.string().optional(),
   /** Comma-separated ISO countries whose mobile numbers may sign up. Nigeria only at launch. */

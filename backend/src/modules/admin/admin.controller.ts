@@ -9,6 +9,7 @@ import { CurrentMember } from '../auth/auth.guards';
 import { PhotosService } from '../media/photos.service';
 import { EnforcementService, MAX_SUSPEND_DAYS } from '../safety/enforcement.service';
 import { SafetyService } from '../safety/safety.service';
+import { WalletService } from '../wallet/wallet.service';
 import { currentAge } from '../users/age';
 import { RequireStaff } from './staff.guard';
 
@@ -24,6 +25,18 @@ const suspendSchema = z
   .object({ reason, days: z.number().int().min(1).max(MAX_SUSPEND_DAYS), report_id: z.string().uuid().optional() })
   .strict();
 const unbanSchema = z.object({ reason }).strict();
+const coinsSchema = z
+  .object({
+    coins: z
+      .number()
+      .int()
+      .refine((n) => n !== 0, 'Must not be 0')
+      .refine((n) => Math.abs(n) <= 1_000_000, 'Too large'),
+    wallet: z.enum(['promo', 'paid']).default('promo'),
+    reason,
+    idempotency_key: z.string().min(8).max(100),
+  })
+  .strict();
 const dismissSchema = z.object({ note: z.string().trim().max(1000).optional() }).strict();
 
 const age = (dob: Date) => currentAge({ y: dob.getUTCFullYear(), m: dob.getUTCMonth() + 1, d: dob.getUTCDate() });
@@ -40,6 +53,7 @@ export class AdminController {
     private readonly enforcement: EnforcementService,
     private readonly safety: SafetyService,
     private readonly photos: PhotosService,
+    private readonly wallets: WalletService,
   ) {}
 
   @Get('me')
@@ -229,6 +243,36 @@ export class AdminController {
     @Body(new ZodValidationPipe(warnSchema)) body: z.infer<typeof warnSchema>,
   ): Promise<void> {
     await this.enforcement.ban(id, { actorId: staff.id, reason: body.reason, reportId: body.report_id });
+  }
+
+  /**
+   * Staff coin adjustment: credit (+) or debit (−) promo or paid coins, e.g. goodwill
+   * after a failed call. Idempotent per key; written to the audit log.
+   */
+  @Post('users/:id/coins')
+  @HttpCode(HttpStatus.OK)
+  async adjustCoins(
+    @CurrentMember() staff: AuthenticatedMember,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodValidationPipe(coinsSchema)) body: z.infer<typeof coinsSchema>,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!user) throw new ApiError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Member not found.');
+    const result = await this.wallets.adjust({
+      actorId: staff.id,
+      userId: id,
+      coins: body.coins,
+      wallet: body.wallet,
+      reason: body.reason,
+      idempotencyKey: `admin-adjust:${body.idempotency_key}`,
+    });
+    await this.enforcement.audit(staff.id, 'wallet.adjust', 'user', id, {
+      coins: body.coins,
+      wallet: body.wallet,
+      reason: body.reason,
+      transaction_id: result.transactionId,
+    });
+    return { balance: result.balance, paid_coins: result.paid, promo_coins: result.promo };
   }
 
   @Post('users/:id/unban')

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { MediaModule } from '../media/media.module';
 import { SafetyModule } from '../safety/safety.module';
+import { WalletModule } from '../wallet/wallet.module';
 import { AdminController } from './admin.controller';
 import { StaffGuard } from './staff.guard';
 
@@ -10,7 +11,7 @@ import { StaffGuard } from './staff.guard';
  * action written to the append-only audit log.
  */
 @Module({
-  imports: [SafetyModule, MediaModule],
+  imports: [SafetyModule, MediaModule, WalletModule],
   controllers: [AdminController],
   providers: [StaffGuard],
 })

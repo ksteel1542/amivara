@@ -153,3 +153,19 @@ Founder decision, superseding "unverified = browse only":
 - [ ] Google OAuth client ids (Google Cloud console), then set `GOOGLE_CLIENT_IDS` (API) and `GOOGLE_SERVER_CLIENT_ID` (app build). Until then the Google button is hidden.
 - [ ] Add a phone number later from Settings (optional, verified by SMS when a provider exists).
 - [ ] Admin console view of `safety_events` (repeat contact-sharers).
+
+### 15 Nov 2026: monetisation milestone 1 (coin ledger)
+
+- [x] Double-entry ledger (`ledger_accounts`, `ledger_transactions`, `ledger_entries`). The database enforces:
+  - each transaction balances per currency (deferred constraint trigger)
+  - no member overdraft (CHECK on the trigger-maintained balance)
+  - append-only history
+  - one platform account per kind
+- [x] Coin packages (placeholder prices) with first-purchase bonus.
+- [x] Promo vs paid coins: promo coins are spent first and never become Host earnings.
+- [x] Starter coins once per member and per device, after the guidelines are accepted.
+- [x] `GET /v1/wallet`, `GET /v1/wallet/transactions`, `POST /v1/admin/users/:id/coins` (audited).
+- [x] A purged member's ledger accounts lose their owner, so financial history is kept.
+- [ ] Final package prices and `STARTER_COINS` amount (MONETIZATION_PLAN.md section 2, point 6).
+- [ ] Next: M2 top-ups (Paystack + Play Billing provider abstraction) and the in-chat top-up sheet.
+

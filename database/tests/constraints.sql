@@ -197,3 +197,69 @@ BEGIN
   END;
 END
 $$;
+
+-- Coin ledger: balanced, no overdraft, append-only.
+DO $$
+DECLARE
+  member uuid;
+  coins uuid := gen_random_uuid();
+  promo uuid := gen_random_uuid();
+  tx uuid := gen_random_uuid();
+BEGIN
+  SELECT id INTO member FROM users WHERE phone_e164 = '+2348000000002';
+  INSERT INTO ledger_accounts (id, owner_id, kind) VALUES (coins, member, 'MEMBER_COINS_PROMO');
+  INSERT INTO ledger_accounts (id, owner_id, kind) VALUES (promo, NULL, 'PLATFORM_PROMO');
+
+  INSERT INTO ledger_transactions (id, kind, idempotency_key) VALUES (tx, 'STARTER_GRANT', 'constraints-1');
+  INSERT INTO ledger_entries (transaction_id, account_id, amount) VALUES (tx, promo, -100), (tx, coins, 100);
+  IF (SELECT balance FROM ledger_accounts WHERE id = coins) <> 100 THEN
+    RAISE EXCEPTION 'balance cache did not follow the entries';
+  END IF;
+  RAISE NOTICE 'ok: balanced grant applied, balance cached';
+
+  BEGIN
+    INSERT INTO ledger_transactions (id, kind, idempotency_key) VALUES (gen_random_uuid(), 'SPEND', 'constraints-2');
+    INSERT INTO ledger_entries (transaction_id, account_id, amount)
+      SELECT id, coins, -500 FROM ledger_transactions WHERE idempotency_key = 'constraints-2';
+    RAISE EXCEPTION 'overdraft was allowed';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: a member balance cannot go below zero';
+  END;
+
+  BEGIN
+    UPDATE ledger_entries SET amount = 1000 WHERE transaction_id = tx;
+    RAISE EXCEPTION 'ledger entry was edited';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'ok: ledger is append-only';
+  END;
+
+  BEGIN
+    INSERT INTO ledger_accounts (id, owner_id, kind) VALUES (gen_random_uuid(), NULL, 'PLATFORM_PROMO');
+    RAISE EXCEPTION 'a second platform account of one kind was allowed';
+  EXCEPTION WHEN unique_violation THEN
+    RAISE NOTICE 'ok: one platform account per kind';
+  END;
+END
+$$;
+
+-- An unbalanced transaction fails at commit (deferred check), so it runs in its own transaction.
+BEGIN;
+DO $$
+DECLARE tx uuid := gen_random_uuid();
+BEGIN
+  INSERT INTO ledger_transactions (id, kind, idempotency_key) VALUES (tx, 'ADJUSTMENT', 'constraints-unbalanced');
+  INSERT INTO ledger_entries (transaction_id, account_id, amount)
+    SELECT tx, id, 5 FROM ledger_accounts WHERE kind = 'PLATFORM_PROMO';
+END
+$$;
+\set ON_ERROR_STOP off
+COMMIT;
+\set ON_ERROR_STOP on
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM ledger_transactions WHERE idempotency_key = 'constraints-unbalanced') THEN
+    RAISE EXCEPTION 'an unbalanced ledger transaction was committed';
+  END IF;
+  RAISE NOTICE 'ok: unbalanced transactions are rolled back at commit';
+END
+$$;

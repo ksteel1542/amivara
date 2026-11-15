@@ -256,6 +256,24 @@ Connect with the same access token as REST, in the `Authorization: Bearer …` h
 
 The socket registry is in-process for now (one API task). Running several tasks needs Redis pub/sub fan-out behind the same `RealtimeRegistry` interface.
 
+## Wallet
+
+*Milestone 1 of docs/MONETIZATION_PLAN.md.* Coins live in a double-entry ledger. The database refuses unbalanced transactions, member overdrafts and any edit to past entries. Members in good standing only (`403 ACCOUNT_SUSPENDED` otherwise).
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/wallet` | 🔑 | `{ balance, paid_coins, promo_coins, starter: { granted, coins }, first_purchase_eligible, packages: [{ id, coins, bonus_coins, first_purchase_bonus, total_coins, price_kobo, price_ngn, play_product_id, label }] }`. The first load after the community guidelines are accepted grants the **starter coins**. |
+| GET | `/wallet/transactions?before=&limit=` | 🔑 | `{ transactions: [{ id, kind, coins, created_at, reason }], next_before }`, newest first. `coins` is the net change to the member's coins. |
+
+**Starter coins:** `STARTER_COINS` (100 by default) promo coins, granted once per member and once per device (HMAC of the device id in `promo_claims`), so new accounts on the same phone don't get more.
+
+**Promo and paid coins:**
+- Promo coins (starter grants, goodwill credits) and bought coins are separate balances. Spending uses promo coins first.
+- Only the bought part of a spend can become Host earnings (milestone 3), so free coins can't be farmed into cash.
+- A spend the balance can't cover answers `402 INSUFFICIENT_COINS` with `details: { balance, required }`. The app opens the top-up sheet in place.
+
+**Packages (final, 15 Nov 2026):** 500 coins for ₦1,000 (+100 on a first purchase), 2,000 for ₦3,500 (+400, labelled "Most popular"), 10,000 for ₦15,000 (+2,000) and 30,000 for ₦40,000 (+7,500). Packages also carry an optional `label`.
+
 ## Safety
 
 Open to every signed-in member, verified or not: anyone must be able to block and report.
@@ -286,6 +304,7 @@ The moderation API for the console (`apps/admin`). Staff roles only (`moderator`
 | POST | `/admin/users/:id/warn` | Body `{ reason, report_id? }`. Records a warning and sends the member a generic push ("A note from AMIVARA Safety"). Nothing about the report or the reporter. |
 | POST | `/admin/users/:id/suspend` | Body `{ reason, days (1–90), report_id? }`. Status `suspended` until then: gated actions return `403 ACCOUNT_SUSPENDED`, the member is hidden from discovery and chats, and open sockets close with `4403`. The suspension lifts itself on the first request after it ends. |
 | POST | `/admin/users/:id/ban` | Body `{ reason, report_id? }`. Permanent: every device session revoked (sign-in and refresh return `403 ACCOUNT_SUSPENDED`), push tokens dropped, sockets closed, and the phone number and every device the member signed in on are added to the signup blacklist (`SIGNUP_BLOCKED`; HMACs only, no raw numbers or device ids). All open reports about them are closed. |
+| POST | `/admin/users/:id/coins` | Body `{ coins` (non-zero, ±1,000,000), `wallet: "promo" \| "paid", reason, idempotency_key }`. Credits or debits a member's coins, e.g. goodwill after a failed call. Idempotent per key, audited as `wallet.adjust`; a debit beyond the balance is `402 INSUFFICIENT_COINS`. |
 | POST | `/admin/users/:id/unban` | Body `{ reason }`. Lifts a ban or suspension and its blacklist entries. `409` if the member isn't banned or suspended. |
 
 `reason` is 3–1,000 characters and goes into the member's enforcement history (`enforcement_actions`) and the audit log. When `report_id` is given it must be an open report about that member, and it's resolved as `actioned`.
@@ -303,5 +322,6 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Messaging and safety:** `MESSAGE_RATE_LIMITED`, `REPORT_RATE_LIMITED`
+- **Wallet:** `INSUFFICIENT_COINS` (402)
 - **Verification:** `VERIFICATION_REQUIRED` (403 on likes, messages and other gated routes), `VERIFICATION_UNAVAILABLE`, `ALREADY_VERIFIED`, `UNDER_REVIEW`, `INVALID_SIGNATURE`
 - **Later sprints:** `NOT_MATCHED`, `PHOTOS_LOCKED`

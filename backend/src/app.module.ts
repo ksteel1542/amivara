@@ -15,6 +15,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { SafetyModule } from './modules/safety/safety.module';
 import { UsersModule } from './modules/users/users.module';
 import { VerificationModule } from './modules/verification/verification.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { DomainEventsModule } from './common/domain-events';
 import { HasherModule } from './common/hasher.service';
@@ -40,6 +41,7 @@ import { MessageCipherModule } from './common/message-cipher';
     MediaModule,
     NotificationsModule,
     BillingModule,
+    WalletModule,
     AdminModule,
   ],
 })
