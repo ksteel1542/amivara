@@ -8,6 +8,10 @@ export type ChatEvent =
   | { event: 'typing'; data: { match_id: string; user_id: string } }
   | { event: 'photos.unlocked'; data: { match_id: string } }
   | { event: 'match.removed'; data: { match_id: string } }
+  | {
+      event: 'safety.notice';
+      data: { match_id: string; kind: 'contact_sharing'; role: 'sender' | 'recipient'; message_id: string };
+    }
   | { event: 'error'; data: { code: string; message: string } };
 
 /**

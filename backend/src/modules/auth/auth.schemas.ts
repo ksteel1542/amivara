@@ -5,6 +5,9 @@ export const requestOtpSchema = z.object({
   channel: z.enum(['sms', 'whatsapp']).default('sms'),
 });
 
+export const requestEmailOtpSchema = z.object({ email: z.string().min(3).max(254) }).strict();
+export const googleSignInSchema = z.object({ id_token: z.string().min(20).max(4096) }).strict();
+
 export const verifyOtpSchema = z.object({
   challenge_id: z.string().uuid(),
   code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
@@ -15,5 +18,7 @@ export const refreshSchema = z.object({
 });
 
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
+export type RequestEmailOtpInput = z.infer<typeof requestEmailOtpSchema>;
+export type GoogleSignInInput = z.infer<typeof googleSignInSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;

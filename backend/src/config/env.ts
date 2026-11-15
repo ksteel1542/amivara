@@ -38,8 +38,12 @@ const base = z.object({
   JWT_PUBLIC_KEY_PEM: z.string().optional(),
   /** Secret pepper for HMACs of OTP codes, IPs, device ids and blocked phones. At least 32 characters. */
   HASH_PEPPER: z.string().min(32).optional(),
-  /** OTP delivery. Only the console sender exists until the SMS/WhatsApp provider is chosen. */
+  /** SMS/WhatsApp OTP delivery (phone sign-in, secondary since Nov 2026). With 'console' in production, phone sign-in is off. */
   OTP_PROVIDER: z.enum(['console']).default('console'),
+  /** Email OTP delivery (the primary sign-in). 'console' logs codes and is refused in production. */
+  EMAIL_PROVIDER: z.enum(['console']).default('console'),
+  /** Google Sign-In: comma-separated OAuth client ids the app's ID tokens are issued to. Empty = Google sign-in off. */
+  GOOGLE_CLIENT_IDS: z.string().optional(),
   /** Comma-separated ISO countries whose mobile numbers may sign up. Nigeria only at launch. */
   PHONE_COUNTRIES: z.string().default('NG'),
   /** Proxies in front of the API (CloudFront + ALB = 2), so req.ip is the member's IP. */
@@ -80,12 +84,14 @@ export const envSchema = base.superRefine((env, ctx) => {
       ctx.addIssue({ code: 'custom', path: ['S3_ENDPOINT'], message: 'S3_ENDPOINT is for local development only' });
     }
   }
-  // The console sender logs codes: never acceptable with real members.
-  if (env.NODE_ENV === 'production' && env.OTP_PROVIDER === 'console') {
+  // The console senders log codes: never acceptable with real members. Email is the primary
+  // sign-in, so production needs a real email provider. Without an SMS provider, phone sign-in
+  // simply stays off (OtpService answers 503 PHONE_SIGNIN_UNAVAILABLE) rather than blocking launch.
+  if (env.NODE_ENV === 'production' && env.EMAIL_PROVIDER === 'console') {
     ctx.addIssue({
       code: 'custom',
-      path: ['OTP_PROVIDER'],
-      message: 'Production needs a real SMS/WhatsApp OTP provider, not the console sender',
+      path: ['EMAIL_PROVIDER'],
+      message: 'Production needs a real email provider for sign-in codes, not the console sender',
     });
   }
   if (env.NODE_ENV === 'production' && env.SMILE_ID_ENVIRONMENT !== 'production') {

@@ -11,8 +11,9 @@ import { HasherService } from '../../common/hasher.service';
 import type { RequestContext } from '../../common/request-context';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../../prisma/prisma.service';
+import { type Identity, identityWhere, maskIdentity, normalizeEmail } from './identity';
 import { OTP_SENDER, type OtpChannelName, type OtpSender } from './otp-sender';
-import { maskPhone, normalizeMobile, parseCountries } from './phone';
+import { normalizeMobile, parseCountries } from './phone';
 
 /** SECURITY.md §2 and UI_WIREFRAMES.md Screen 2. */
 export const OTP_POLICY = {
@@ -23,7 +24,8 @@ export const OTP_POLICY = {
   laterResendSeconds: 120,
   window10m: 10 * 60,
   window24h: 24 * 60 * 60,
-  perPhone: { in10m: 3, in24h: 10 },
+  /** Per phone number or email address. */
+  perIdentity: { in10m: 3, in24h: 10 },
   perDevice: { in10m: 3, in24h: 10 },
   // Generous: Nigerian carriers put many subscribers behind one CGNAT address.
   perIp: { in10m: 30, in24h: 200 },
@@ -40,6 +42,8 @@ export interface OtpRequestResult {
 export class OtpService {
   private readonly logger = new Logger(OtpService.name);
   private readonly countries: CountryCode[];
+  /** Production without an SMS provider: email (and Google) only. Phone sign-in answers 503. */
+  private readonly phoneSignInDisabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -48,27 +52,46 @@ export class OtpService {
     config: ConfigService<Env, true>,
   ) {
     this.countries = parseCountries(config.get('PHONE_COUNTRIES', { infer: true }));
+    this.phoneSignInDisabled =
+      config.get('NODE_ENV', { infer: true }) === 'production' &&
+      config.get('OTP_PROVIDER', { infer: true }) === 'console';
   }
 
   normalize(phone: string): string {
     return normalizeMobile(phone, this.countries);
   }
 
+  /** Phone sign-in (secondary since Nov 2026). */
   async request(phoneInput: string, channel: OtpChannelName, ctx: RequestContext): Promise<OtpRequestResult> {
-    const phone = this.normalize(phoneInput);
+    if (this.phoneSignInDisabled) {
+      throw new ApiError(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        'PHONE_SIGNIN_UNAVAILABLE',
+        'Sign in with your email address instead.',
+      );
+    }
+    return this.issue({ kind: 'phone', value: this.normalize(phoneInput) }, channel, ctx);
+  }
+
+  /** Email sign-in: the primary path. */
+  async requestEmail(emailInput: string, ctx: RequestContext): Promise<OtpRequestResult> {
+    return this.issue({ kind: 'email', value: normalizeEmail(emailInput) }, 'email', ctx);
+  }
+
+  private async issue(identity: Identity, channel: OtpChannelName, ctx: RequestContext): Promise<OtpRequestResult> {
     const ipHash = this.hasher.hashOptional('ip', ctx.ip);
     const deviceHash = this.hasher.hashOptional('device', ctx.deviceId);
     const now = Date.now();
 
-    await this.enforceLimits(phone, ipHash, deviceHash, now);
+    await this.enforceLimits(identity, ipHash, deviceHash, now);
 
     const id = randomUUID();
     const code = randomOtp();
     await this.prisma.otpChallenge.create({
       data: {
         id,
-        phoneE164: phone,
-        channel: channel === 'whatsapp' ? 'WHATSAPP' : 'SMS',
+        ...identityWhere(identity),
+        channel: channel === 'email' ? 'EMAIL' : channel === 'whatsapp' ? 'WHATSAPP' : 'SMS',
         codeHash: this.codeHash(id, code),
         expiresAt: new Date(now + OTP_POLICY.codeTtlSeconds * 1000),
         ipHash,
@@ -77,11 +100,13 @@ export class OtpService {
     });
 
     try {
-      await this.sender.send(phone, code, channel);
+      await this.sender.send(identity.value, code, channel);
     } catch (error) {
       // Burn the challenge so an undelivered code can never be used.
       await this.prisma.otpChallenge.update({ where: { id }, data: { consumedAt: new Date() } });
-      this.logger.error(`OTP delivery failed for ${maskPhone(phone)} via ${channel}: ${(error as Error).message}`);
+      this.logger.error(
+        `OTP delivery failed for ${maskIdentity(identity)} via ${channel}: ${(error as Error).message}`,
+      );
       throw new ApiError(
         HttpStatus.BAD_GATEWAY,
         'OTP_DELIVERY_FAILED',
@@ -89,7 +114,7 @@ export class OtpService {
       );
     }
 
-    const recent = await this.countSince({ phoneE164: phone }, now - OTP_POLICY.window10m * 1000);
+    const recent = await this.countSince(identityWhere(identity), now - OTP_POLICY.window10m * 1000);
     return {
       challengeId: id,
       channel,
@@ -98,8 +123,8 @@ export class OtpService {
     };
   }
 
-  /** Checks the code. Returns the verified phone number; throws on any failure. */
-  async verify(challengeId: string, code: string): Promise<string> {
+  /** Checks the code. Returns the verified phone number or email; throws on any failure. */
+  async verify(challengeId: string, code: string): Promise<Identity> {
     const challenge = await this.prisma.otpChallenge.findUnique({ where: { id: challengeId } });
     const now = new Date();
 
@@ -131,21 +156,27 @@ export class OtpService {
     if (consumed.count === 0) {
       throw new ApiError(HttpStatus.BAD_REQUEST, 'OTP_EXPIRED', 'This code has already been used. Request a new one.');
     }
-    return challenge.phoneE164;
+    return challenge.email ? { kind: 'email', value: challenge.email } : { kind: 'phone', value: challenge.phoneE164! };
   }
 
   private codeHash(challengeId: string, code: string): string {
     return this.hasher.hash('otp', `${challengeId}:${code}`);
   }
 
-  private async enforceLimits(phone: string, ipHash?: string, deviceHash?: string, now = Date.now()): Promise<void> {
+  private async enforceLimits(
+    identity: Identity,
+    ipHash?: string,
+    deviceHash?: string,
+    now = Date.now(),
+  ): Promise<void> {
+    const who = identityWhere(identity);
     const since10m = now - OTP_POLICY.window10m * 1000;
     const since24h = now - OTP_POLICY.window24h * 1000;
 
-    // Lockout after too many wrong codes on any recent challenge for this phone.
+    // Lockout after too many wrong codes on any recent challenge for this phone or email.
     const locked = await this.prisma.otpChallenge.findFirst({
       where: {
-        phoneE164: phone,
+        ...who,
         attempts: { gte: OTP_POLICY.maxAttempts },
         createdAt: { gte: new Date(now - OTP_POLICY.lockoutSeconds * 1000) },
       },
@@ -157,18 +188,18 @@ export class OtpService {
 
     // Resend cooldown (60s, then 120s).
     const last = await this.prisma.otpChallenge.findFirst({
-      where: { phoneE164: phone },
+      where: who,
       orderBy: { createdAt: 'desc' },
     });
     if (last) {
-      const recentCount = await this.countSince({ phoneE164: phone }, since10m);
+      const recentCount = await this.countSince(who, since10m);
       const cooldown = recentCount >= 2 ? OTP_POLICY.laterResendSeconds : OTP_POLICY.firstResendSeconds;
       const readyAt = last.createdAt.getTime() + cooldown * 1000;
       if (readyAt > now) throw rateLimited(secondsUntil(readyAt, now));
     }
 
     const checks: Array<[Prisma.OtpChallengeWhereInput, { in10m: number; in24h: number }]> = [
-      [{ phoneE164: phone }, OTP_POLICY.perPhone],
+      [who, OTP_POLICY.perIdentity],
     ];
     if (deviceHash) checks.push([{ deviceHash }, OTP_POLICY.perDevice]);
     if (ipHash) checks.push([{ ipHash }, OTP_POLICY.perIp]);

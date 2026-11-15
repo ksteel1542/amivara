@@ -201,10 +201,12 @@ describe('Matches, unmatch and push notifications (integration, PostgreSQL)', ()
     expect(res.body.matches[1]).toMatchObject({ unread_count: 0, last_message: null });
   });
 
-  it('matches are for verified members only', async () => {
+  it('unverified members have a matches list; suspended members do not', async () => {
     const unverified = await member(false);
+    await http().get('/v1/matches').set(unverified.auth).expect(200);
+    await prisma.user.update({ where: { id: unverified.id }, data: { status: 'SUSPENDED' } });
     const res = await http().get('/v1/matches').set(unverified.auth).expect(403);
-    expect(res.body.error.code).toBe('VERIFICATION_REQUIRED');
+    expect(res.body.error.code).toBe('ACCOUNT_SUSPENDED');
   });
 
   // ── Unmatch ───────────────────────────────────────────────

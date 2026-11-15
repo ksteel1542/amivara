@@ -9,6 +9,7 @@ import 'package:amivara/core/api_client.dart';
 import 'package:amivara/core/secure_store.dart';
 import 'package:amivara/features/auth/auth_providers.dart';
 import 'package:amivara/features/auth/auth_repository.dart';
+import 'package:amivara/features/auth/google_auth.dart';
 import 'package:amivara/features/chat/chat_repository.dart';
 import 'package:amivara/features/chat/chat_socket.dart';
 import 'package:amivara/features/discovery/discovery_models.dart';
@@ -92,7 +93,59 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<MemberSummary> me(String accessToken) async {
     calls.add('me');
-    return MemberSummary(firstName: 'Adaeze', ageVerified: verified);
+    return MemberSummary(
+      firstName: 'Adaeze',
+      ageVerified: verified,
+      guidelinesAccepted: guidelinesAccepted,
+      chatDailyLimit: verified ? null : 10,
+    );
+  }
+
+  bool guidelinesAccepted = true;
+  String? lastEmail;
+  String? lastGoogleToken;
+
+  @override
+  Future<OtpChallenge> requestEmailOtp(String email) async {
+    calls.add('requestEmailOtp:$email');
+    lastEmail = email;
+    return _next<OtpChallenge>();
+  }
+
+  @override
+  Future<VerifyResult> googleSignIn(String idToken) async {
+    calls.add('googleSignIn');
+    lastGoogleToken = idToken;
+    return _next<VerifyResult>();
+  }
+
+  @override
+  Future<void> acceptGuidelines(String accessToken) async {
+    calls.add('acceptGuidelines');
+    guidelinesAccepted = true;
+  }
+}
+
+const OtpChallenge kEmailChallenge = OtpChallenge(
+  challengeId: 'c-email',
+  channel: OtpChannel.email,
+  expiresIn: 300,
+  resendIn: 60,
+);
+
+/// Google Sign-In without the plugin: [token] null means the member cancelled.
+class FakeGoogleAuth implements GoogleAuth {
+  FakeGoogleAuth({this.available = true, this.token = 'google-id-token'});
+
+  @override
+  final bool available;
+  final String? token;
+  int calls = 0;
+
+  @override
+  Future<String?> idToken() async {
+    calls++;
+    return token;
   }
 }
 
@@ -490,6 +543,7 @@ class FakeChatRepository implements ChatRepository {
   @override
   Future<ChatMessage> send(String accessToken, String matchId, String body) async {
     calls.add('send:$body');
+    if (sendError != null) throw sendError!;
     _sent++;
     return ChatMessage(
       id: 'sent-$_sent',
@@ -497,8 +551,15 @@ class FakeChatRepository implements ChatRepository {
       senderId: 'me',
       body: body,
       createdAt: DateTime.utc(2026, 11, 10, 13, _sent),
+      safetyNotice: safetyNoticeOnSend,
     );
   }
+
+  /// Thrown by [send] (e.g. VERIFICATION_REQUIRED once the unverified daily cap is hit).
+  ApiException? sendError;
+
+  /// Returned on every sent message (e.g. 'contact_sharing').
+  String? safetyNoticeOnSend;
 
   @override
   Future<void> markRead(String accessToken, String matchId, String upToMessageId) async =>

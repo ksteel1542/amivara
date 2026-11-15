@@ -10,24 +10,33 @@ import 'auth_repository.dart';
 final authRepositoryProvider = Provider<AuthRepository>((ref) => throw UnimplementedError('override in main'));
 final secureStoreProvider = Provider<SecureStore>((ref) => throw UnimplementedError('override in main'));
 
-/// In-progress sign-up / sign-in (phone → code → date of birth → basics).
+/// In-progress sign-up / sign-in (email or phone → code → date of birth → basics).
 class SignupState {
-  const SignupState({this.phoneE164, this.challenge, this.signupToken, this.dateOfBirth});
+  const SignupState({this.phoneE164, this.email, this.challenge, this.signupToken, this.dateOfBirth});
 
   final String? phoneE164;
+
+  /// Set instead of [phoneE164] when signing in by email.
+  final String? email;
   final OtpChallenge? challenge;
   final String? signupToken;
 
   /// YYYY-MM-DD, confirmed by the member on Screen 3.
   final String? dateOfBirth;
 
-  SignupState copyWith({String? phoneE164, OtpChallenge? challenge, String? signupToken, String? dateOfBirth}) =>
-      SignupState(
-        phoneE164: phoneE164 ?? this.phoneE164,
-        challenge: challenge ?? this.challenge,
-        signupToken: signupToken ?? this.signupToken,
-        dateOfBirth: dateOfBirth ?? this.dateOfBirth,
-      );
+  SignupState copyWith({
+    String? phoneE164,
+    String? email,
+    OtpChallenge? challenge,
+    String? signupToken,
+    String? dateOfBirth,
+  }) => SignupState(
+    phoneE164: phoneE164 ?? this.phoneE164,
+    email: email ?? this.email,
+    challenge: challenge ?? this.challenge,
+    signupToken: signupToken ?? this.signupToken,
+    dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+  );
 }
 
 class SignupFlow extends Notifier<SignupState> {
@@ -37,7 +46,12 @@ class SignupFlow extends Notifier<SignupState> {
   void codeSent(String phoneE164, OtpChallenge challenge) =>
       state = SignupState(phoneE164: phoneE164, challenge: challenge);
 
+  void emailCodeSent(String email, OtpChallenge challenge) => state = SignupState(email: email, challenge: challenge);
+
   void phoneVerified(String signupToken) => state = state.copyWith(signupToken: signupToken);
+
+  /// Email, Google or phone: the identity is proven and a signup token issued.
+  void verified(String signupToken) => state = state.copyWith(signupToken: signupToken);
 
   void dateOfBirthConfirmed(String dateOfBirth) => state = state.copyWith(dateOfBirth: dateOfBirth);
 

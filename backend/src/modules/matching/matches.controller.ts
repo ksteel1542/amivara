@@ -2,12 +2,12 @@ import { Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe } f
 
 import type { AuthenticatedMember } from '../../common/authenticated-member';
 import { CurrentMember } from '../auth/auth.guards';
-import { RequireAgeVerified } from '../verification/require-age-verified.decorator';
+import { RequireActiveMember } from '../verification/active-member.guard';
 import { MatchingService } from './matching.service';
 
-/** API.md "Discovery & Matching": the matches list and unmatch. Matches only exist between verified members. */
+/** API.md "Discovery & Matching": the matches list and unmatch. Each match shows whether the other member is verified. */
 @Controller('matches')
-@RequireAgeVerified()
+@RequireActiveMember()
 export class MatchesController {
   constructor(private readonly matching: MatchingService) {}
 

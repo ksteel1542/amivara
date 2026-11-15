@@ -11,6 +11,7 @@ import {
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import type { Identity, IdentityKind, ProofMethod } from './identity';
 import { ApiError } from '../../common/api-error';
 import type { Env } from '../../config/env';
 
@@ -20,7 +21,7 @@ const HEADER = Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toStrin
 
 /** Access tokens are short-lived; sessions are long-lived through rotating refresh tokens. */
 export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
-/** A signup token lets a phone-verified (but not yet registered) person finish onboarding. */
+/** A signup token lets a verified (but not yet registered) person finish onboarding. */
 export const SIGNUP_TOKEN_TTL_SECONDS = 30 * 60;
 
 export interface AccessClaims {
@@ -31,7 +32,9 @@ export interface AccessClaims {
 
 export interface SignupClaims {
   use: 'signup';
-  sub: string; // verified phone number (E.164)
+  sub: string; // verified identity: E.164 phone or lower-case email
+  idk?: IdentityKind; // identity kind (absent on older tokens: phone)
+  via?: ProofMethod; // how it was proven
   dvh?: string; // device hash at verification time
 }
 
@@ -77,8 +80,14 @@ export class TokensService {
     return this.sign({ use: 'access', sub: userId, sid: sessionId }, ACCESS_TOKEN_TTL_SECONDS, nowSeconds);
   }
 
-  issueSignup(phoneE164: string, deviceHash: string | undefined, nowSeconds = epoch()): string {
-    const claims: SignupClaims = { use: 'signup', sub: phoneE164, ...(deviceHash ? { dvh: deviceHash } : {}) };
+  issueSignup(identity: Identity, via: ProofMethod, deviceHash: string | undefined, nowSeconds = epoch()): string {
+    const claims: SignupClaims = {
+      use: 'signup',
+      sub: identity.value,
+      idk: identity.kind,
+      via,
+      ...(deviceHash ? { dvh: deviceHash } : {}),
+    };
     return this.sign(claims, SIGNUP_TOKEN_TTL_SECONDS, nowSeconds);
   }
 

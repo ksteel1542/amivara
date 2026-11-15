@@ -9,13 +9,19 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SignupBlocksService } from '../users/signup-blocks.service';
 import { CurrentMember, CurrentSessionId, Public } from './auth.guards';
 import {
+  type GoogleSignInInput,
+  googleSignInSchema,
   type RefreshInput,
   refreshSchema,
+  type RequestEmailOtpInput,
+  requestEmailOtpSchema,
   type RequestOtpInput,
   requestOtpSchema,
   type VerifyOtpInput,
   verifyOtpSchema,
 } from './auth.schemas';
+import { GoogleIdentityService } from './google-identity';
+import { type Identity, identityWhere, type ProofMethod } from './identity';
 import { OtpService } from './otp.service';
 import { SessionsService } from './sessions.service';
 import { SIGNUP_TOKEN_TTL_SECONDS, TokensService } from './tokens.service';
@@ -30,6 +36,7 @@ export class AuthController {
     private readonly blocks: SignupBlocksService,
     private readonly hasher: HasherService,
     private readonly prisma: PrismaService,
+    private readonly google: GoogleIdentityService,
   ) {}
 
   /**
@@ -50,16 +57,56 @@ export class AuthController {
   }
 
   /**
-   * Existing member: signs in and returns tokens.
-   * New number: returns a 30-minute signup token for the onboarding endpoints.
+   * Email sign-in (the primary path since Nov 2026). Sends a 6-digit code; the
+   * response is the same whether or not the address has an account. Verify it
+   * with POST /auth/otp/verify, exactly like a phone code.
+   */
+  @Public()
+  @Post('email/request')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async requestEmailOtp(
+    @Body(new ZodValidationPipe(requestEmailOtpSchema)) body: RequestEmailOtpInput,
+    @Ctx() ctx: RequestContext,
+  ) {
+    const result = await this.otp.requestEmail(body.email, ctx);
+    return {
+      challenge_id: result.challengeId,
+      channel: result.channel,
+      expires_in: result.expiresIn,
+      resend_in: result.resendIn,
+    };
+  }
+
+  /** Google Sign-In: the app sends Google's ID token; we check it and use the Google-verified email. */
+  @Public()
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async googleSignIn(
+    @Body(new ZodValidationPipe(googleSignInSchema)) body: GoogleSignInInput,
+    @Ctx() ctx: RequestContext,
+  ) {
+    const email = await this.google.verifiedEmail(body.id_token);
+    return this.signInOrSignUp({ kind: 'email', value: email }, 'google', ctx);
+  }
+
+  /**
+   * Checks an email or phone code. Existing member: signs in and returns tokens.
+   * New address or number: returns a 30-minute signup token for onboarding.
    */
   @Public()
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
   async verifyOtp(@Body(new ZodValidationPipe(verifyOtpSchema)) body: VerifyOtpInput, @Ctx() ctx: RequestContext) {
-    const phone = await this.otp.verify(body.challenge_id, body.code);
+    const identity = await this.otp.verify(body.challenge_id, body.code);
+    return this.signInOrSignUp(identity, identity.kind === 'email' ? 'email' : 'sms', ctx);
+  }
 
-    const user = await this.prisma.user.findUnique({ where: { phoneE164: phone }, select: { id: true, status: true } });
+  /** Shared by every sign-in method, so bans, deletion restores and signup blocks apply equally. */
+  private async signInOrSignUp(identity: Identity, via: ProofMethod, ctx: RequestContext) {
+    const user = await this.prisma.user.findUnique({
+      where: identityWhere(identity),
+      select: { id: true, status: true },
+    });
     if (user) {
       if (user.status === 'BANNED') {
         throw new ApiError(HttpStatus.FORBIDDEN, 'ACCOUNT_SUSPENDED', 'This account is not active.');
@@ -70,13 +117,14 @@ export class AuthController {
       return { status: 'signed_in', ...tokens, ...(restored ? { restored: true } : {}) };
     }
 
+    // New member: under-18 and ban blocks cover the email or phone and the device.
     const deviceHash = this.hasher.hashOptional('device', ctx.deviceId);
-    if (await this.blocks.isBlocked(this.blocks.subjects(phone, deviceHash))) {
+    if (await this.blocks.isBlocked(this.blocks.subjects(identity, deviceHash))) {
       throw new ApiError(HttpStatus.FORBIDDEN, 'SIGNUP_BLOCKED', "You can't create an account right now.");
     }
     return {
       status: 'signup_required',
-      signup_token: this.tokens.issueSignup(phone, deviceHash),
+      signup_token: this.tokens.issueSignup(identity, via, deviceHash),
       expires_in: SIGNUP_TOKEN_TTL_SECONDS,
     };
   }

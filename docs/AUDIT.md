@@ -29,7 +29,7 @@ Legend: ✅ working · 🟡 partial · ❌ not built
 
 - Super Like: `is_super` is accepted but always returns `403 PLUS_REQUIRED`.
 - Incognito: works, but is restricted to verified members as a stand-in for Plus.
-- OTP delivery: console sender only. Production refuses to boot without a real provider.
+- Code delivery: console senders only. Production needs a real **email** provider to boot (email is the primary sign-in since Nov 2026). Without an SMS provider, phone sign-in is simply off.
 - Push: does nothing until the Firebase keys are set.
 - WebSocket fan-out: in-process only. More than one API task needs Redis pub/sub.
 
@@ -129,3 +129,27 @@ Legend: ✅ working · 🟡 partial · ❌ not built
 - [ ] Redis fan-out
 - [ ] Ranking v2
 - [ ] Web member app
+
+## 7. Change log
+
+### 13–15 Nov 2026: email-first sign-up and progressive trust
+
+Founder decision, superseding "unverified = browse only":
+
+- [x] **Email OTP and Google Sign-In are primary.** `POST /auth/email/request`, `POST /auth/google`; phone sign-in stays as a secondary option.
+  - Production now needs an **email provider** (e.g. Amazon SES), not an SMS gateway. Without an SMS provider, phone sign-in is simply off.
+  - Under-18 and ban blocks cover the email or phone **and** the device.
+- [x] **Unverified members** appear in discovery (no badge), like, match and send up to 10 text messages a day.
+  - Chat photos unlock only between two verified members.
+  - `GET /me` `capabilities` gates voice and video calls on verification, ready for when calls are built.
+- [x] **Community guidelines** screen once after sign-up, before discovery (`POST /me/guidelines/accept`).
+- [x] **Off-platform contact flagging** in chat. It detects phone numbers, emails, handles and messaging apps; the message is delivered but logged in `safety_events`, and both members see a reminder.
+- [x] Welcome copy no longer claims every member is verified.
+- [x] Migration 8, `email_signup_progressive_trust`:
+  - optional phone, unique lower-cased email, `guidelines_accepted_at`
+  - `safety_events`
+  - CHECKs that a member has a phone or an email, and that a code has one destination
+- [ ] Email provider (Amazon SES sender plus domain SPF/DKIM). **This is the launch blocker now**, instead of SMS.
+- [ ] Google OAuth client ids (Google Cloud console), then set `GOOGLE_CLIENT_IDS` (API) and `GOOGLE_SERVER_CLIENT_ID` (app build). Until then the Google button is hidden.
+- [ ] Add a phone number later from Settings (optional, verified by SMS when a provider exists).
+- [ ] Admin console view of `safety_events` (repeat contact-sharers).

@@ -33,7 +33,7 @@ export class MatchingService {
   }
 
   /**
-   * Likes are behind @RequireAgeVerified(). A like in the other direction
+   * Likes are open to members in good standing, verified or not. A like in the other direction
    * creates the match in the same transaction (PRD §5.4: matches are always mutual).
    */
   async like(
@@ -44,7 +44,7 @@ export class MatchingService {
     if (isSuper) {
       throw new ApiError(HttpStatus.FORBIDDEN, 'PLUS_REQUIRED', 'Super Likes come with AMIVARA Plus.');
     }
-    await this.assertTarget(likerId, likeeId, { mustBeVerified: true });
+    await this.assertTarget(likerId, likeeId, { mustBeVerified: false });
 
     const today = await this.prisma.like.count({
       where: { likerId, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },

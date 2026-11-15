@@ -14,7 +14,7 @@ const PROMPT_TEXT = new Map<string, string>(PROMPTS.map((p) => [p.id, p.text]));
  * Same shape as a discovery card, plus `match_id` when you're matched.
  *
  * Visible only when you could meet them: not blocked either way, not an ended
- * match, and they're a verified member in good standing (a paused member stays
+ * match, and they're a member in good standing (a paused member stays
  * visible to an active match only). Anything else is the same 404, so the
  * endpoint can't be used to probe who exists or who blocked you. Distance is
  * the same coarse, per-pair-jittered label as discovery; never coordinates.
@@ -34,7 +34,7 @@ export class ProfileViewService {
       where: { id: targetId },
       include: { profile: true },
     });
-    if (!target?.profile || target.deletedAt || !target.ageVerified) throw notFound();
+    if (!target?.profile || target.deletedAt) throw notFound();
 
     const [userAId, userBId] = viewerId < targetId ? [viewerId, targetId] : [targetId, viewerId];
     const [blocked, match] = await Promise.all([
@@ -65,7 +65,7 @@ export class ProfileViewService {
       user_id: target.id,
       first_name: p.firstName,
       age: currentAge({ y: dob.getUTCFullYear(), m: dob.getUTCMonth() + 1, d: dob.getUTCDate() }),
-      verified: true as const,
+      verified: target.ageVerified,
       distance:
         distanceRow?.dist_m !== null && distanceRow?.dist_m !== undefined
           ? distanceLabel(distanceRow.dist_m, viewerId, targetId)

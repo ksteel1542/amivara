@@ -1,3 +1,4 @@
+import type { Identity, ProofMethod } from '../modules/auth/identity';
 import type { Request } from 'express';
 
 /**
@@ -18,5 +19,5 @@ export interface MemberRequest extends Request {
   /** Device session behind the access token (for logout). */
   sessionId?: string;
   /** Set by SignupTokenGuard on onboarding routes. */
-  signup?: { phoneE164: string; deviceHash?: string };
+  signup?: { identity: Identity; via: ProofMethod; deviceHash?: string };
 }

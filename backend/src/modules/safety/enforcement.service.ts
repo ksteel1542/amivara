@@ -4,6 +4,7 @@ import type { Prisma } from '../../../generated/prisma';
 import { ApiError } from '../../common/api-error';
 import { DomainEvents } from '../../common/domain-events';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { Identity } from '../auth/identity';
 import { SignupBlocksService } from '../users/signup-blocks.service';
 
 /** A ban blocks the phone and devices "permanently" (until an unban). */
@@ -67,7 +68,7 @@ export class EnforcementService {
       distinct: ['deviceHash'],
     });
     const subjects = this.subjectsFor(
-      user.phoneE164,
+      user,
       sessions.map((s) => s.deviceHash!),
     );
     const now = new Date();
@@ -106,7 +107,7 @@ export class EnforcementService {
       distinct: ['deviceHash'],
     });
     const subjects = this.subjectsFor(
-      user.phoneE164,
+      user,
       sessions.map((s) => s.deviceHash!),
     );
     await this.prisma.$transaction(async (tx) => {
@@ -142,11 +143,13 @@ export class EnforcementService {
     });
   }
 
-  /** Same HMAC subjects the signup check uses (SignupBlocksService). */
-  private subjectsFor(phoneE164: string, deviceHashes: string[]): string[] {
-    const [phone] = this.blocks.subjects(phoneE164);
-    const devices = deviceHashes.map((d) => this.blocks.subjects(phoneE164, d)[1]!);
-    return [phone!, ...devices];
+  /** Same HMAC subjects the signup check uses (SignupBlocksService): phone and/or email, and every device. */
+  private subjectsFor(user: { phoneE164: string | null; email: string | null }, deviceHashes: string[]): string[] {
+    const identities: Identity[] = [
+      ...(user.phoneE164 ? [{ kind: 'phone' as const, value: user.phoneE164 }] : []),
+      ...(user.email ? [{ kind: 'email' as const, value: user.email }] : []),
+    ];
+    return [...this.blocks.subjects(identities), ...deviceHashes.map((d) => this.blocks.deviceSubject(d))];
   }
 
   /** Staff accounts are never actioned from the console, and nobody actions themselves. */
@@ -156,7 +159,7 @@ export class EnforcementService {
     }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true, role: true, phoneE164: true },
+      select: { id: true, status: true, role: true, phoneE164: true, email: true },
     });
     if (!user) throw new ApiError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Member not found.');
     if (actorId && user.role !== 'MEMBER') {

@@ -79,7 +79,7 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ DATABASE_URL: DB, HASH_PEPPER: 'too-short' })).toThrow(/HASH_PEPPER/);
   });
 
-  it('refuses the Smile ID sandbox and the console OTP sender in production', () => {
+  it('refuses the Smile ID sandbox and the console email sender in production', () => {
     const complete = {
       NODE_ENV: 'production',
       DATABASE_URL: DB,
@@ -89,8 +89,11 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...complete, SMILE_ID_ENVIRONMENT: 'sandbox' })).toThrow(
       /Smile ID production environment/,
     );
-    // Only the console sender exists until a provider is chosen, so production cannot boot yet.
-    expect(() => validateEnv(complete)).toThrow(/real SMS\/WhatsApp OTP provider/);
+    // Email is the primary sign-in: production needs a real email provider. Only the console
+    // sender exists until one is built, so production cannot boot yet.
+    expect(() => validateEnv(complete)).toThrow(/real email provider/);
+    // No SMS provider is not a blocker any more: phone sign-in just stays off.
+    expect(() => validateEnv(complete)).not.toThrow(/SMS/);
   });
 
   it('refuses deployed environments outside af-south-1', () => {

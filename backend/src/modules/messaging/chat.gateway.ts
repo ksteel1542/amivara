@@ -136,10 +136,7 @@ export class ChatGateway implements OnApplicationBootstrap, OnApplicationShutdow
         ws.close(CLOSE_FORBIDDEN, 'ACCOUNT_SUSPENDED');
         return undefined;
       }
-      if (!session.user.ageVerified) {
-        ws.close(CLOSE_FORBIDDEN, 'VERIFICATION_REQUIRED');
-        return undefined;
-      }
+      // Unverified members may chat too (progressive trust); MessagingService applies their daily cap.
       return { userId: session.userId, sessionId: claims.sid };
     } catch {
       ws.close(CLOSE_UNAUTHENTICATED, 'INVALID_TOKEN');

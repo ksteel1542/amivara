@@ -18,7 +18,9 @@
 | Method | Path | Gate | Description |
 |---|---|---|---|
 | POST | `/auth/otp/request` | 🔓 | Body `{ phone, channel: "sms" \| "whatsapp" }`. Returns `202 { challenge_id, channel, expires_in: 300, resend_in }`. Same response whether or not the number has an account. |
-| POST | `/auth/otp/verify` | 🔓 | Body `{ challenge_id, code }`. Existing member: `{ status: "signed_in", access_token, refresh_token, token_type, expires_in }`, plus `restored: true` when signing in cancelled a pending account deletion. New number: `{ status: "signup_required", signup_token, expires_in: 1800 }`. |
+| POST | `/auth/email/request` | 🔓 | *(Nov 2026, primary)* Body `{ email }`. Sends a 6-digit code; `202 { challenge_id, channel: "email", expires_in: 300, resend_in }`. Same response whether or not the address has an account. Same limits as phone codes (per address, device and IP). `400 INVALID_EMAIL`. |
+| POST | `/auth/google` | 🔓 | *(Nov 2026, primary)* Body `{ id_token }` from Google Sign-In. The API verifies Google's RS256 signature (Google's published keys), the audience (`GOOGLE_CLIENT_IDS`), issuer, expiry and that the email is Google-verified, then answers exactly like `/auth/otp/verify`. `401 INVALID_GOOGLE_TOKEN`; `503 GOOGLE_SIGNIN_UNAVAILABLE` until `GOOGLE_CLIENT_IDS` is set. |
+| POST | `/auth/otp/verify` | 🔓 | Checks an **email or phone** code. Body `{ challenge_id, code }`. Existing member: `{ status: "signed_in", access_token, refresh_token, token_type, expires_in }`, plus `restored: true` when signing in cancelled a pending account deletion. New address or number: `{ status: "signup_required", signup_token, expires_in: 1800 }`. Under-18 and ban blocks apply to the email or phone **and** the device, whichever sign-in method is used. |
 | POST | `/auth/refresh` | 🔓 | Body `{ refresh_token }`. Rotates the token. Replaying an already-rotated token returns `REFRESH_TOKEN_REUSED` and revokes every session in that family. |
 | POST | `/auth/logout` | 🔑 | Revokes the current device session (takes effect immediately, and closes that device's chat socket). |
 | GET | `/auth/sessions` | 🔑 | `{ sessions: [{ id, platform, device_model, created_at, last_used_at, current }] }`. |
@@ -52,7 +54,8 @@ Age is 18+ only if it holds on both the Lagos and the UTC calendar date, so the 
 
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| GET | `/me` | 🔑 | *(sprint 1)* `{ id, status, phone_last4, age, verification: { phone, age_verified, can_like_and_message }, profile, preferences }`. Never returns the full phone number or date of birth. |
+| GET | `/me` | 🔑 | `{ id, status, email, phone_last4 \| null, age, verification: { email, phone, age_verified, can_like_and_message, unlimited_chat }, capabilities: { like, text_chat, text_chat_daily_limit \| null, chat_photos, voice_calls, video_calls }, guidelines_accepted, profile, preferences }`. Never returns the full phone number or date of birth. `capabilities` is the source of truth for what the app offers: media and calls need a passed Smile ID check. |
+| POST | `/me/guidelines/accept` | 🔑 | The community guidelines screen shown once after sign-up (18+ only, no nudity, no scams, keep chats in AMIVARA, be respectful). `204`, idempotent. |
 | GET | `/me/preferences` | 🔑 | `{ interested_in[], age_min, age_max, max_distance_km }`. |
 | PATCH | `/me/preferences` | 🔑 | Any of `interested_in` (1–3 of `woman`, `man`, `non_binary`, no repeats), `age_min` / `age_max` (whole years, 18–99), `max_distance_km` (1–300). The merged range must keep `age_min ≤ age_max` (`400 VALIDATION_FAILED`). Unknown fields are rejected. Returns the full preferences; discovery uses them on the next request. Interests and languages are profile fields: `PATCH /profiles/me`. |
 | GET | `/profiles/:userId` | 🔑 | Another member's full profile: the discovery card shape (`first_name, age, verified, distance { km, label } \| null, intent, bio, prompts[], interests[], languages[], height_cm, job_title, education, photos[]`) plus `match_id` when you're matched. Distance is the same coarse, per-pair-jittered label as discovery, never coordinates. Visible only if neither of you has blocked the other, you haven't unmatched, and they're a verified member in good standing (a paused member stays visible to an active match only). Anything else is the same `404`. Unverified members can view, because browsing is open (PRD §5.3a). |
@@ -143,7 +146,7 @@ The app compresses every photo to **≤ 300 KB JPEG** before uploading (stepping
 
 **Late or lost callbacks:** every `VERIFICATION_POLL_SECONDS` (120 in deployed environments), a poller asks Smile ID's `job_status` about sessions that have been pending for more than 2 minutes. Sessions with no result after 24 hours expire.
 
-**Gate:** liking, Super Liking, rewind, conversations and messages (and later the Plus purchase) return `403 VERIFICATION_REQUIRED` until the member passes.
+**Progressive trust (Nov 2026):** unverified members can browse, appear in discovery (without the gold badge), like, match and send **text** messages, capped at 10 a day across all chats (`403 VERIFICATION_REQUIRED` with `details: { reason: "unverified_chat_limit", limit: 10 }`). A passed Smile ID check lifts the cap and is required for chat photos (they only unlock between two verified members), voice and video calls (when built), and later the Plus purchase. Suspended and banned members get `403 ACCOUNT_SUSPENDED` on likes, matches and chat.
 
 ## Discovery & Matching
 
@@ -224,7 +227,9 @@ Chat lives inside a match. Every route needs a verified member (`403 VERIFICATIO
 
 A message: `{ id, match_id, sender_id, type: "text", body, created_at, read_at }`.
 
-**Rate limit:** 30 messages a minute per member, across all chats: `429 MESSAGE_RATE_LIMITED` with `details.retry_after`.
+**Rate limit:** 30 messages a minute per member, across all chats: `429 MESSAGE_RATE_LIMITED` with `details.retry_after`. Unverified members: 10 text messages a day (see "Progressive trust").
+
+**Off-platform contact sharing:** every message is scanned for phone numbers (Nigerian 080/081/070/090/091, +234, international, digits split by spaces or dots, numbers spelled out), email addresses (including "at"/"dot" tricks), @handles and app names (WhatsApp, Instagram, Snapchat, Telegram, TikTok and similar). A match is still delivered, but it is logged in `safety_events` (member, match, message id and which signals fired; never the text), the REST response carries `safety_notice: "contact_sharing"`, and both members get a `safety.notice` event so the app can show a reminder to keep chatting in AMIVARA.
 
 **Encryption at rest:** bodies are stored AES-256-GCM encrypted (`MESSAGE_ENC_KEY`, Terraform secret `message-key`, required in staging and production). The database and its backups never hold plaintext.
 
@@ -246,7 +251,8 @@ Connect with the same access token as REST, in the `Authorization: Bearer …` h
 | server → client | `typing` | `{ match_id, user_id }`. Show "typing…" for about 4 s |
 | server → client | `photos.unlocked` | `{ match_id }` |
 | server → client | `match.removed` | `{ match_id }`. Sent to both members on unmatch: close the chat |
-| server → client | `error` | `{ code, message }`, the same codes as REST. The socket stays open |
+| server → client | `safety.notice` | `{ match_id, kind: "contact_sharing", role: "sender" \| "recipient", message_id }` |
+| server → client | `error` | `{ code, message }`, the same codes as REST (including `VERIFICATION_REQUIRED` at the unverified daily cap). The socket stays open |
 
 The socket registry is in-process for now (one API task). Running several tasks needs Redis pub/sub fan-out behind the same `RealtimeRegistry` interface.
 
@@ -291,7 +297,8 @@ The moderation API for the console (`apps/admin`). Staff roles only (`moderator`
 Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clients switch on `code`.
 
 - **Auth:** `UNAUTHENTICATED`, `INVALID_TOKEN`, `INVALID_PHONE`, `OTP_INVALID` (`details.attempts_left`), `OTP_EXPIRED`, `OTP_LOCKED`, `OTP_RATE_LIMITED`, `OTP_DELIVERY_FAILED`, `INVALID_REFRESH_TOKEN`, `REFRESH_TOKEN_REUSED`, `ACCOUNT_SUSPENDED`
-- **Onboarding:** `UNDERAGE`, `SIGNUP_BLOCKED`, `PHONE_ALREADY_REGISTERED`
+- **Onboarding:** `UNDERAGE`, `SIGNUP_BLOCKED`, `PHONE_ALREADY_REGISTERED`, `EMAIL_ALREADY_REGISTERED`
+- **Email and Google sign-in:** `INVALID_EMAIL`, `INVALID_GOOGLE_TOKEN`, `GOOGLE_SIGNIN_UNAVAILABLE`, `PHONE_SIGNIN_UNAVAILABLE` (production without an SMS provider)
 - **Discovery and matching:** `LOCATION_REQUIRED`, `DAILY_LIKE_LIMIT`, `PLUS_REQUIRED`
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`

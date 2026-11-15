@@ -21,15 +21,16 @@ Future<void> pumpHome(
   required FakeDiscoveryRepository discovery,
   bool verified = false,
   FakeSafetyRepository? safety,
+  FakeAuthRepository? auth,
 }) async {
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 3.0;
   addTearDown(tester.view.reset);
 
-  final auth = FakeAuthRepository()..verified = verified;
+  final authRepo = auth ?? (FakeAuthRepository()..verified = verified);
   final container = ProviderContainer(
     overrides: [
-      authRepositoryProvider.overrideWithValue(auth),
+      authRepositoryProvider.overrideWithValue(authRepo),
       secureStoreProvider.overrideWithValue(MemoryStore()),
       profileRepositoryProvider.overrideWithValue(FakeProfileRepository()),
       photoProcessorProvider.overrideWithValue(FakePhotoProcessor() as PhotoProcessor),
@@ -100,26 +101,22 @@ void main() {
     expect(find.text("It's a Match!"), findsOneWidget);
   });
 
-  testWidgets('unverified: swiping right opens the verify prompt instead of liking', (tester) async {
+  testWidgets('unverified members can like by swiping right (progressive trust)', (tester) async {
     final discovery = FakeDiscoveryRepository();
     await pumpHome(tester, discovery: discovery);
     await swipe(tester, 320);
-
-    expect(find.byKey(const Key('verify-prompt')), findsOneWidget);
-    expect(discovery.calls.where((c) => c.startsWith('like')), isEmpty);
-
-    await tester.tap(find.text('Not now'));
-    await tester.pumpAndSettle();
-    expect(find.text('Tunde, 29'), findsOneWidget); // the card came back
+    expect(discovery.calls, contains('like:a'));
+    expect(find.byKey(const Key('verify-prompt')), findsNothing);
   });
 
-  testWidgets('unverified: the Like button opens the prompt; "Verify now" goes to Smile ID', (tester) async {
-    await pumpHome(tester, discovery: FakeDiscoveryRepository());
+  testWidgets('unverified members can like with the button; the banner offers verification', (tester) async {
+    final discovery = FakeDiscoveryRepository();
+    await pumpHome(tester, discovery: discovery);
     await tester.tap(find.byKey(const Key('like-button')));
     await tester.pumpAndSettle();
-    expect(find.text('Verify to start liking'), findsOneWidget);
-
-    await tester.tap(find.text('Verify now'));
+    expect(discovery.calls, contains('like:a'));
+    expect(find.text('Get verified: gold badge, unlimited chat and photos'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('verify-banner')));
     await tester.pumpAndSettle();
     expect(find.text('Verified, not anonymous.'), findsOneWidget);
   });

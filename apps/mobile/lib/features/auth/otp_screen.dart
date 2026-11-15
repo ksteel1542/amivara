@@ -101,11 +101,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   Future<void> _resend(OtpChannel channel) async {
-    final phone = ref.read(signupFlowProvider).phoneE164;
-    if (phone == null || _resendIn > 0) return;
+    final flow = ref.read(signupFlowProvider);
+    if ((flow.phoneE164 == null && flow.email == null) || _resendIn > 0) return;
     try {
-      final challenge = await ref.read(authRepositoryProvider).requestOtp(phone, channel);
-      ref.read(signupFlowProvider.notifier).codeSent(phone, challenge);
+      final repo = ref.read(authRepositoryProvider);
+      if (flow.email != null) {
+        final challenge = await repo.requestEmailOtp(flow.email!);
+        ref.read(signupFlowProvider.notifier).emailCodeSent(flow.email!, challenge);
+      } else {
+        final challenge = await repo.requestOtp(flow.phoneE164!, channel);
+        ref.read(signupFlowProvider.notifier).codeSent(flow.phoneE164!, challenge);
+      }
+      final challenge = ref.read(signupFlowProvider).challenge!;
       _controller.clear();
       setState(() {
         _resends++;
@@ -127,20 +134,21 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final flow = ref.watch(signupFlowProvider);
+    final byEmail = flow.email != null;
     final channel = flow.challenge?.channel == OtpChannel.whatsapp ? 'WhatsApp' : 'SMS';
     final phone = flow.phoneE164 == null ? '' : '+234 ${NigerianPhone.format(flow.phoneE164!)}';
 
     return OnboardingScaffold(
       step: 2,
       title: 'Enter your code',
-      subtitle: 'Sent by $channel to $phone',
+      subtitle: byEmail ? 'Sent to ${flow.email}. Check your spam folder too.' : 'Sent by $channel to $phone',
       primaryLabel: 'Verify',
       primaryBusy: _busy,
       onPrimary: _controller.text.length == codeLength && !_locked ? _verify : null,
       children: <Widget>[
         Align(
           alignment: Alignment.centerLeft,
-          child: TextButton(onPressed: () => context.pop(), child: const Text('Change number')),
+          child: TextButton(onPressed: () => context.pop(), child: Text(byEmail ? 'Change email' : 'Change number')),
         ),
         const SizedBox(height: RoseSpacing.s4),
         _CodeBoxes(
@@ -169,7 +177,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               child: const Text('Resend code'),
             ),
           ),
-        if (_resends > 0 && flow.challenge?.channel != OtpChannel.whatsapp)
+        if (!byEmail && _resends > 0 && flow.challenge?.channel != OtpChannel.whatsapp)
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(

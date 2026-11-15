@@ -8,6 +8,7 @@ class ChatMessage {
     required this.body,
     required this.createdAt,
     this.readAt,
+    this.safetyNotice,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -17,6 +18,7 @@ class ChatMessage {
     body: json['body'] as String? ?? '',
     createdAt: DateTime.parse(json['created_at'] as String),
     readAt: json['read_at'] == null ? null : DateTime.parse(json['read_at'] as String),
+    safetyNotice: json['safety_notice'] as String?,
   );
 
   final String id;
@@ -25,6 +27,9 @@ class ChatMessage {
   final String body;
   final DateTime createdAt;
   final DateTime? readAt;
+
+  /// Set on a send response when the message looked like moving off AMIVARA ("contact_sharing").
+  final String? safetyNotice;
 
   ChatMessage markRead(DateTime at) =>
       ChatMessage(id: id, matchId: matchId, senderId: senderId, body: body, createdAt: createdAt, readAt: at);

@@ -16,8 +16,11 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
+/// Email is the front door now; phone is one tap away ("Use phone number instead").
 Future<void> goToPhone(WidgetTester tester) async {
   await tapVisible(tester, find.text('Create account'));
+  await tester.pumpAndSettle();
+  await tapVisible(tester, find.byKey(const Key('use-phone')));
   await tester.pumpAndSettle();
 }
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
+import '../home/home_screen.dart';
 import 'settings_repository.dart';
 
 /// Settings & Privacy (Stage 4, sprint 8): pause and incognito, signed-in
@@ -177,6 +178,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: settings.incognito,
             onChanged: _saving ? null : (v) => _update(incognito: v),
           ),
+          if (ref.watch(currentMemberProvider).value?.ageVerified == false)
+            ListTile(
+              key: const Key('get-verified-tile'),
+              leading: const Icon(Icons.verified_outlined),
+              title: const Text('Get verified'),
+              subtitle: const Text('Gold badge, unlimited chat, photos and calls. Takes about 2 minutes.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/verify-intro'),
+            ),
           ListTile(
             key: const Key('preferences-tile'),
             leading: const Icon(Icons.tune_rounded),

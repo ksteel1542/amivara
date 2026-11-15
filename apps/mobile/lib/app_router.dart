@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'features/auth/auth_providers.dart';
+import 'features/auth/email_screen.dart';
 import 'features/auth/otp_screen.dart';
 import 'features/auth/phone_screen.dart';
 import 'features/chat/chat_screen.dart';
@@ -11,6 +12,7 @@ import 'features/matches/matches_repository.dart';
 import 'features/matches/matches_screen.dart';
 import 'features/onboarding/basics_screen.dart';
 import 'features/onboarding/dob_screen.dart';
+import 'features/onboarding/guidelines_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/preferences/preferences_screen.dart';
@@ -39,12 +41,13 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         '/matches' ||
         '/settings' ||
         '/preferences' ||
-        '/blocked' when !signedIn => '/',
+        '/blocked' ||
+        '/guidelines' when !signedIn => '/',
         final String path
             when (path.startsWith('/verify/') || path.startsWith('/chat/') || path.startsWith('/member/')) &&
                 !signedIn =>
           '/',
-        '/' || '/phone' when signedIn => '/home',
+        '/' || '/email' || '/phone' when signedIn => '/home',
         '/otp' when flow.challenge == null => '/phone',
         '/dob' when flow.signupToken == null => '/',
         '/basics' when flow.signupToken == null || flow.dateOfBirth == null => '/',
@@ -53,7 +56,9 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
     },
     routes: <RouteBase>[
       GoRoute(path: '/', builder: (_, _) => const WelcomeScreen()),
+      GoRoute(path: '/email', builder: (_, _) => const EmailScreen()),
       GoRoute(path: '/phone', builder: (_, _) => const PhoneScreen()),
+      GoRoute(path: '/guidelines', builder: (_, _) => const GuidelinesScreen()),
       GoRoute(path: '/otp', builder: (_, _) => const OtpScreen()),
       GoRoute(path: '/dob', builder: (_, _) => const DobScreen()),
       GoRoute(path: '/not-eligible', builder: (_, _) => const NotEligibleScreen()),

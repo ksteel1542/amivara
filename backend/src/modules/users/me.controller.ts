@@ -1,14 +1,15 @@
-import { Controller, Get, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 
 import { ApiError } from '../../common/api-error';
 import type { AuthenticatedMember } from '../../common/authenticated-member';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentMember } from '../auth/auth.guards';
+import { UNVERIFIED_DAILY_MESSAGES } from '../messaging/messaging.service';
 import { currentAge } from './age';
 
 const lower = <T extends string>(v: T) => v.toLowerCase();
 
-/** API.md "Account & Profile": GET /me. Never returns the date of birth or phone in full. */
+/** API.md "Account & Profile": GET /me (never the date of birth or phone in full) and guidelines acceptance. */
 @Controller('me')
 export class MeController {
   constructor(private readonly prisma: PrismaService) {}
@@ -32,14 +33,27 @@ export class MeController {
     return {
       id: user.id,
       status: lower(user.status),
-      phone_last4: user.phoneE164.slice(-4),
+      email: user.email,
+      phone_last4: user.phoneE164?.slice(-4) ?? null,
       age,
       verification: {
+        email: user.emailVerifiedAt !== null,
         phone: user.phoneVerifiedAt !== null,
         age_verified: user.ageVerified,
-        // PRD §5.3a: browse-only until Smile ID passes.
-        can_like_and_message: user.ageVerified,
+        // Progressive trust (Nov 2026): everyone can like, match and send text messages
+        // (unverified: capped per day). Media and calls need a passed Smile ID check.
+        can_like_and_message: true,
+        unlimited_chat: user.ageVerified,
       },
+      capabilities: {
+        like: true,
+        text_chat: true,
+        text_chat_daily_limit: user.ageVerified ? null : UNVERIFIED_DAILY_MESSAGES,
+        chat_photos: user.ageVerified,
+        voice_calls: user.ageVerified,
+        video_calls: user.ageVerified,
+      },
+      guidelines_accepted: user.guidelinesAcceptedAt !== null,
       profile: {
         first_name: user.profile.firstName,
         gender: lower(user.profile.gender),
@@ -54,5 +68,15 @@ export class MeController {
         max_distance_km: user.preference.maxDistanceKm,
       },
     };
+  }
+
+  /** The community guidelines screen right after sign-up: accepted once, idempotent. */
+  @Post('guidelines/accept')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async acceptGuidelines(@CurrentMember() member: AuthenticatedMember): Promise<void> {
+    await this.prisma.user.updateMany({
+      where: { id: member.id, guidelinesAcceptedAt: null },
+      data: { guidelinesAcceptedAt: new Date() },
+    });
   }
 }

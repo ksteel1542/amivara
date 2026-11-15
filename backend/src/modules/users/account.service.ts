@@ -116,6 +116,9 @@ export class AccountService {
       account: {
         id: user.id,
         phone: user.phoneE164,
+        email: user.email,
+        email_verified_at: iso(user.emailVerifiedAt),
+        guidelines_accepted_at: iso(user.guidelinesAcceptedAt),
         date_of_birth: user.dateOfBirth.toISOString().slice(0, 10),
         status: lower(user.status),
         created_at: iso(user.createdAt),

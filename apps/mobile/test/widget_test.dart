@@ -32,9 +32,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('AMIVARA'), findsOneWidget);
-    expect(find.text('Real connections between verified adults.'), findsOneWidget);
+    expect(find.text('Real connections between real adults.'), findsOneWidget);
+    // No claim that everyone is verified: verification is a visible badge.
+    expect(find.text('18+ only. Verified members wear a gold badge'), findsOneWidget);
     expect(find.text('Create account'), findsOneWidget);
     expect(find.text('I already have an account'), findsOneWidget);
+  });
+
+  testWidgets('Welcome hero shows the bundled couple photo under the wordmark', (tester) async {
+    _usePhoneFrame(tester);
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    final photo = tester.widget<Image>(find.byKey(const Key('welcome-hero-photo')));
+    expect((photo.image as AssetImage).assetName, 'assets/images/welcome_hero.jpg');
+    expect(photo.fit, BoxFit.cover);
+    // The asset really is bundled and decodes (a missing asset throws here).
+    expect(tester.takeException(), isNull);
+    // The wordmark is painted above the photo, in the hero's bottom half.
+    final hero = tester.getRect(find.byKey(const Key('welcome-hero-photo')));
+    final mark = tester.getRect(find.text('AMIVARA'));
+    expect(hero.contains(mark.center), isTrue);
+    expect(mark.center.dy, greaterThan(hero.center.dy));
   });
 
   testWidgets('Welcome screen reflows at 200% font scale without overflow', (tester) async {

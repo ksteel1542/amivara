@@ -172,7 +172,7 @@ describe('Discovery and matching (integration, PostgreSQL + PostGIS)', () => {
     expect(await feedNames()).toEqual(['Match']);
   });
 
-  it('never shows unverified, inactive, deleted, hidden or photo-less members', async () => {
+  it('shows unverified members (no badge) but never inactive, deleted, hidden or photo-less ones', async () => {
     await placeViewer();
     await seed({ name: 'Visible' });
     await seed({ name: 'Unverified', verified: false });
@@ -181,7 +181,15 @@ describe('Discovery and matching (integration, PostgreSQL + PostGIS)', () => {
     await seed({ name: 'Deleted', deleted: true });
     await seed({ name: 'Hidden', visible: false });
     await seed({ name: 'NoPhotos', photos: 0 });
-    expect(await feedNames()).toEqual(['Visible']);
+    expect((await feedNames()).sort()).toEqual(['Unverified', 'Visible']);
+    const cards = (await http().get('/v1/discovery').set(auth()).expect(200)).body.cards as Array<{
+      first_name: string;
+      verified: boolean;
+    }>;
+    expect(Object.fromEntries(cards.map((c) => [c.first_name, c.verified]))).toEqual({
+      Visible: true,
+      Unverified: false,
+    });
   });
 
   it('removes liked, passed, blocked (either way) and matched members', async () => {
@@ -288,14 +296,11 @@ describe('Discovery and matching (integration, PostgreSQL + PostGIS)', () => {
 
   // ── Likes, matches ────────────────────────────────────────
 
-  it('likes need verification; a mutual like creates exactly one match', async () => {
+  it('an unverified member can like; a mutual like creates exactly one match', async () => {
     await placeViewer();
     const him = await seed({ name: 'Kunle' });
 
-    const gated = await http().post('/v1/matching/likes').set(auth()).send({ user_id: him }).expect(403);
-    expect(gated.body.error.code).toBe('VERIFICATION_REQUIRED');
-
-    await prisma.user.update({ where: { id: viewerId }, data: { ageVerified: true } });
+    // The viewer is unverified (onboarding default): liking is still allowed.
     await prisma.like.create({ data: { likerId: him, likeeId: viewerId } }); // he liked her first
 
     const res = await http().post('/v1/matching/likes').set(auth()).send({ user_id: him }).expect(201);

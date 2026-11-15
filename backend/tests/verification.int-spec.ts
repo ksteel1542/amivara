@@ -118,15 +118,18 @@ describe('Smile ID verification (integration, PostgreSQL)', () => {
 
   // ── Gate (PRD §5.3a) ──────────────────────────────────────
 
-  it('blocks liking and messaging until verified, with VERIFICATION_REQUIRED', async () => {
-    const like = await http().post('/v1/matching/likes').set(auth()).expect(403);
-    expect(like.body.error.code).toBe('VERIFICATION_REQUIRED');
-    const message = await http()
+  it('liking and messaging are open before verification (progressive trust)', async () => {
+    await http()
+      .post('/v1/matching/likes')
+      .set(auth())
+      .send({ user_id: '00000000-0000-4000-8000-0000000000ff' })
+      .expect(404);
+    await http()
       .post('/v1/matches/00000000-0000-4000-8000-000000000000/messages')
       .set(auth())
-      .expect(403);
-    expect(message.body.error.code).toBe('VERIFICATION_REQUIRED');
-    // Browsing actions stay open: an unknown target is 404, not 403.
+      .send({ body: 'hello' })
+      .expect(404);
+    // An unknown target is 404, never 403.
     await http()
       .post('/v1/matching/passes')
       .set(auth())

@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { maskEmail } from './identity';
 import { maskPhone } from './phone';
 
-export type OtpChannelName = 'sms' | 'whatsapp';
+export type OtpChannelName = 'sms' | 'whatsapp' | 'email';
 
-/** Delivers a one-time code. Implemented per provider (SMS/WhatsApp aggregator, chosen later). */
+/**
+ * Delivers a one-time code to a phone (SMS/WhatsApp) or an email address.
+ * Implemented per provider: an email service (e.g. Amazon SES) and an SMS aggregator, chosen later.
+ */
 export interface OtpSender {
-  send(phoneE164: string, code: string, channel: OtpChannelName): Promise<void>;
+  send(destination: string, code: string, channel: OtpChannelName): Promise<void>;
 }
 
 export const OTP_SENDER = Symbol('OTP_SENDER');
@@ -21,7 +25,8 @@ export const OTP_SENDER = Symbol('OTP_SENDER');
 export class ConsoleOtpSender implements OtpSender {
   private readonly logger = new Logger('ConsoleOtpSender');
 
-  async send(phoneE164: string, code: string, channel: OtpChannelName): Promise<void> {
-    this.logger.warn(`[${channel}] OTP for ${maskPhone(phoneE164)}: ${code} (console sender, not delivered)`);
+  async send(destination: string, code: string, channel: OtpChannelName): Promise<void> {
+    const to = channel === 'email' ? maskEmail(destination) : maskPhone(destination);
+    this.logger.warn(`[${channel}] OTP for ${to}: ${code} (console sender, not delivered)`);
   }
 }

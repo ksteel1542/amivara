@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { AuthenticatedMember } from '../../common/authenticated-member';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { CurrentMember } from '../auth/auth.guards';
-import { RequireAgeVerified } from '../verification/require-age-verified.decorator';
+import { RequireActiveMember } from '../verification/active-member.guard';
 import { MAX_MESSAGE_LENGTH, MessagingService } from './messaging.service';
 
 const historyQuery = z
@@ -22,11 +22,11 @@ const readSchema = z.object({ up_to_message_id: z.string().uuid() }).strict();
 
 /**
  * Chat over REST (API.md "Messaging"): history, the send fallback and read
- * receipts. Live delivery is the WebSocket at /ws/chat. Verified members
- * only, and only inside an active (not unmatched) match.
+ * receipts. Live delivery is the WebSocket at /ws/chat. Only inside an active
+ * (not unmatched) match; unverified senders are capped per day (MessagingService).
  */
 @Controller('matches/:matchId')
-@RequireAgeVerified()
+@RequireActiveMember()
 export class MessagesController {
   constructor(private readonly messaging: MessagingService) {}
 

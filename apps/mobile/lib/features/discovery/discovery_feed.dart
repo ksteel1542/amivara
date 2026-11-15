@@ -15,7 +15,7 @@ import 'verify_prompt_modal.dart';
 enum _FeedState { loading, needsLocation, ready, error }
 
 /// The discovery card stack (Stage 4, sprint 4). Swipe left to pass, right to
-/// like. Unverified members can browse and pass; liking opens the verify prompt.
+/// like. Unverified members can like and match too; verifying adds the gold badge and unlimited chat.
 class DiscoveryFeed extends ConsumerStatefulWidget {
   const DiscoveryFeed({super.key, required this.verified, this.imageBuilder = networkCardImage});
 
@@ -103,14 +103,9 @@ class _DiscoveryFeedState extends ConsumerState<DiscoveryFeed> {
     }
   }
 
-  /// Gate for the stack: a right swipe from a known-unverified member opens the verify prompt instead.
-  Future<bool> _canSwipe(SwipeDirection direction) async {
-    if (direction == SwipeDirection.right && widget.verified == false) {
-      await showVerifyPrompt(context);
-      return false;
-    }
-    return true;
-  }
+  /// Progressive trust (Nov 2026): every member can like. The server still answers
+  /// VERIFICATION_REQUIRED if a rule changes, which [_onSwiped] turns into the verify prompt.
+  Future<bool> _canSwipe(SwipeDirection direction) async => true;
 
   Future<void> _onSwiped(SwipeDirection direction) async {
     final card = _cards.removeAt(0);

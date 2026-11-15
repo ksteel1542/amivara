@@ -7,8 +7,8 @@ import '../../theme/rose_tokens.g.dart';
 
 /// Screen 1: Welcome & warm brand introduction (docs/UI_WIREFRAMES.md).
 ///
-/// Skeleton only: the hero photo, monogram artwork and navigation to phone
-/// authentication arrive with the Stage 4 onboarding sprint.
+/// The hero is the Rose Route couple photo with a burgundy scrim, the gold mark
+/// and the ivory wordmark on top.
 ///
 /// The hero takes ~48% of the screen (so both CTAs clear the gesture bar on a 360 x 800dp phone). Below it the content fills the remaining
 /// height, with the CTAs pinned to the bottom, and scrolls instead of
@@ -51,24 +51,24 @@ class WelcomeScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: <Widget>[
                               Text(
-                                'Real connections between verified adults.',
+                                'Real connections between real adults.',
                                 style: theme.textTheme.headlineLarge?.copyWith(
                                   color: isDark ? scheme.onSurface : scheme.secondary,
                                 ),
                               ),
                               const SizedBox(height: RoseSpacing.s4),
-                              const _ValueProp(text: 'Every member is 18+ and identity-verified'),
+                              const _ValueProp(text: '18+ only. Verified members wear a gold badge'),
                               const SizedBox(height: RoseSpacing.s2),
                               const _ValueProp(text: "You only chat when it's mutual"),
                               const Spacer(),
                               const SizedBox(height: RoseSpacing.s6),
                               FilledButton(
-                                onPressed: () => context.push('/phone'),
+                                onPressed: () => context.push('/email'),
                                 child: const Text('Create account'),
                               ),
                               const SizedBox(height: RoseSpacing.s2),
                               TextButton(
-                                onPressed: () => context.push('/phone'),
+                                onPressed: () => context.push('/email'),
                                 child: const Text('I already have an account'),
                               ),
                             ],
@@ -92,29 +92,77 @@ class _Hero extends StatelessWidget {
 
   final bool isDark;
 
+  /// The couple photo (Rose Route brand board, centre panel; see design/hero.png).
+  static const String photo = 'assets/images/welcome_hero.jpg';
+
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isDark ? RoseColors.night800 : RoseColors.burgundy,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(RoseRadius.lg)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(
-                Icons.circle,
-                size: RoseSpacing.s3,
-                color: RoseColors.champagneGold,
-                semanticLabel: 'AMIVARA mark',
+    // The scrim fades into the canvas below: burgundy in light mode, night in dark mode.
+    final base = isDark ? RoseColors.night950 : RoseColors.burgundy;
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(RoseRadius.lg)),
+      child: ColoredBox(
+        color: base,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            // Faces sit in the upper half of the portrait: keep them in frame on any screen shape.
+            Image.asset(
+              photo,
+              key: const Key('welcome-hero-photo'),
+              fit: BoxFit.cover,
+              alignment: const Alignment(0, -0.35),
+              excludeFromSemantics: true,
+              frameBuilder: (context, child, frame, sync) => sync
+                  ? child
+                  : AnimatedOpacity(
+                      opacity: frame == null ? 0 : 1,
+                      duration: RoseMotion.long,
+                      curve: Curves.easeOut,
+                      child: child,
+                    ),
+            ),
+            // Burgundy scrim over the bottom 40% so the wordmark reads on any photo.
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const <double>[0, 0.6, 1],
+                  colors: <Color>[
+                    base.withValues(alpha: 0),
+                    base.withValues(alpha: 0.35),
+                    base.withValues(alpha: 0.92),
+                  ],
+                ),
               ),
-              const SizedBox(height: RoseSpacing.s2),
-              Text('AMIVARA', style: RoseType.headlineLarge.copyWith(color: RoseColors.warmIvory, letterSpacing: 6)),
-            ],
-          ),
+            ),
+            Positioned(
+              left: RoseSpacing.s4,
+              right: RoseSpacing.s4,
+              bottom: RoseSpacing.s6,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(
+                    Icons.auto_awesome,
+                    size: RoseSpacing.s4,
+                    color: RoseColors.champagneGold,
+                    semanticLabel: 'AMIVARA mark',
+                  ),
+                  const SizedBox(height: RoseSpacing.s1),
+                  Text(
+                    'AMIVARA',
+                    style: RoseType.headlineLarge.copyWith(
+                      color: RoseColors.warmIvory,
+                      letterSpacing: 6,
+                      shadows: const <Shadow>[Shadow(blurRadius: 12, color: Color(0x66000000))],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

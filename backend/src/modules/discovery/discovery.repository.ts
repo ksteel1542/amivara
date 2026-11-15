@@ -14,6 +14,8 @@ export const RANKING_WEIGHTS = {
 export interface CandidateRow {
   id: string;
   first_name: string;
+  /** Passed Smile ID: the gold badge. Unverified members are shown without it. */
+  verified: boolean;
   age: number;
   dist_m: number;
   score: number;
@@ -37,8 +39,8 @@ export interface ViewerState {
  * The discovery query (PRD §6), in parameterised PostGIS SQL (Prisma has no
  * geography type). Every PRD §6 rule is a hard filter; ranking only orders
  * candidates who passed them all:
- *   1. both active, not deleted; the candidate is Smile ID-verified (unverified
- *      members are never shown, PRD §5.3a) and visible in discovery
+ *   1. both active, not deleted, and visible in discovery. Unverified members are
+ *      shown too, without the badge (progressive trust, Nov 2026)
  *   2. mutual gender preference          3. mutual age range
  *   4. within BOTH members' radius (ST_DWithin on the GiST index)
  *   5. no block either way; not already liked, passed (for 30 days) or matched
@@ -80,7 +82,7 @@ export class DiscoveryRepository {
          WHERE u.id = ${viewerId}::uuid AND p.location IS NOT NULL
       ),
       candidates AS (
-        SELECT u.id, p.first_name, p.bio, p.intent::text AS intent, p.prompts, p.interests, p.languages,
+        SELECT u.id, u.age_verified AS verified, p.first_name, p.bio, p.intent::text AS intent, p.prompts, p.interests, p.languages,
                p.height_cm::int AS height_cm, p.job_title, p.education, p.completeness_score,
                date_part('year', age(CURRENT_DATE, u.date_of_birth))::int AS age,
                ST_Distance(p.location, me.location)::float8 AS dist_m,
@@ -92,7 +94,7 @@ export class DiscoveryRepository {
           JOIN users u        ON u.id = p.user_id
           JOIN preferences pr ON pr.user_id = u.id
          WHERE u.id <> me.id
-           AND u.status = 'ACTIVE' AND u.deleted_at IS NULL AND u.age_verified
+           AND u.status = 'ACTIVE' AND u.deleted_at IS NULL
            AND pr.show_me_in_discovery
            -- Incognito members are only shown to people they've liked (PRD §5.6).
            AND (NOT pr.incognito OR EXISTS (SELECT 1 FROM likes il WHERE il.liker_id = u.id AND il.likee_id = me.id))
@@ -126,7 +128,7 @@ export class DiscoveryRepository {
           )::float8 AS score
         FROM candidates c
       )
-      SELECT id, first_name, age, dist_m, score, bio, intent, prompts, interests, languages,
+      SELECT id, verified, first_name, age, dist_m, score, bio, intent, prompts, interests, languages,
              height_cm, job_title, education
         FROM scored
        WHERE ${afterScore}::float8 IS NULL OR (score, id) < (${afterScore}::float8, ${afterId}::uuid)

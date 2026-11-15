@@ -28,15 +28,25 @@ describe('TokensService (ES256 JWT)', () => {
     expect(tokens.verifyAccess(jwt, now + 10)).toMatchObject({ use: 'access', sub: 'user-1', sid: 'session-1' });
   });
 
-  it('round-trips a signup token', () => {
-    const jwt = tokens.issueSignup('+2348012345678', 'devhash', now);
-    expect(tokens.verifySignup(jwt, now)).toMatchObject({ use: 'signup', sub: '+2348012345678', dvh: 'devhash' });
+  it('round-trips a signup token for a phone and for an email', () => {
+    const jwt = tokens.issueSignup({ kind: 'phone', value: '+2348012345678' }, 'sms', 'devhash', now);
+    expect(tokens.verifySignup(jwt, now)).toMatchObject({
+      use: 'signup',
+      sub: '+2348012345678',
+      idk: 'phone',
+      via: 'sms',
+      dvh: 'devhash',
+    });
+    const email = tokens.issueSignup({ kind: 'email', value: 'ada@example.com' }, 'google', undefined, now);
+    expect(tokens.verifySignup(email, now)).toMatchObject({ sub: 'ada@example.com', idk: 'email', via: 'google' });
   });
 
   it('never accepts a signup token as an access token, or the reverse', () => {
-    expect(codeOf(() => tokens.verifyAccess(tokens.issueSignup('+2348012345678', undefined, now), now))).toBe(
-      'INVALID_TOKEN',
-    );
+    expect(
+      codeOf(() =>
+        tokens.verifyAccess(tokens.issueSignup({ kind: 'phone', value: '+2348012345678' }, 'sms', undefined, now), now),
+      ),
+    ).toBe('INVALID_TOKEN');
     expect(codeOf(() => tokens.verifySignup(tokens.issueAccess('u', 's', now), now))).toBe('INVALID_TOKEN');
   });
 

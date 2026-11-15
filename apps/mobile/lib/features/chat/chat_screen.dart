@@ -47,6 +47,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   DateTime _lastTypingSent = DateTime.fromMillisecondsSinceEpoch(0);
   bool _gone = false;
 
+  /// "sender" or "recipient" after an off-platform contact-sharing notice (dismissible).
+  String? _contactNotice;
+
+  /// Unverified members hit their daily text cap: offer verification.
+  bool _chatCapped = false;
+
   MatchSummary get _match => widget.match;
   String get _token => ref.read(sessionProvider)!.accessToken;
   ChatRepository get _repo => ref.read(chatRepositoryProvider);
@@ -160,7 +166,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ).showSnackBar(SnackBar(content: Text('Photos unlocked with ${_match.firstName} ✦')));
       case 'match.removed':
         _matchGone();
+      case 'safety.notice':
+        if (e.data['kind'] == 'contact_sharing') setState(() => _contactNotice = e.data['role'] as String?);
       case 'error':
+        if (e.data['code'] == 'VERIFICATION_REQUIRED') {
+          setState(() => _chatCapped = true);
+          return;
+        }
         final message = e.data['message'] as String?;
         if (message != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
@@ -271,11 +283,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() {
         _messages = _merge(<ChatMessage>[message], _messages);
         _countTowardsUnlock(message);
+        if (message.safetyNotice == 'contact_sharing') _contactNotice = 'sender';
       });
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.statusCode == 404) return _matchGone();
       _input.text = body; // keep what they wrote
+      if (e.code == 'VERIFICATION_REQUIRED') {
+        setState(() => _chatCapped = true);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -324,6 +341,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     '${_match.firstName} is typing…',
                     style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
                   ),
+                ),
+              ),
+            if (_contactNotice != null)
+              _Notice(
+                key: const Key('contact-warning'),
+                icon: Icons.shield_outlined,
+                text: _contactNotice == 'recipient'
+                    ? "Careful: ${_match.firstName} may be asking to move off AMIVARA. Scammers do this. "
+                          'Keep chatting here until you trust them, and never send money.'
+                    : 'For your safety, keep conversations on AMIVARA. Sharing numbers or social handles '
+                          'early is how most scams start.',
+                onClose: () => setState(() => _contactNotice = null),
+              ),
+            if (_chatCapped)
+              _Notice(
+                key: const Key('chat-cap-banner'),
+                icon: Icons.verified_outlined,
+                text: "You've reached today's message limit for unverified members. Verify to chat without limits.",
+                action: TextButton(
+                  key: const Key('chat-get-verified'),
+                  onPressed: () => context.push('/verify-intro'),
+                  child: const Text('Get verified'),
                 ),
               ),
             _composer(theme),
@@ -531,6 +570,46 @@ class PhotoUnlockBanner extends StatelessWidget {
           ),
           const SizedBox(height: RoseSpacing.s1),
           LinearProgressIndicator(value: (photos.mine + photos.theirs) / total),
+        ],
+      ),
+    );
+  }
+}
+
+/// A slim notice above the composer: safety reminders and the verification cap.
+class _Notice extends StatelessWidget {
+  const _Notice({super.key, required this.icon, required this.text, this.onClose, this.action});
+
+  final IconData icon;
+  final String text;
+  final VoidCallback? onClose;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(RoseSpacing.s3, 0, RoseSpacing.s3, RoseSpacing.s2),
+      padding: const EdgeInsets.fromLTRB(RoseSpacing.s3, RoseSpacing.s2, RoseSpacing.s1, RoseSpacing.s2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(RoseRadius.md),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: RoseSpacing.s2),
+          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
+          ?action,
+          if (onClose != null)
+            IconButton(
+              tooltip: 'Dismiss',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: onClose,
+            ),
         ],
       ),
     );

@@ -111,12 +111,12 @@ describe('Profile view (integration, PostgreSQL + PostGIS)', () => {
     expect(raw).not.toMatch(/6\.5|3\.37|latitude|longitude|phone|date_of_birth/);
   });
 
-  it('unverified (browse-only) members can view; unverified members are never shown', async () => {
+  it('unverified members can view and be viewed; the badge reflects verification', async () => {
     const browser = await member({ verified: false });
     const target = await member();
-    await view(browser, target.id).expect(200);
+    expect((await view(browser, target.id).expect(200)).body.verified).toBe(true);
     const unverified = await member({ verified: false });
-    await view(target, unverified.id).expect(404);
+    expect((await view(target, unverified.id).expect(200)).body.verified).toBe(false);
   });
 
   it('is a 404 for yourself, unknown ids, blocks either way, bans, suspensions and deletions', async () => {

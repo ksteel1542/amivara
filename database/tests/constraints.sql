@@ -165,3 +165,35 @@ BEGIN
   END;
 END
 $$;
+
+-- Email-first sign-up: every member needs a phone or an email; codes have one destination.
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO users (id, date_of_birth, updated_at) VALUES (gen_random_uuid(), CURRENT_DATE - INTERVAL '25 years', now());
+    RAISE EXCEPTION 'users_identity_chk did not reject a member with neither phone nor email';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: a member needs a phone or an email';
+  END;
+
+  INSERT INTO users (id, email, date_of_birth, updated_at)
+  VALUES (gen_random_uuid(), 'ada@example.com', CURRENT_DATE - INTERVAL '25 years', now());
+  RAISE NOTICE 'ok: email-only member accepted';
+
+  BEGIN
+    INSERT INTO users (id, email, date_of_birth, updated_at)
+    VALUES (gen_random_uuid(), 'Ada@Example.com', CURRENT_DATE - INTERVAL '25 years', now());
+    RAISE EXCEPTION 'users_email_lower_chk did not reject a mixed-case email';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: emails are stored lower-cased';
+  END;
+
+  BEGIN
+    INSERT INTO otp_challenges (id, channel, code_hash, expires_at)
+    VALUES (gen_random_uuid(), 'EMAIL', 'x', now());
+    RAISE EXCEPTION 'otp_challenges_destination_chk did not reject a code with no destination';
+  EXCEPTION WHEN check_violation THEN
+    RAISE NOTICE 'ok: a code needs exactly one destination';
+  END;
+END
+$$;

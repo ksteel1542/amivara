@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../generated/prisma';
 import { ApiError } from '../../common/api-error';
+import type { MemberRequest } from '../../common/authenticated-member';
 import type { RequestContext } from '../../common/request-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SessionsService, type TokenPair } from '../auth/sessions.service';
@@ -9,7 +10,9 @@ import { currentAge, MAXIMUM_AGE, MINIMUM_AGE, parseIsoDate } from './age';
 import type { CompleteOnboardingInput } from './onboarding.schemas';
 import { SignupBlocksService } from './signup-blocks.service';
 
-type Signup = { phoneE164: string; deviceHash?: string };
+type Signup = NonNullable<MemberRequest['signup']>;
+
+const PROOF = { sms: 'PHONE_OTP', email: 'EMAIL_OTP', google: 'GOOGLE' } as const;
 
 const GENDER = { woman: 'WOMAN', man: 'MAN', non_binary: 'NON_BINARY' } as const;
 const INTENT = {
@@ -20,7 +23,7 @@ const INTENT = {
 } as const;
 
 /**
- * Turns a phone-verified signup into a member (PRD §5.1, UI_WIREFRAMES Screens 3 and 3x).
+ * Turns a verified signup (email code, Google or phone code) into a member (PRD §5.1, UI_WIREFRAMES Screens 3 and 3x).
  * No user row exists until onboarding completes, so an under-18 attempt leaves
  * nothing behind except the HMAC-only signup block.
  */
@@ -50,8 +53,9 @@ export class OnboardingService {
       userId = await this.prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: {
-            phoneE164: signup.phoneE164,
-            phoneVerifiedAt: new Date(),
+            ...(signup.identity.kind === 'email'
+              ? { email: signup.identity.value, emailVerifiedAt: new Date() }
+              : { phoneE164: signup.identity.value, phoneVerifiedAt: new Date() }),
             dateOfBirth: new Date(`${input.date_of_birth}T00:00:00Z`),
             profile: {
               create: {
@@ -68,7 +72,7 @@ export class OnboardingService {
               },
             },
             verifications: {
-              create: { type: 'PHONE_OTP', provider: 'INTERNAL', status: 'PASSED', completedAt: new Date() },
+              create: { type: PROOF[signup.via], provider: 'INTERNAL', status: 'PASSED', completedAt: new Date() },
             },
           },
           select: { id: true },
@@ -77,11 +81,17 @@ export class OnboardingService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ApiError(
-          HttpStatus.CONFLICT,
-          'PHONE_ALREADY_REGISTERED',
-          'This number already has an account. Sign in instead.',
-        );
+        throw signup.identity.kind === 'email'
+          ? new ApiError(
+              HttpStatus.CONFLICT,
+              'EMAIL_ALREADY_REGISTERED',
+              'This email already has an account. Sign in instead.',
+            )
+          : new ApiError(
+              HttpStatus.CONFLICT,
+              'PHONE_ALREADY_REGISTERED',
+              'This number already has an account. Sign in instead.',
+            );
       }
       throw error;
     }
@@ -90,7 +100,7 @@ export class OnboardingService {
   }
 
   private async assertNotBlocked(signup: Signup): Promise<void> {
-    if (await this.blocks.isBlocked(this.blocks.subjects(signup.phoneE164, signup.deviceHash))) {
+    if (await this.blocks.isBlocked(this.blocks.subjects(signup.identity, signup.deviceHash))) {
       throw new ApiError(HttpStatus.FORBIDDEN, 'SIGNUP_BLOCKED', "You can't create an account right now.");
     }
   }
@@ -110,7 +120,7 @@ export class OnboardingService {
       });
     }
     if (age < MINIMUM_AGE) {
-      await this.blocks.blockUnderage(this.blocks.subjects(signup.phoneE164, signup.deviceHash));
+      await this.blocks.blockUnderage(this.blocks.subjects(signup.identity, signup.deviceHash));
       throw new ApiError(HttpStatus.FORBIDDEN, 'UNDERAGE', 'AMIVARA is for adults aged 18 and over.');
     }
     return age;

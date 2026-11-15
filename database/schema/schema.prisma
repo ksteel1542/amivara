@@ -66,6 +66,9 @@ enum Intent {
 
 enum VerificationType {
   PHONE_OTP
+  EMAIL_OTP
+  /// Google Sign-In with a Google-verified email address
+  GOOGLE
   BIOMETRIC_KYC // Smile ID: NIN checked against NIMC, plus a selfie match
   DOCUMENT_VERIFICATION // Smile ID: ID document scan plus a selfie match
   SMART_SELFIE // Smile ID: SmartSelfie liveness enrolment / authentication
@@ -93,6 +96,7 @@ enum VerificationStatus {
 enum OtpChannel {
   SMS
   WHATSAPP
+  EMAIL
 
   @@map("otp_channel")
 }
@@ -163,22 +167,28 @@ enum EnforcementActionType {
 // ───────────────────────────── Models ─────────────────────────────
 
 model User {
-  id              String     @id @default(uuid()) @db.Uuid
-  phoneE164       String     @unique @map("phone_e164")
-  phoneVerifiedAt DateTime?  @map("phone_verified_at") @db.Timestamptz(6)
+  id                   String     @id @default(uuid()) @db.Uuid
+  /// Optional since Nov 2026 (email-first sign-up). A CHECK requires a phone or an email.
+  phoneE164            String?    @unique @map("phone_e164")
+  phoneVerifiedAt      DateTime?  @map("phone_verified_at") @db.Timestamptz(6)
+  /// Lower-cased. The primary sign-in identity for new members (email code or Google).
+  email                String?    @unique @db.VarChar(254)
+  emailVerifiedAt      DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  /// When the member accepted the community guidelines (shown once, right after sign-up)
+  guidelinesAcceptedAt DateTime?  @map("guidelines_accepted_at") @db.Timestamptz(6)
   /// 18+ is enforced by a CHECK constraint in a SQL migration (see the bottom of this file)
-  dateOfBirth     DateTime   @map("date_of_birth") @db.Date
+  dateOfBirth          DateTime   @map("date_of_birth") @db.Date
   /// Set ONLY by the verification module after Smile ID returns a pass with age >= 18
-  ageVerified     Boolean    @default(false) @map("age_verified")
-  ageVerifiedAt   DateTime?  @map("age_verified_at") @db.Timestamptz(6)
-  status          UserStatus @default(ACTIVE)
+  ageVerified          Boolean    @default(false) @map("age_verified")
+  ageVerifiedAt        DateTime?  @map("age_verified_at") @db.Timestamptz(6)
+  status               UserStatus @default(ACTIVE)
   /// Temporary suspensions lift themselves at this time (null = until a moderator acts)
-  suspendedUntil  DateTime?  @map("suspended_until") @db.Timestamptz(6)
-  role            UserRole   @default(MEMBER)
-  lastActiveAt    DateTime?  @map("last_active_at") @db.Timestamptz(6)
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  suspendedUntil       DateTime?  @map("suspended_until") @db.Timestamptz(6)
+  role                 UserRole   @default(MEMBER)
+  lastActiveAt         DateTime?  @map("last_active_at") @db.Timestamptz(6)
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?  @map("deleted_at") @db.Timestamptz(6)
 
   profile       Profile?
   preference    Preference?
@@ -198,6 +208,7 @@ model User {
   reportsMade   Report[]            @relation("ReportReporter")
   reportsAbout  Report[]            @relation("ReportReported")
   enforcements  EnforcementAction[] @relation("EnforcementSubject")
+  safetyEvents  SafetyEvent[]
 
   @@index([status, ageVerified])
   @@index([lastActiveAt])
@@ -424,7 +435,9 @@ model Preference {
 /// HMAC of it. Rows are retained 30 days for abuse analysis, then purged.
 model OtpChallenge {
   id         String     @id @default(uuid()) @db.Uuid
-  phoneE164  String     @map("phone_e164")
+  /// Exactly one of phoneE164 / email is set (CHECK in SQL).
+  phoneE164  String?    @map("phone_e164")
+  email      String?    @db.VarChar(254)
   channel    OtpChannel
   /// HMAC-SHA256(HASH_PEPPER, challenge id + code)
   codeHash   String     @map("code_hash") @db.VarChar(64)
@@ -437,6 +450,7 @@ model OtpChallenge {
   createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([phoneE164, createdAt(sort: Desc)])
+  @@index([email, createdAt(sort: Desc)])
   @@index([deviceHash, createdAt(sort: Desc)])
   @@index([ipHash, createdAt(sort: Desc)])
   @@map("otp_challenges")
@@ -564,6 +578,25 @@ model AuditLog {
   @@index([targetType, targetId, createdAt(sort: Desc)])
   @@index([actorId, createdAt(sort: Desc)])
   @@map("audit_log")
+}
+
+/// Automated safety signals (no message content is stored; the message id points at the
+/// encrypted original). Today: off-platform contact sharing detected in chat.
+model SafetyEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  kind      String   @db.VarChar(32)
+  /// Which detectors fired, e.g. {phone, whatsapp}
+  signals   String[]
+  matchId   String?  @map("match_id") @db.Uuid
+  messageId String?  @map("message_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([kind, createdAt(sort: Desc)])
+  @@map("safety_events")
 }
 
 // ─────────────────────── Raw SQL requirements ───────────────────────

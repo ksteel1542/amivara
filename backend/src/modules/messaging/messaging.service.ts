@@ -4,6 +4,7 @@ import { ApiError } from '../../common/api-error';
 import { DomainEvents } from '../../common/domain-events';
 import { MessageCipher } from '../../common/message-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
+import { detectContactSharing } from './contact-detector';
 import { RealtimeRegistry } from './realtime.registry';
 
 /** WebSocket close code for "not allowed" (API.md "Messaging"). */
@@ -16,6 +17,15 @@ export const PHOTO_UNLOCK_MESSAGES = 3;
 export const MAX_MESSAGE_LENGTH = 2000;
 /** Per member, across all chats: generous for humans, a wall for spam bots. */
 export const MESSAGES_PER_MINUTE = 30;
+/**
+ * Progressive trust (Nov 2026): members who haven't passed Smile ID can match and
+ * chat, but only this many messages per 24 hours across all chats, and photos never
+ * unlock for them. Verifying lifts the cap.
+ */
+export const UNVERIFIED_DAILY_MESSAGES = 10;
+
+/** Shown in-app when a message looks like it moves the conversation off AMIVARA. */
+export type SafetyNotice = 'contact_sharing';
 
 export interface MessageView {
   id: string;
@@ -31,6 +41,9 @@ interface ActiveMatch {
   id: string;
   otherUserId: string;
   photosUnlocked: boolean;
+  /** Smile ID status of each side: photos only unlock between two verified members. */
+  meVerified: boolean;
+  otherVerified: boolean;
 }
 
 @Injectable()
@@ -90,7 +103,11 @@ export class MessagingService implements OnModuleInit {
     };
   }
 
-  async send(userId: string, matchId: string, rawBody: string): Promise<MessageView> {
+  async send(
+    userId: string,
+    matchId: string,
+    rawBody: string,
+  ): Promise<MessageView & { safety_notice?: SafetyNotice }> {
     const body = rawBody.trim();
     if (body.length === 0 || body.length > MAX_MESSAGE_LENGTH) {
       throw new ApiError(
@@ -109,13 +126,26 @@ export class MessagingService implements OnModuleInit {
         retry_after: 60,
       });
     }
+    if (!match.meVerified) {
+      const today = await this.prisma.message.count({
+        where: { senderId: userId, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      });
+      if (today >= UNVERIFIED_DAILY_MESSAGES) {
+        throw new ApiError(
+          HttpStatus.FORBIDDEN,
+          'VERIFICATION_REQUIRED',
+          `Verify your identity to keep chatting. Unverified members can send ${UNVERIFIED_DAILY_MESSAGES} messages a day.`,
+          { reason: 'unverified_chat_limit', limit: UNVERIFIED_DAILY_MESSAGES },
+        );
+      }
+    }
 
     const { message, unlockedNow } = await this.prisma.$transaction(async (tx) => {
       const message = await tx.message.create({
         data: { matchId: match.id, senderId: userId, type: 'TEXT', body: this.cipher.encrypt(body) },
       });
       let unlockedNow = false;
-      if (!match.photosUnlocked) {
+      if (!match.photosUnlocked && match.meVerified && match.otherVerified) {
         const counts = await tx.message.groupBy({
           by: ['senderId'],
           where: { matchId: match.id, type: 'TEXT', deletedAt: null },
@@ -148,7 +178,22 @@ export class MessagingService implements OnModuleInit {
       recipientId: match.otherUserId,
       recipientOnline: this.realtime.isOnline(match.otherUserId),
     });
-    return view;
+
+    // Off-platform contact sharing: delivered, but logged and both members get a gentle reminder.
+    const signals = detectContactSharing(body);
+    if (signals.length === 0) return view;
+    await this.prisma.safetyEvent.create({
+      data: { userId, kind: 'CONTACT_SHARING', signals, matchId: match.id, messageId: message.id },
+    });
+    this.realtime.send(userId, {
+      event: 'safety.notice',
+      data: { match_id: match.id, kind: 'contact_sharing', role: 'sender', message_id: message.id },
+    });
+    this.realtime.send(match.otherUserId, {
+      event: 'safety.notice',
+      data: { match_id: match.id, kind: 'contact_sharing', role: 'recipient', message_id: message.id },
+    });
+    return { ...view, safety_notice: 'contact_sharing' };
   }
 
   /** Read receipts: marks the other member's messages up to (and including) one as read. */
@@ -187,7 +232,10 @@ export class MessagingService implements OnModuleInit {
   private async activeMatch(userId: string, matchId: string): Promise<ActiveMatch> {
     const match = await this.prisma.match.findFirst({
       where: { id: matchId, unmatchedAt: null, OR: [{ userAId: userId }, { userBId: userId }] },
-      include: { userA: { select: { status: true } }, userB: { select: { status: true } } },
+      include: {
+        userA: { select: { status: true, ageVerified: true } },
+        userB: { select: { status: true, ageVerified: true } },
+      },
     });
     const usable = (s: string) => s === 'ACTIVE' || s === 'PAUSED';
     if (!match || !usable(match.userA.status) || !usable(match.userB.status)) {
@@ -197,6 +245,8 @@ export class MessagingService implements OnModuleInit {
       id: match.id,
       otherUserId: match.userAId === userId ? match.userBId : match.userAId,
       photosUnlocked: match.photosUnlocked,
+      meVerified: match.userAId === userId ? match.userA.ageVerified : match.userB.ageVerified,
+      otherVerified: match.userAId === userId ? match.userB.ageVerified : match.userA.ageVerified,
     };
   }
 

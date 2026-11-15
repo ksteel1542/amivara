@@ -115,10 +115,15 @@ export class SignupTokenGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<MemberRequest>();
     const token = bearer(req);
     if (!token) {
-      throw new ApiError(HttpStatus.UNAUTHORIZED, 'UNAUTHENTICATED', 'Verify your phone number first.');
+      throw new ApiError(HttpStatus.UNAUTHORIZED, 'UNAUTHENTICATED', 'Verify your email or phone first.');
     }
     const claims = this.tokens.verifySignup(token);
-    req.signup = { phoneE164: claims.sub, deviceHash: claims.dvh };
+    const kind = claims.idk ?? 'phone';
+    req.signup = {
+      identity: { kind, value: claims.sub },
+      via: claims.via ?? (kind === 'phone' ? 'sms' : 'email'),
+      deviceHash: claims.dvh,
+    };
     return true;
   }
 }
@@ -141,7 +146,7 @@ export const CurrentSessionId = createParamDecorator((_: unknown, ctx: Execution
 export const SignupIdentity = createParamDecorator(
   (_: unknown, ctx: ExecutionContext): NonNullable<MemberRequest['signup']> => {
     const signup = ctx.switchToHttp().getRequest<MemberRequest>().signup;
-    if (!signup) throw new ApiError(HttpStatus.UNAUTHORIZED, 'UNAUTHENTICATED', 'Verify your phone number first.');
+    if (!signup) throw new ApiError(HttpStatus.UNAUTHORIZED, 'UNAUTHENTICATED', 'Verify your email or phone first.');
     return signup;
   },
 );

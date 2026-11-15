@@ -17,8 +17,9 @@ final currentMemberProvider = FutureProvider.autoDispose<MemberSummary?>((ref) a
 /// Card images: the network in the app, a placeholder in widget tests.
 final cardImageBuilderProvider = Provider<CardImageBuilder>((ref) => networkCardImage);
 
-/// Home = discovery (Stage 4, sprint 4). Unverified members browse and pass;
-/// the banner and the like gate lead to Smile ID verification (PRD §5.3a).
+/// Home = discovery. Members who haven't accepted the community guidelines see them
+/// first. Unverified members can like and match; the banner offers verification
+/// (gold badge, unlimited chat, photos and calls).
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -27,6 +28,12 @@ class HomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final me = ref.watch(currentMemberProvider);
     final verified = me.value?.ageVerified;
+    // Community guidelines come before discovery (shown once).
+    if (me.value != null && !me.value!.guidelinesAccepted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/guidelines');
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -83,7 +90,7 @@ class HomeScreen extends ConsumerWidget {
                     children: <Widget>[
                       Icon(Icons.verified_outlined, color: theme.colorScheme.tertiary, size: 20),
                       const SizedBox(width: RoseSpacing.s3),
-                      const Expanded(child: Text('Verify to start liking and chatting')),
+                      const Expanded(child: Text('Get verified: gold badge, unlimited chat and photos')),
                       const Icon(Icons.chevron_right),
                     ],
                   ),

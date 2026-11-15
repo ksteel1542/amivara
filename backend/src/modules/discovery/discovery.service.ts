@@ -13,7 +13,7 @@ export interface DiscoveryCard {
   user_id: string;
   first_name: string;
   age: number;
-  verified: true;
+  verified: boolean;
   distance: { km: number; label: string };
   intent: string;
   bio: string | null;
@@ -57,7 +57,7 @@ export class DiscoveryService {
         user_id: r.id,
         first_name: r.first_name,
         age: r.age,
-        verified: true, // only Smile ID-verified adults are ever shown (PRD §5.3a)
+        verified: r.verified, // unverified members are shown too, without the badge (progressive trust)
         distance: distanceLabel(r.dist_m, viewerId, r.id),
         intent: r.intent.toLowerCase(),
         bio: r.bio,

@@ -20,7 +20,7 @@ export class HasherService {
     this.pepper = config.get('HASH_PEPPER', { infer: true }) ?? randomBytes(32).toString('hex');
   }
 
-  hash(kind: 'otp' | 'ip' | 'device' | 'phone', value: string): string {
+  hash(kind: 'otp' | 'ip' | 'device' | 'phone' | 'email', value: string): string {
     return hmacHex(this.pepper, `${kind}:${value}`);
   }
 

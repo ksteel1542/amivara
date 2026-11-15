@@ -10,6 +10,7 @@ import { configureApp } from '../src/app.setup';
 import { OTP_SENDER } from '../src/modules/auth/otp-sender';
 import { MEDIA_STORAGE } from '../src/modules/media/media-storage';
 import { CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED } from '../src/modules/messaging/chat.gateway';
+import { UNVERIFIED_DAILY_MESSAGES } from '../src/modules/messaging/messaging.service';
 import { MESSAGE_NOTIFICATION } from '../src/modules/notifications/notifications.service';
 import {
   PUSH_SENDER,
@@ -204,14 +205,76 @@ describe('Messaging (integration, PostgreSQL + WebSocket)', () => {
     await http().get('/v1/matches/not-a-uuid/messages').set(a.auth).expect(400);
   });
 
-  it('requires verification', async () => {
+  it('unverified members can chat, capped per day until they verify', async () => {
     const a = await member();
     const b = await member();
     const matchId = await makeMatch(a, b);
     await prisma.user.update({ where: { id: a.id }, data: { ageVerified: false } });
+
+    for (let i = 0; i < UNVERIFIED_DAILY_MESSAGES; i++) await send(a, matchId, `hi ${i}`).expect(201);
+    const capped = await send(a, matchId, 'one more').expect(403);
+    expect(capped.body.error.code).toBe('VERIFICATION_REQUIRED');
+    expect(capped.body.error.details).toMatchObject({
+      reason: 'unverified_chat_limit',
+      limit: UNVERIFIED_DAILY_MESSAGES,
+    });
+    await http().get(`/v1/matches/${matchId}/messages`).set(a.auth).expect(200); // reading is never capped
+    await send(b, matchId, 'verified members are not capped').expect(201);
+
+    // Verifying lifts the cap.
+    await prisma.user.update({ where: { id: a.id }, data: { ageVerified: true } });
+    await send(a, matchId, 'verified now').expect(201);
+  });
+
+  it('photos never unlock while either member is unverified', async () => {
+    const a = await member();
+    const b = await member();
+    const matchId = await makeMatch(a, b);
+    await prisma.user.update({ where: { id: b.id }, data: { ageVerified: false } });
+    for (let i = 0; i < 3; i++) {
+      await send(a, matchId, `a${i}`).expect(201);
+      await send(b, matchId, `b${i}`).expect(201);
+    }
+    expect((await prisma.match.findUniqueOrThrow({ where: { id: matchId } })).photosUnlocked).toBe(false);
+    // Once both are verified, the next message unlocks them.
+    await prisma.user.update({ where: { id: b.id }, data: { ageVerified: true } });
+    await send(a, matchId, 'and now?').expect(201);
+    expect((await prisma.match.findUniqueOrThrow({ where: { id: matchId } })).photosUnlocked).toBe(true);
+  });
+
+  it('suspended members cannot chat', async () => {
+    const a = await member();
+    const b = await member();
+    const matchId = await makeMatch(a, b);
+    await prisma.user.update({ where: { id: a.id }, data: { status: 'SUSPENDED' } });
     const res = await send(a, matchId, 'hello').expect(403);
-    expect(res.body.error.code).toBe('VERIFICATION_REQUIRED');
-    await http().get(`/v1/matches/${matchId}/messages`).set(a.auth).expect(403);
+    expect(res.body.error.code).toBe('ACCOUNT_SUSPENDED');
+  });
+
+  it('flags off-platform contact sharing: delivered, logged, both reminded', async () => {
+    const a = await member();
+    const b = await member();
+    const matchId = await makeMatch(a, b);
+    const socketA = await connect(a);
+    const socketB = await connect(b);
+
+    const res = await send(a, matchId, 'add me on WhatsApp 0803 123 4567').expect(201);
+    expect(res.body.safety_notice).toBe('contact_sharing');
+    const toSender = await socketA.next('safety.notice');
+    const toRecipient = await socketB.next('safety.notice');
+    expect(toSender.data).toMatchObject({ match_id: matchId, kind: 'contact_sharing', role: 'sender' });
+    expect(toRecipient.data).toMatchObject({ match_id: matchId, kind: 'contact_sharing', role: 'recipient' });
+    expect((await socketB.next('message.new')).data.body).toBe('add me on WhatsApp 0803 123 4567'); // still delivered
+
+    const events = await prisma.safetyEvent.findMany();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ userId: a.id, kind: 'CONTACT_SHARING', matchId, messageId: res.body.id });
+    expect(events[0]!.signals.sort()).toEqual(['phone', 'whatsapp']);
+    expect(JSON.stringify(events[0])).not.toContain('0803'); // the text itself is never stored here
+
+    const ok = await send(b, matchId, 'See you Saturday at 2pm').expect(201);
+    expect(ok.body.safety_notice).toBeUndefined();
+    expect(await prisma.safetyEvent.count()).toBe(1);
   });
 
   it('is a 404 for outsiders, unmatched pairs and banned members', async () => {
@@ -294,12 +357,17 @@ describe('Messaging (integration, PostgreSQL + WebSocket)', () => {
 
   // ── WebSocket ─────────────────────────────────────────────
 
-  it('rejects sockets without a valid session or verification', async () => {
+  it('rejects sockets without a valid session; suspended members are refused', async () => {
     expect(await closeCode(wsUrl, {})).toBe(CLOSE_UNAUTHENTICATED);
     expect(await closeCode(wsUrl, { Authorization: 'Bearer not-a-jwt' })).toBe(CLOSE_UNAUTHENTICATED);
 
+    // Unverified members may open a socket (progressive trust); suspended ones may not.
     const unverified = await member(false);
-    expect(await closeCode(wsUrl, { Authorization: `Bearer ${unverified.token}` })).toBe(CLOSE_FORBIDDEN);
+    const open = await connect(unverified);
+    expect(open.ws.readyState).toBe(WebSocket.OPEN);
+    const suspended = await member();
+    await prisma.user.update({ where: { id: suspended.id }, data: { status: 'SUSPENDED' } });
+    expect(await closeCode(wsUrl, { Authorization: `Bearer ${suspended.token}` })).toBe(CLOSE_FORBIDDEN);
 
     const loggedOut = await member();
     await http().post('/v1/auth/logout').set(loggedOut.auth).expect(204);

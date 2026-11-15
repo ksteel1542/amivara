@@ -136,7 +136,22 @@ describe('Auth + onboarding (integration, PostgreSQL)', () => {
       status: 'active',
       phone_last4: '5678',
       age: 25,
-      verification: { phone: true, age_verified: false, can_like_and_message: false },
+      verification: {
+        phone: true,
+        email: false,
+        age_verified: false,
+        can_like_and_message: true,
+        unlimited_chat: false,
+      },
+      capabilities: {
+        like: true,
+        text_chat: true,
+        text_chat_daily_limit: 10,
+        chat_photos: false,
+        voice_calls: false,
+        video_calls: false,
+      },
+      guidelines_accepted: false,
       profile: { first_name: 'Ọlá', gender: 'woman', intent: 'relationship' },
       preferences: { interested_in: ['man'], age_min: 20, age_max: 30 },
     });
@@ -324,12 +339,15 @@ describe('Auth + onboarding (integration, PostgreSQL)', () => {
 
   // ── Verification gate (PRD §5.3a) ─────────────────────────
 
-  it('a browse-only member can pass but not like', async () => {
+  it('an unverified member can like and pass (progressive trust)', async () => {
     const tokens = await onboard('08012345678');
     const auth = { Authorization: `Bearer ${tokens.access_token}` };
-    const like = await http().post('/v1/matching/likes').set(auth).expect(403);
-    expect(like.body.error.code).toBe('VERIFICATION_REQUIRED');
-    // Past the gate: an unknown target is 404 (not 403).
+    // No verification gate any more: an unknown target is simply 404.
+    await http()
+      .post('/v1/matching/likes')
+      .set(auth)
+      .send({ user_id: '00000000-0000-4000-8000-0000000000ff' })
+      .expect(404);
     await http()
       .post('/v1/matching/passes')
       .set(auth)

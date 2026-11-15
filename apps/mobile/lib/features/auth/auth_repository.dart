@@ -1,6 +1,6 @@
 import '../../core/api_client.dart';
 
-enum OtpChannel { sms, whatsapp }
+enum OtpChannel { sms, whatsapp, email }
 
 class OtpChallenge {
   const OtpChallenge({
@@ -85,15 +85,34 @@ class OnboardingDetails {
 }
 
 class MemberSummary {
-  const MemberSummary({required this.firstName, required this.ageVerified});
+  const MemberSummary({
+    required this.firstName,
+    required this.ageVerified,
+    this.guidelinesAccepted = true,
+    this.chatDailyLimit,
+  });
 
   final String firstName;
   final bool ageVerified;
+
+  /// Community guidelines accepted (shown once, right after sign-up).
+  final bool guidelinesAccepted;
+
+  /// Text messages a day while unverified; null once verified (no cap).
+  final int? chatDailyLimit;
 }
 
 /// The auth and onboarding endpoints (docs/API.md "Auth" and "Onboarding").
 abstract interface class AuthRepository {
   Future<OtpChallenge> requestOtp(String phoneE164, OtpChannel channel);
+
+  /// Email sign-in, the primary path (POST /auth/email/request; verify with [verifyOtp]).
+  Future<OtpChallenge> requestEmailOtp(String email);
+
+  /// Google Sign-In: exchanges Google's ID token (POST /auth/google).
+  Future<VerifyResult> googleSignIn(String idToken);
+
+  Future<void> acceptGuidelines(String accessToken);
   Future<VerifyResult> verifyOtp(String challengeId, String code);
   Future<void> ageGate(String signupToken, String dateOfBirth);
   Future<TokenPair> completeOnboarding(String signupToken, OnboardingDetails details);
@@ -121,15 +140,30 @@ class HttpAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<VerifyResult> verifyOtp(String challengeId, String code) async {
-    final json = await _api.post(
-      '/auth/otp/verify',
-      body: <String, dynamic>{'challenge_id': challengeId, 'code': code},
+  Future<OtpChallenge> requestEmailOtp(String email) async {
+    final json = await _api.post('/auth/email/request', body: <String, dynamic>{'email': email});
+    return OtpChallenge(
+      challengeId: json['challenge_id'] as String,
+      channel: OtpChannel.email,
+      expiresIn: (json['expires_in'] as num).toInt(),
+      resendIn: (json['resend_in'] as num).toInt(),
     );
-    return json['status'] == 'signed_in'
-        ? SignedIn(TokenPair.fromJson(json))
-        : SignupRequired(json['signup_token'] as String);
   }
+
+  @override
+  Future<VerifyResult> verifyOtp(String challengeId, String code) async =>
+      _result(await _api.post('/auth/otp/verify', body: <String, dynamic>{'challenge_id': challengeId, 'code': code}));
+
+  @override
+  Future<VerifyResult> googleSignIn(String idToken) async =>
+      _result(await _api.post('/auth/google', body: <String, dynamic>{'id_token': idToken}));
+
+  static VerifyResult _result(Map<String, dynamic> json) => json['status'] == 'signed_in'
+      ? SignedIn(TokenPair.fromJson(json))
+      : SignupRequired(json['signup_token'] as String);
+
+  @override
+  Future<void> acceptGuidelines(String accessToken) => _api.post('/me/guidelines/accept', bearer: accessToken);
 
   @override
   Future<void> ageGate(String signupToken, String dateOfBirth) =>
@@ -160,6 +194,12 @@ class HttpAuthRepository implements AuthRepository {
     final json = await _api.get('/me', bearer: accessToken);
     final profile = json['profile'] as Map<String, dynamic>;
     final verification = json['verification'] as Map<String, dynamic>;
-    return MemberSummary(firstName: profile['first_name'] as String, ageVerified: verification['age_verified'] as bool);
+    final capabilities = json['capabilities'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+    return MemberSummary(
+      firstName: profile['first_name'] as String,
+      ageVerified: verification['age_verified'] as bool,
+      guidelinesAccepted: json['guidelines_accepted'] as bool? ?? true,
+      chatDailyLimit: (capabilities['text_chat_daily_limit'] as num?)?.toInt(),
+    );
   }
 }

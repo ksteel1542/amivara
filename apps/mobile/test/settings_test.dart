@@ -23,6 +23,7 @@ Future<ProviderContainer> pumpSettings(
   FakeSettingsRepository? settings,
   FakeDataSaver? saver,
   FakeSafetyRepository? safety,
+  bool verified = true,
 }) async {
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 3.0;
@@ -30,7 +31,7 @@ Future<ProviderContainer> pumpSettings(
 
   final container = ProviderContainer(
     overrides: [
-      authRepositoryProvider.overrideWithValue(FakeAuthRepository()..verified = true),
+      authRepositoryProvider.overrideWithValue(FakeAuthRepository()..verified = verified),
       secureStoreProvider.overrideWithValue(MemoryStore()),
       profileRepositoryProvider.overrideWithValue(FakeProfileRepository()),
       photoProcessorProvider.overrideWithValue(FakePhotoProcessor() as PhotoProcessor),
