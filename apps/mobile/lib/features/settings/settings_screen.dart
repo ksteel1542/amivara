@@ -197,6 +197,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: () => context.push('/host'),
             ),
           ListTile(
+            key: const Key('spend-limits-tile'),
+            leading: const Icon(Icons.savings_outlined),
+            title: const Text('Spending limits'),
+            subtitle: const Text('Daily limit and breaks for AI Companion chats'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/spend-limits'),
+          ),
+          ListTile(
             key: const Key('preferences-tile'),
             leading: const Icon(Icons.tune_rounded),
             title: const Text('Discovery preferences'),

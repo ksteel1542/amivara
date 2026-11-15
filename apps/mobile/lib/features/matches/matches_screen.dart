@@ -208,7 +208,18 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Matches')),
+      appBar: AppBar(
+        title: const Text('Matches'),
+        actions: <Widget>[
+          // AI Companions live in their own section, never in the matches list.
+          TextButton.icon(
+            key: const Key('ai-companions-entry'),
+            onPressed: () => context.push('/ai'),
+            icon: const Icon(Icons.smart_toy_outlined),
+            label: const Text('AI Companions'),
+          ),
+        ],
+      ),
       body: body,
     );
   }

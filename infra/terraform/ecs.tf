@@ -90,6 +90,12 @@ locals {
         for k, v in {
           PAYSTACK_SECRET_KEY = "${aws_secretsmanager_secret.app["paystack"].arn}:secret_key::"
         } : k => v if var.payments_enabled
+      },
+      # AI Companions: only injected once the secret has a value. Without it, they answer 503.
+      {
+        for k, v in {
+          OPENAI_API_KEY = "${aws_secretsmanager_secret.app["openai"].arn}:api_key::"
+        } : k => v if var.ai_companions_enabled
     })
     web   = {}
     admin = {}

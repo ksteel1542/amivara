@@ -62,6 +62,18 @@ const base = z.object({
   HOST_EARNINGS_HOLD_DAYS: z.coerce.number().int().min(0).max(90).default(7),
   /** How often held earnings past their hold are released. 0 disables it (dev, tests). Deployed: 3600. */
   HOST_RELEASE_SECONDS: z.coerce.number().int().min(0).max(86400).default(0),
+  // ── AI Companions (MONETIZATION_PLAN.md M3b) ──
+  /** LLM behind AI Companions. Only 'openai' today; the interface allows others. */
+  LLM_PROVIDER: z.enum(['openai']).default('openai'),
+  /** OpenAI API key (secret openai). AI Companions answer 503 AI_UNAVAILABLE when unset. */
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().default('gpt-4o-mini'),
+  /** Coins per message to an AI Companion after the free allowance. 100% platform revenue. */
+  AI_MESSAGE_PRICE_COINS: z.coerce.number().int().min(1).max(10000).default(10),
+  /** Free messages per AI conversation per Lagos day. */
+  FREE_AI_MESSAGES_PER_DAY: z.coerce.number().int().min(0).max(1000).default(3),
+  /** Soft daily cap on AI Companion spending in a member's first 7 days. */
+  AI_NEW_MEMBER_DAILY_CAP: z.coerce.number().int().min(0).max(100000).default(200),
   /**
    * Checkout providers this API accepts (MONETIZATION_PLAN.md 2a), comma-separated:
    * 'paystack' (direct APK and web) and/or 'google_play' (Play Store build).

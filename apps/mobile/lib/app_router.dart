@@ -15,6 +15,7 @@ import 'features/onboarding/dob_screen.dart';
 import 'features/onboarding/guidelines_screen.dart';
 import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
+import 'features/ai/ai_screens.dart';
 import 'features/hosts/host_screen.dart';
 import 'features/preferences/preferences_screen.dart';
 import 'features/profile/profile_editor_screen.dart';
@@ -43,10 +44,15 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         '/settings' ||
         '/preferences' ||
         '/host' ||
+        '/ai' ||
+        '/spend-limits' ||
         '/blocked' ||
         '/guidelines' when !signedIn => '/',
         final String path
-            when (path.startsWith('/verify/') || path.startsWith('/chat/') || path.startsWith('/member/')) &&
+            when (path.startsWith('/verify/') ||
+                    path.startsWith('/chat/') ||
+                    path.startsWith('/ai/') ||
+                    path.startsWith('/member/')) &&
                 !signedIn =>
           '/',
         '/' || '/email' || '/phone' when signedIn => '/home',
@@ -82,6 +88,12 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(path: '/preferences', builder: (_, _) => const PreferencesScreen()),
       GoRoute(path: '/host', builder: (_, _) => const HostScreen()),
+      GoRoute(path: '/ai', builder: (_, _) => const AiCompanionsScreen()),
+      GoRoute(
+        path: '/ai/chat/:slug',
+        builder: (_, state) => AiChatScreen(slug: state.pathParameters['slug']!),
+      ),
+      GoRoute(path: '/spend-limits', builder: (_, _) => const SpendLimitsScreen()),
       GoRoute(path: '/blocked', builder: (_, _) => const BlockedScreen()),
       GoRoute(
         path: '/member/:userId',

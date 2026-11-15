@@ -315,6 +315,42 @@ The socket registry is in-process for now (one API task). Running several tasks 
 - **Split.** Spending uses promo coins first. The Host earns `revenue_share_bps` (default 5000 = 50%, confirmed 16 Nov 2026) of the **bought** coins only, rounded down. The rest goes to platform revenue. Promo coins never become earnings.
 - **Hold.** Earnings sit in `MEMBER_EARNINGS_PENDING` for `HOST_EARNINGS_HOLD_DAYS` (7). The release job (`HOST_RELEASE_SECONDS`, hourly when deployed) then moves them to `MEMBER_EARNINGS_AVAILABLE`. Withdrawals arrive in M7.
 
+## AI Companions
+
+*Milestone 3b of docs/MONETIZATION_PLAN.md (section 3e).* Clearly labelled AI personas in their own section. They are **not** members: they never appear in discovery, likes or matches, never carry the gold verified badge, and can never earn.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/ai/companions` | 🔑 | `{ available, companions: [{ id, slug, name, tagline, bio, interests, is_ai_companion: true, label: "AI Companion" }] }`. `available` is false without an LLM key. |
+| POST | `/ai/companions/:slug/conversation` | 🔑 | Opens (or reopens) the member's chat. A new chat starts with the persona's fixed greeting, which always says it's an AI. The model is never called here: companions never write first. |
+| GET | `/ai/conversations` · `/ai/conversations/:id` | 🔑 | The member's AI chats; one chat with its last 50 messages (`role: member\|companion`, `ai`, `body`, `coins_charged`, `refunded`) and `billing`. |
+| POST | `/ai/conversations/:id/messages` | 🔑 | Body `{ body }` (1–1,000 characters). `201 { message, reply, coins_charged, balance, billing }`. |
+| DELETE | `/ai/conversations/:id` | 🔑 | Deletes the chat and its messages. |
+| POST | `/ai/messages/:id/report` | 🔑 | Flags a companion reply for review. |
+| GET / PUT | `/me/spend-limits` | 🔑 | `{ ai_daily_cap_coins, effective_ai_daily_cap_coins, ai_spent_today, self_excluded_until }`. PUT `{ ai_daily_cap_coins: number \| null }`. |
+| POST | `/me/spend-limits/self-exclude` | 🔑 | Body `{ days: 7 \| 30 }`. A break from AI chats. It can be extended, never shortened. |
+
+**Billing:**
+- **Price.** 3 free messages per chat per Lagos day (`FREE_AI_MESSAGES_PER_DAY`), then 10 coins each (`AI_MESSAGE_PRICE_COINS`).
+- **Revenue.** 100% goes to platform revenue: no Host, no earnings entries.
+- **Failed replies.** If the model fails, the coins are refunded (a `REFUND` transaction) and the API answers `503 AI_UNAVAILABLE`.
+
+**Wellbeing:**
+- **Caps.** The member can set a daily cap. In their first 7 days a soft cap of 200 coins a day applies (`AI_NEW_MEMBER_DAILY_CAP`); the lower of the two wins.
+- **Limit errors.** Over the cap: `403 SPEND_LIMIT_REACHED` with `details: { cap, spent_today }`. During a break: `403 SELF_EXCLUDED` with `details: { until }`.
+
+**Model and data:**
+- **Provider.** The model sits behind an `LlmClient` interface (`LLM_PROVIDER=openai`, `OPENAI_MODEL=gpt-4o-mini`, `OPENAI_API_KEY`), with `store: false`.
+- **What's sent.** Only the persona, the server's safety rules and the chat's last 20 messages go to the model: no member id, name, profile or location.
+- **Rules.** The server's rules forbid:
+  - claiming to be human
+  - mentioning coins or spending, or pushing the member to stay
+  - asking for personal data, contact details, money or gifts
+  - sexual content
+- **Distress.** The rules point members in distress to someone they trust and to 112.
+- **Output filter.** It replaces any reply that claims to be human, mentions coins or top-ups, suggests meeting, or contains contact details.
+- **Storage.** Bodies are encrypted at rest and deleted with the chat or the account.
+
 ## Safety
 
 Open to every signed-in member, verified or not: anyone must be able to block and report.

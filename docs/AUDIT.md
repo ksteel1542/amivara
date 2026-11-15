@@ -192,3 +192,15 @@ Founder decision, superseding "unverified = browse only":
 - [x] Confirmed 16 Nov 2026: 3 free messages per conversation per day, 10 coins each after, 50% Host share, 7-day hold.
 - [ ] Spend/earn caps in a member's first days (MONETIZATION_PLAN.md section 2, point 4).
 
+### 16 Nov 2026: monetisation milestone 3b (AI Companions)
+
+- [x] `ai_personas` (separate from users: they can't enter discovery, matches, the verified badge, or earnings), `ai_conversations`, `ai_messages` (encrypted), `spend_limits`. Four seeded personas; a CHECK requires every greeting to say "AI Companion".
+- [x] Reply-only: chats start only when a member opens one, with a fixed AI disclosure. The model is never asked to write first.
+- [x] Billing: 3 free messages per chat per day, then 10 coins, 100% platform revenue; refund when the model fails.
+- [x] Wellbeing: member daily cap, 200-coin soft cap in the first week, 7/30-day self-exclusion (extend only).
+- [x] `LlmClient` interface with OpenAI (`gpt-4o-mini`, `store: false`). Server-side safety rules and an output filter (no "I'm human", no spending talk, no contact details).
+- [x] Flutter: AI Companions section (from Matches), labelled chat, report by long-press, delete, top-up on 402, Spending limits in Settings.
+- [x] Terraform: `openai` secret container behind `ai_companions_enabled`.
+- [ ] Before launch: DPIA and privacy-policy update for sending AI chats to OpenAI (US processing), OpenAI data-processing terms, and a Play AI-generated-content policy check.
+- [ ] Admin view of reported AI replies.
+

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
 import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:flutter/material.dart';
@@ -846,5 +847,74 @@ class FakeHostRepository implements HostRepository {
   Future<HostState> pause(String accessToken) async {
     calls.add('pause');
     return state = HostState(status: 'paused', pendingCoins: state.pendingCoins, availableCoins: state.availableCoins);
+  }
+}
+
+// ── AI Companions (M3b) ──
+
+const List<AiCompanion> kCompanions = <AiCompanion>[
+  AiCompanion(slug: 'ada', name: 'Ada', tagline: 'Bookworm and late-night philosopher', bio: ''),
+  AiCompanion(slug: 'tolu', name: 'Tolu', tagline: 'Foodie with strong jollof opinions', bio: ''),
+];
+
+class FakeAiRepository implements AiRepository {
+  FakeAiRepository({this.available = true});
+
+  bool available;
+  final List<String> calls = <String>[];
+  ApiException? sendError;
+  SpendLimits limitsState = const SpendLimits(effectiveCap: 200);
+  int _n = 0;
+
+  @override
+  Future<({bool available, List<AiCompanion> companions})> companions(String accessToken) async =>
+      (available: available, companions: kCompanions);
+
+  @override
+  Future<AiConversation> open(String accessToken, String slug) async {
+    calls.add('open:$slug');
+    final c = kCompanions.firstWhere((p) => p.slug == slug);
+    return AiConversation(
+      id: 'conv-$slug',
+      companion: c,
+      messages: <AiMessage>[
+        AiMessage(id: 'greet', fromCompanion: true, body: "Hi, I'm ${c.name}, an AI Companion (not a real person)."),
+      ],
+      billing: const AiBilling(priceCoins: 10, freePerDay: 3, freeRemainingToday: 3),
+    );
+  }
+
+  @override
+  Future<AiSendResult> send(String accessToken, String conversationId, String body) async {
+    calls.add('send:$body');
+    if (sendError != null) throw sendError!;
+    _n++;
+    return AiSendResult(
+      message: AiMessage(id: 'm$_n', fromCompanion: false, body: body),
+      reply: AiMessage(id: 'r$_n', fromCompanion: true, body: 'Reply $_n'),
+      balance: 100,
+      billing: AiBilling(priceCoins: 10, freePerDay: 3, freeRemainingToday: 3 - _n < 0 ? 0 : 3 - _n),
+    );
+  }
+
+  @override
+  Future<void> report(String accessToken, String messageId) async => calls.add('report:$messageId');
+
+  @override
+  Future<void> delete(String accessToken, String conversationId) async => calls.add('delete:$conversationId');
+
+  @override
+  Future<SpendLimits> limits(String accessToken) async => limitsState;
+
+  @override
+  Future<SpendLimits> setCap(String accessToken, int? cap) async {
+    calls.add('cap:$cap');
+    return limitsState = SpendLimits(aiDailyCapCoins: cap, effectiveCap: cap ?? limitsState.effectiveCap);
+  }
+
+  @override
+  Future<SpendLimits> selfExclude(String accessToken, int days) async {
+    calls.add('exclude:$days');
+    return limitsState = SpendLimits(selfExcludedUntil: DateTime.utc(2026, 12, 15));
   }
 }

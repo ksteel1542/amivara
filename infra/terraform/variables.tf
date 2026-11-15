@@ -237,3 +237,9 @@ variable "payments_enabled" {
   type        = bool
   default     = false
 }
+
+variable "ai_companions_enabled" {
+  description = "Inject the OpenAI key into the API (set true once the openai secret has a value and the DPIA is done). Without it, AI Companions are off."
+  type        = bool
+  default     = false
+}

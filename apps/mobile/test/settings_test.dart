@@ -15,6 +15,7 @@ import 'package:amivara/features/settings/settings_screen.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
 import 'package:amivara/main.dart';
 
+import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
 
 import 'support/fakes.dart';
@@ -26,6 +27,7 @@ Future<ProviderContainer> pumpSettings(
   FakeDataSaver? saver,
   FakeSafetyRepository? safety,
   FakeHostRepository? host,
+  FakeAiRepository? ai,
   bool verified = true,
 }) async {
   tester.view.physicalSize = const Size(1080, 2400);
@@ -47,6 +49,7 @@ Future<ProviderContainer> pumpSettings(
       dataSaverProvider.overrideWithValue(saver ?? FakeDataSaver()),
       safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
       hostRepositoryProvider.overrideWithValue(host ?? FakeHostRepository()),
+      aiRepositoryProvider.overrideWithValue(ai ?? FakeAiRepository()),
     ],
   );
   addTearDown(container.dispose);
@@ -118,6 +121,7 @@ void main() {
   testWidgets('lists devices and signs one out with a single tap', (tester) async {
     final repo = FakeSettingsRepository();
     await pumpSettings(tester, settings: repo);
+    await tester.scrollUntilVisible(find.text('Tecno Spark 20'), 200);
     expect(find.text('Tecno Spark 20'), findsOneWidget);
     expect(find.text('This device'), findsOneWidget);
     expect(find.byKey(const Key('revoke-s-me')), findsNothing); // can't revoke the current one here
