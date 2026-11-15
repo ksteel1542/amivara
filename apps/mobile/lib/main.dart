@@ -24,6 +24,7 @@ import 'features/profile/profile_repository.dart';
 import 'features/verification/identity_capture.dart';
 import 'features/verification/verification_providers.dart';
 import 'features/verification/verification_repository.dart';
+import 'features/wallet/wallet_repository.dart';
 import 'theme/amivara_theme.dart';
 
 Future<void> main() async {
@@ -47,6 +48,7 @@ Future<void> main() async {
       safetyRepositoryProvider.overrideWithValue(HttpSafetyRepository(api)),
       settingsRepositoryProvider.overrideWithValue(HttpSettingsRepository(api)),
       preferencesRepositoryProvider.overrideWithValue(HttpPreferencesRepository(api)),
+      walletRepositoryProvider.overrideWithValue(HttpWalletRepository(api)),
       identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],
   );

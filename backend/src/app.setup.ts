@@ -1,5 +1,6 @@
 import { type INestApplication, RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { Express } from 'express';
 
 import { ApiExceptionFilter } from './common/api-exception.filter';
@@ -21,6 +22,15 @@ export function configureApp(app: INestApplication): INestApplication {
   // Behind CloudFront + ALB (2 hops), so req.ip is the member's address for rate limiting.
   const hops = app.get<ConfigService<Env, true>>(ConfigService).get('TRUST_PROXY_HOPS', { infer: true });
   (app.getHttpAdapter().getInstance() as Express).set('trust proxy', hops);
+
+  // JSON bodies keep their raw bytes too: payment webhooks are signed over the exact body.
+  // Registered before init, so Nest skips its own JSON parser (same 100kb limit).
+  (app as NestExpressApplication).useBodyParser('json', {
+    limit: '100kb',
+    verify: (req: object, _res: unknown, buf: Buffer) => {
+      (req as { rawBody?: Buffer }).rawBody = buf;
+    },
+  });
 
   app.enableShutdownHooks();
   return app;

@@ -168,7 +168,7 @@ export class ChatGateway implements OnApplicationBootstrap, OnApplicationShutdow
       }
     } catch (error) {
       if (error instanceof ApiError) {
-        this.reply(ws, error.code, error.message);
+        this.reply(ws, error.code, error.message, error.details);
       } else {
         this.logger.error(`Chat event ${parsed.event} failed: ${(error as Error).message}`);
         this.reply(ws, 'INTERNAL', 'Something went wrong.');
@@ -176,7 +176,9 @@ export class ChatGateway implements OnApplicationBootstrap, OnApplicationShutdow
     }
   }
 
-  private reply(ws: WebSocket, code: string, message: string): void {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ event: 'error', data: { code, message } }));
+  private reply(ws: WebSocket, code: string, message: string, details?: unknown): void {
+    // details carry e.g. { balance, required } for INSUFFICIENT_COINS, so the app can open the top-up.
+    const data = details && Object.keys(details).length ? { code, message, details } : { code, message };
+    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ event: 'error', data }));
   }
 }

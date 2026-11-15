@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -737,5 +738,78 @@ class FakePreferencesRepository implements PreferencesRepository {
     calls.add('update:${next.toJson()}');
     if (updateError != null) throw updateError!;
     return prefs = next;
+  }
+}
+
+// ── Wallet / top-ups (M2) ──
+
+const List<CoinPackage> kPackages = <CoinPackage>[
+  CoinPackage(id: 'p500', coins: 500, totalCoins: 600, firstPurchaseBonus: 100, priceNgn: 1000),
+  CoinPackage(
+    id: 'p2000',
+    coins: 2000,
+    totalCoins: 2400,
+    firstPurchaseBonus: 400,
+    priceNgn: 3500,
+    label: 'Most popular',
+  ),
+  CoinPackage(id: 'p10000', coins: 10000, totalCoins: 12000, firstPurchaseBonus: 2000, priceNgn: 15000),
+  CoinPackage(id: 'p30000', coins: 30000, totalCoins: 37500, firstPurchaseBonus: 7500, priceNgn: 40000),
+];
+
+class FakeWalletRepository implements WalletRepository {
+  FakeWalletRepository({this.balance = 100, this.providers = const <String>['paystack']});
+
+  int balance;
+  final List<String> providers;
+  final List<String> calls = <String>[];
+
+  /// What GET /wallet/topups/:id answers next (default: still pending).
+  final List<TopupStatus> statuses = <TopupStatus>[];
+  ApiException? startError;
+  CoinPackage? _buying;
+
+  @override
+  Future<Wallet> wallet(String accessToken) async {
+    calls.add('wallet');
+    return Wallet(balance: balance, firstPurchaseEligible: true, packages: kPackages, paymentProviders: providers);
+  }
+
+  @override
+  Future<Topup> startTopup(String accessToken, {required String packageId, required String provider}) async {
+    calls.add('start:$packageId:$provider');
+    if (startError != null) throw startError!;
+    _buying = kPackages.firstWhere((p) => p.id == packageId);
+    return Topup(
+      id: 't-1',
+      status: TopupStatus.pending,
+      coins: _buying!.coins,
+      checkoutUrl: 'https://checkout.paystack.test/amv_1',
+    );
+  }
+
+  @override
+  Future<Topup> topup(String accessToken, String id) async {
+    calls.add('poll:$id');
+    final status = statuses.isEmpty ? TopupStatus.pending : statuses.removeAt(0);
+    if (status == TopupStatus.succeeded) balance += _buying!.totalCoins;
+    return Topup(
+      id: id,
+      status: status,
+      coins: _buying!.coins,
+      totalCoins: status == TopupStatus.succeeded ? _buying!.totalCoins : null,
+      balance: status == TopupStatus.succeeded ? balance : null,
+    );
+  }
+}
+
+class FakeCheckoutLauncher implements CheckoutLauncher {
+  final List<Uri> opened = <Uri>[];
+  bool succeed = true;
+
+  @override
+  Future<bool> open(Uri url) async {
+    opened.add(url);
+    return succeed;
   }
 }

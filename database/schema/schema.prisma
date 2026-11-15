@@ -189,6 +189,22 @@ enum LedgerCurrency {
   @@map("ledger_currency")
 }
 
+enum PaymentProvider {
+  PAYSTACK
+  GOOGLE_PLAY
+
+  @@map("payment_provider")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  ABANDONED
+
+  @@map("payment_status")
+}
+
 enum LedgerTransactionKind {
   STARTER_GRANT
   TOPUP
@@ -245,6 +261,7 @@ model User {
   enforcements   EnforcementAction[] @relation("EnforcementSubject")
   safetyEvents   SafetyEvent[]
   ledgerAccounts LedgerAccount[]
+  paymentIntents PaymentIntent[]
 
   @@index([status, ageVerified])
   @@index([lastActiveAt])
@@ -666,7 +683,8 @@ model LedgerTransaction {
   metadata       Json                  @default("{}")
   createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  entries LedgerEntry[]
+  entries       LedgerEntry[]
+  paymentIntent PaymentIntent?
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("ledger_transactions")
@@ -704,7 +722,45 @@ model CoinPackage {
   sort               Int      @default(0)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  paymentIntents PaymentIntent[]
+
   @@map("coin_packages")
+}
+
+/// One coin top-up attempt (MONETIZATION_PLAN.md M2). Coins are credited only after
+/// server-side verification with the provider, exactly once (ledger idempotency key
+/// `topup:<provider>:<reference>`). Kept when the member is erased (financial record).
+model PaymentIntent {
+  id                    String          @id @default(uuid()) @db.Uuid
+  userId                String?         @map("user_id") @db.Uuid
+  packageId             String          @map("package_id") @db.Uuid
+  provider              PaymentProvider
+  /// Our reference, sent to the provider and echoed back by its webhook
+  reference             String          @unique @db.VarChar(100)
+  amountKobo            BigInt          @map("amount_kobo")
+  currency              String          @default("NGN") @db.VarChar(3)
+  /// Coins bought (credited as paid coins)
+  coins                 Int
+  /// Package and first-purchase bonus, decided when credited (credited as promo coins)
+  bonusCoins            Int             @default(0) @map("bonus_coins")
+  status                PaymentStatus   @default(PENDING)
+  failureReason         String?         @map("failure_reason") @db.VarChar(64)
+  providerTransactionId String?         @map("provider_transaction_id") @db.VarChar(64)
+  /// card, bank, ussd, bank_transfer... (no card or account details are stored)
+  channel               String?         @db.VarChar(32)
+  ledgerTransactionId   String?         @unique @map("ledger_transaction_id") @db.Uuid
+  paidAt                DateTime?       @map("paid_at") @db.Timestamptz(6)
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user              User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  package           CoinPackage        @relation(fields: [packageId], references: [id])
+  /// The ledger transaction that credited it (ledger rows are never deleted)
+  ledgerTransaction LedgerTransaction? @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("payment_intents")
 }
 
 /// One promotional grant per subject (HMAC of a device), so throwaway accounts can't farm starter coins.

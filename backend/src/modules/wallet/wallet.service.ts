@@ -6,6 +6,7 @@ import { ApiError } from '../../common/api-error';
 import { HasherService } from '../../common/hasher.service';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../../prisma/prisma.service';
+import { enabledProviders, type ProviderName } from '../payments/payment-provider';
 import { LedgerService, type TransactionKind } from './ledger.service';
 
 export interface Balances {
@@ -31,6 +32,8 @@ const kobo = (n: bigint) => Number(n);
 @Injectable()
 export class WalletService {
   private readonly starterCoins: number;
+  /** Checkout providers the app may offer (PAYMENT_PROVIDERS, and configured). */
+  readonly paymentProviders: ProviderName[];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -39,6 +42,10 @@ export class WalletService {
     config: ConfigService<Env, true>,
   ) {
     this.starterCoins = config.get('STARTER_COINS', { infer: true });
+    const enabled = enabledProviders(config.get('PAYMENT_PROVIDERS', { infer: true }));
+    // Paystack needs its secret key; Google Play Billing isn't wired yet (GooglePlayProvider).
+    this.paymentProviders =
+      enabled.has('paystack') && config.get('PAYSTACK_SECRET_KEY', { infer: true }) ? ['paystack'] : [];
   }
 
   async balances(userId: string): Promise<Balances> {
@@ -64,6 +71,7 @@ export class WalletService {
       promo_coins: balances.promo,
       starter: { granted: starter.granted, coins: this.starterCoins },
       first_purchase_eligible: firstPurchase,
+      payment_providers: this.paymentProviders,
       packages: packages.map((p) => ({
         id: p.id,
         coins: p.coins,

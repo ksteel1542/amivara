@@ -35,6 +35,10 @@ locals {
       VERIFICATION_POLL_SECONDS = "120"     # Smile ID job_status fallback
       ACCOUNT_PURGE_SECONDS     = "3600"    # erase accounts 30 days after deletion
       OTP_PROVIDER              = "console" # until the SMS/WhatsApp provider is chosen (refused in prod by the API)
+      PAYMENT_PROVIDERS         = "paystack"
+      PAYSTACK_CALLBACK_URL     = "https://${local.api_hostname}/v1/payments/paystack/return"
+      # Re-check unfinished top-ups every 10 minutes (lost or late webhooks).
+      PAYMENT_RECONCILE_SECONDS = "600"
     }
     web = {
       NODE_ENV                = "production"
@@ -78,6 +82,12 @@ locals {
           FCM_CLIENT_EMAIL    = "${aws_secretsmanager_secret.app["fcm"].arn}:client_email::"
           FCM_PRIVATE_KEY_PEM = "${aws_secretsmanager_secret.app["fcm"].arn}:private_key::"
         } : k => v if var.push_enabled
+      },
+      # Paystack top-ups: only injected once the secret has a value. Without it, top-ups answer 503.
+      {
+        for k, v in {
+          PAYSTACK_SECRET_KEY = "${aws_secretsmanager_secret.app["paystack"].arn}:secret_key::"
+        } : k => v if var.payments_enabled
     })
     web   = {}
     admin = {}

@@ -10,6 +10,8 @@ import '../auth/auth_providers.dart';
 import '../discovery/profile_card.dart';
 import '../matches/matches_repository.dart';
 import '../safety/report_user_sheet.dart';
+import '../wallet/topup_sheet.dart';
+import '../wallet/wallet_repository.dart';
 import 'chat_providers.dart';
 import 'chat_repository.dart';
 import 'chat_socket.dart';
@@ -53,6 +55,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Unverified members hit their daily text cap: offer verification.
   bool _chatCapped = false;
 
+  /// Coin balance for the app-bar chip (null until loaded, or when the wallet is unavailable).
+  int? _coins;
+  bool _topUpOpen = false;
+
   MatchSummary get _match => widget.match;
   String get _token => ref.read(sessionProvider)!.accessToken;
   ChatRepository get _repo => ref.read(chatRepositoryProvider);
@@ -65,6 +71,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _events = _socket.events.listen(_onEvent);
     unawaited(_socket.connect(_token));
     _loadFirstPage();
+    unawaited(_loadCoins());
   }
 
   @override
@@ -78,6 +85,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   // ── Loading ───────────────────────────────────────────────
+
+  Future<void> _loadCoins() async {
+    try {
+      final wallet = await ref.read(walletRepositoryProvider).wallet(_token);
+      if (mounted) setState(() => _coins = wallet.balance);
+    } catch (_) {
+      // The chip is optional: chat works without the wallet.
+    }
+  }
+
+  /// The in-chat top-up (MONETIZATION_PLAN.md M2), also opened by a 402 INSUFFICIENT_COINS.
+  Future<void> _openTopUp({int? needed}) async {
+    if (_topUpOpen) return;
+    _topUpOpen = true;
+    try {
+      final result = await showTopUpSheet(context, needed: needed);
+      if (result != null && mounted) setState(() => _coins = result.balance);
+    } finally {
+      _topUpOpen = false;
+    }
+    if (mounted) unawaited(_loadCoins());
+  }
+
+  /// Coins short of what an action costs, from the 402's details.
+  static int? _shortfall(Map<String, dynamic> details) {
+    final balance = (details['balance'] as num?)?.toInt();
+    final required = (details['required'] as num?)?.toInt();
+    return balance == null || required == null ? null : required - balance;
+  }
 
   Future<void> _loadFirstPage() async {
     try {
@@ -171,6 +207,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case 'error':
         if (e.data['code'] == 'VERIFICATION_REQUIRED') {
           setState(() => _chatCapped = true);
+          return;
+        }
+        if (e.data['code'] == 'INSUFFICIENT_COINS') {
+          final details = e.data['details'];
+          unawaited(_openTopUp(needed: details is Map<String, dynamic> ? _shortfall(details) : null));
           return;
         }
         final message = e.data['message'] as String?;
@@ -293,6 +334,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         setState(() => _chatCapped = true);
         return;
       }
+      if (e.code == 'INSUFFICIENT_COINS') {
+        unawaited(_openTopUp(needed: _shortfall(e.details)));
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -318,6 +363,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ),
         actions: <Widget>[
+          if (_coins != null)
+            InkWell(
+              key: const Key('chat-coins'),
+              borderRadius: BorderRadius.circular(999),
+              onTap: _openTopUp,
+              child: Tooltip(
+                message: 'Top up coins',
+                child: CoinBalanceChip(balance: _coins!),
+              ),
+            ),
           IconButton(
             key: const Key('chat-safety-menu'),
             tooltip: 'Safety & Report',

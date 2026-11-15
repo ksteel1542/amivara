@@ -42,6 +42,7 @@ dependencies:
   image_picker: ^1.2.3
   share_plus: ^13.3.1
   smile_id: ^11.2.14
+  url_launcher: ^6.3.2
 
 
 dev_dependencies:

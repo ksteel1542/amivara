@@ -7,4 +7,6 @@ process.env.DATABASE_URL ??= 'postgresql://amivara:amivara@localhost:5432/amivar
 // signatures can be exercised without the real provider.
 process.env.SMILE_ID_PARTNER_ID ??= '000';
 process.env.SMILE_ID_API_KEY ??= 'test-smile-api-key';
+// Paystack test-mode key: the client is stubbed in tests, but webhook signatures use it.
+process.env.PAYSTACK_SECRET_KEY ??= 'sk_test_amivara_integration_tests';
 process.env.SMILE_ID_CALLBACK_URL ??= 'https://api.example.test/v1/verification/webhook';

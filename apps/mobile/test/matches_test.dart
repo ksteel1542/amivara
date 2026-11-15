@@ -14,6 +14,8 @@ import 'package:amivara/features/profile/photo_processor.dart';
 import 'package:amivara/features/profile/profile_providers.dart';
 import 'package:amivara/features/safety/safety_repository.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
+import 'package:amivara/features/wallet/topup_sheet.dart';
+import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:amivara/main.dart';
 
 import 'support/fakes.dart';
@@ -27,6 +29,8 @@ Future<ProviderContainer> pumpMatches(
   FakeChatRepository? chat,
   FakeChatSocket? socket,
   FakeSafetyRepository? safety,
+  FakeWalletRepository? wallet,
+  FakeCheckoutLauncher? checkout,
   String location = '/matches',
   bool verified = true,
 }) async {
@@ -50,6 +54,10 @@ Future<ProviderContainer> pumpMatches(
       chatRepositoryProvider.overrideWithValue(chat ?? FakeChatRepository()),
       safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
       chatSocketFactoryProvider.overrideWithValue(() => (socket ?? FakeChatSocket()) as ChatSocket),
+      walletRepositoryProvider.overrideWithValue(wallet ?? FakeWalletRepository()),
+      checkoutLauncherProvider.overrideWithValue(checkout ?? FakeCheckoutLauncher()),
+      topupPollIntervalProvider.overrideWithValue(const Duration(seconds: 3)),
+      paymentProviderNameProvider.overrideWithValue('paystack'),
     ],
   );
   addTearDown(container.dispose);

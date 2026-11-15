@@ -231,3 +231,9 @@ variable "push_enabled" {
   type        = bool
   default     = false
 }
+
+variable "payments_enabled" {
+  description = "Inject the Paystack secret key into the API (set true once the paystack secret has a value). Without it, coin top-ups are off."
+  type        = bool
+  default     = false
+}

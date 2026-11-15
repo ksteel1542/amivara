@@ -166,6 +166,17 @@ Founder decision, superseding "unverified = browse only":
 - [x] Starter coins once per member and per device, after the guidelines are accepted.
 - [x] `GET /v1/wallet`, `GET /v1/wallet/transactions`, `POST /v1/admin/users/:id/coins` (audited).
 - [x] A purged member's ledger accounts lose their owner, so financial history is kept.
-- [ ] Final package prices and `STARTER_COINS` amount (MONETIZATION_PLAN.md section 2, point 6).
-- [ ] Next: M2 top-ups (Paystack + Play Billing provider abstraction) and the in-chat top-up sheet.
+- [x] Final package prices and `STARTER_COINS` = 100 (15 Nov 2026).
+
+### 15–16 Nov 2026: monetisation milestone 2 (top-ups)
+
+- [x] `payment_intents` (CHECKs: NGN only, positive amounts, succeeded ⇔ linked ledger transaction).
+- [x] `PaymentProvider` interface: Paystack client (initialize, verify, HMAC-SHA512 webhook signatures), Google Play placeholder (503 until wired). `PAYMENT_PROVIDERS` env; live keys refused outside production and test keys in production.
+- [x] `POST /v1/wallet/topups`, `GET /v1/wallet/topups/:id`, `POST /v1/payments/paystack/webhook`, return page, reconciler.
+- [x] Exactly-once crediting (row lock, per-member advisory lock, ledger idempotency key); first-purchase bonus once, as promo coins; amount mismatches held.
+- [x] Flutter: coin chip in chat, top-up sheet (naira packages, "Most popular", first-purchase bonus), Paystack in a Custom Tab, polling and on-resume check, "Payment successful" dialog, opens on `402 INSUFFICIENT_COINS` (REST and socket).
+- [x] Terraform: `paystack` secret container, injected when `payments_enabled = true`.
+- [ ] Paystack test-mode keys and a dashboard webhook URL, then an end-to-end sandbox payment on the phone.
+- [ ] Google Play Billing (Android Publisher API purchase verification), for the Play Store build.
+- [ ] Daily settlement comparison against Paystack's transaction list (the reconciler covers unfinished top-ups only).
 

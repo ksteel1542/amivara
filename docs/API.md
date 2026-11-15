@@ -262,8 +262,12 @@ The socket registry is in-process for now (one API task). Running several tasks 
 
 | Method | Path | Gate | Description |
 |---|---|---|---|
-| GET | `/wallet` | 🔑 | `{ balance, paid_coins, promo_coins, starter: { granted, coins }, first_purchase_eligible, packages: [{ id, coins, bonus_coins, first_purchase_bonus, total_coins, price_kobo, price_ngn, play_product_id, label }] }`. The first load after the community guidelines are accepted grants the **starter coins**. |
+| GET | `/wallet` | 🔑 | `{ balance, paid_coins, promo_coins, starter: { granted, coins }, first_purchase_eligible, payment_providers, packages: [{ id, coins, bonus_coins, first_purchase_bonus, total_coins, price_kobo, price_ngn, play_product_id, label }] }`. The first load after the community guidelines are accepted grants the **starter coins**. |
 | GET | `/wallet/transactions?before=&limit=` | 🔑 | `{ transactions: [{ id, kind, coins, created_at, reason }], next_before }`, newest first. `coins` is the net change to the member's coins. |
+| POST | `/wallet/topups` | 🔑 | Body `{ package_id, provider: "paystack" }`. `201 { id, reference, provider, status: "pending", coins, amount_kobo, price_ngn, checkout_url, … }`. Open `checkout_url` (Paystack's hosted page, in a Custom Tab). `503 PAYMENTS_UNAVAILABLE` when that provider isn't enabled or configured, `502 PAYMENT_PROVIDER_ERROR` when Paystack can't be reached, `429 TOPUP_RATE_LIMITED` after 10 unfinished checkouts in an hour. |
+| GET | `/wallet/topups/:id` | 🔑 | `{ id, status: pending\|succeeded\|failed\|abandoned, coins, bonus_coins, total_coins, balance, paid_at, … }`. The app polls this while the member pays; a pending top-up is re-checked with Paystack (at most every 3 seconds). Owner only (404 otherwise). |
+| POST | `/payments/paystack/webhook` | Public, signed | Paystack events. `x-paystack-signature` must be the HMAC-SHA512 of the raw body with the secret key (`401 INVALID_SIGNATURE` otherwise). `charge.success` / `charge.failed` for our `amv_` references prompt a verify-transaction call; the body itself is never trusted. Always `200 { received: true }` for authentic events. |
+| GET | `/payments/paystack/return` | Public | The page Paystack returns the member to (`PAYSTACK_CALLBACK_URL`): "go back to AMIVARA". |
 
 **Starter coins:** `STARTER_COINS` (100 by default) promo coins, granted once per member and once per device (HMAC of the device id in `promo_claims`), so new accounts on the same phone don't get more.
 
@@ -273,6 +277,13 @@ The socket registry is in-process for now (one API task). Running several tasks 
 - A spend the balance can't cover answers `402 INSUFFICIENT_COINS` with `details: { balance, required }`. The app opens the top-up sheet in place.
 
 **Packages (final, 15 Nov 2026):** 500 coins for ₦1,000 (+100 on a first purchase), 2,000 for ₦3,500 (+400, labelled "Most popular"), 10,000 for ₦15,000 (+2,000) and 30,000 for ₦40,000 (+7,500). Packages also carry an optional `label`.
+
+**Top-ups (milestone 2):**
+- **Checkout.** `payment_providers` lists the checkouts the API accepts now (`PAYMENT_PROVIDERS` and configured). Each app build uses one (`--dart-define=PAYMENT_PROVIDER`, default `paystack`). Google Play Billing sits behind the same interface and answers `503` until it's wired.
+- **Crediting.** Coins are credited only after Paystack's verify-transaction API confirms the payment, for exactly the package's amount in NGN. A different amount is held as `failed` (`amount_mismatch`) for staff. Webhook, app poll and the reconciler can race: the intent row lock and the ledger key `topup:paystack:<reference>` credit it exactly once.
+- **Bonus coins.** Bought coins are credited as paid coins. The package bonus and the first-purchase bonus (given on the member's first successful top-up only) are credited as **promo** coins, so they never become Host earnings.
+- **Reconciliation.** Every `PAYMENT_RECONCILE_SECONDS` (600 when deployed), unfinished top-ups older than 2 minutes are re-checked. One still unpaid after 24 hours becomes `abandoned`; a late payment still credits.
+- **Data shared with Paystack.** The amount, our reference, ids in `metadata`, and a receipt email: the member's verified email, or a pseudonymous `m-…@members.amivara.com` address. No names, phone numbers or profile data. Card and bank details are entered on Paystack's page and never reach AMIVARA.
 
 ## Safety
 
@@ -322,6 +333,6 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Messaging and safety:** `MESSAGE_RATE_LIMITED`, `REPORT_RATE_LIMITED`
-- **Wallet:** `INSUFFICIENT_COINS` (402)
+- **Wallet:** `INSUFFICIENT_COINS` (402, also sent over `/ws/chat` as an `error` event with `details`), `PAYMENTS_UNAVAILABLE` (503), `PAYMENT_PROVIDER_ERROR` (502), `TOPUP_RATE_LIMITED` (429)
 - **Verification:** `VERIFICATION_REQUIRED` (403 on likes, messages and other gated routes), `VERIFICATION_UNAVAILABLE`, `ALREADY_VERIFIED`, `UNDER_REVIEW`, `INVALID_SIGNATURE`
 - **Later sprints:** `NOT_MATCHED`, `PHOTOS_LOCKED`

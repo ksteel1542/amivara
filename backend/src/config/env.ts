@@ -44,6 +44,22 @@ const base = z.object({
   EMAIL_PROVIDER: z.enum(['console']).default('console'),
   /** Free promo coins for a new member (once per member and per device). 0 disables. MONETIZATION_PLAN.md 3a. */
   STARTER_COINS: z.coerce.number().int().min(0).max(100000).default(100),
+  /**
+   * Checkout providers this API accepts (MONETIZATION_PLAN.md 2a), comma-separated:
+   * 'paystack' (direct APK and web) and/or 'google_play' (Play Store build).
+   */
+  PAYMENT_PROVIDERS: z
+    .string()
+    .default('paystack')
+    .refine((v) => v.split(',').every((p) => ['paystack', 'google_play', ''].includes(p.trim())), {
+      message: "Use 'paystack' and/or 'google_play'",
+    }),
+  /** Paystack secret key (secret paystack-secret-key). Signs webhooks too. Top-ups answer 503 when unset. */
+  PAYSTACK_SECRET_KEY: z.string().optional(),
+  /** Where Paystack sends the member after paying. Defaults to the dashboard setting. */
+  PAYSTACK_CALLBACK_URL: z.string().url().optional(),
+  /** How often pending top-ups are re-checked with the provider. 0 disables it (dev, tests). Deployed: 600. */
+  PAYMENT_RECONCILE_SECONDS: z.coerce.number().int().min(0).max(86400).default(0),
   /** Google Sign-In: comma-separated OAuth client ids the app's ID tokens are issued to. Empty = Google sign-in off. */
   GOOGLE_CLIENT_IDS: z.string().optional(),
   /** Comma-separated ISO countries whose mobile numbers may sign up. Nigeria only at launch. */
@@ -66,6 +82,20 @@ const REQUIRED_IN_DEPLOYED_ENVS = [
 
 export const envSchema = base.superRefine((env, ctx) => {
   const deployed = env.NODE_ENV === 'staging' || env.NODE_ENV === 'production';
+  // Real money only in production; test keys never in production.
+  if (env.PAYSTACK_SECRET_KEY) {
+    const live = env.PAYSTACK_SECRET_KEY.startsWith('sk_live_');
+    if (env.NODE_ENV === 'production' && !live) {
+      ctx.addIssue({ code: 'custom', path: ['PAYSTACK_SECRET_KEY'], message: 'Production needs a live Paystack key' });
+    }
+    if (env.NODE_ENV !== 'production' && live) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PAYSTACK_SECRET_KEY'],
+        message: 'Live Paystack keys are for production only: use an sk_test_ key',
+      });
+    }
+  }
   if (!deployed) return;
 
   for (const key of REQUIRED_IN_DEPLOYED_ENVS) {
