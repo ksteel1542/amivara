@@ -84,6 +84,12 @@ void main() {
     expect(find.text("You're a Verified Host"), findsOneWidget);
     expect(find.byKey(const Key('host-earnings')), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('host-pause')),
+      200,
+      scrollable: find.descendant(of: find.byKey(const Key('host-screen')), matching: find.byType(Scrollable)).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('host-pause')));
     await tester.pumpAndSettle();
     expect(find.text('Resume hosting'), findsOneWidget);

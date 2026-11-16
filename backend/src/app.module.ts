@@ -18,6 +18,7 @@ import { VerificationModule } from './modules/verification/verification.module';
 import { AiModule } from './modules/ai/ai.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { GiftsModule } from './modules/gifts/gifts.module';
+import { PayoutsModule } from './modules/payouts/payouts.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { HostsModule } from './modules/hosts/hosts.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -54,6 +55,7 @@ import { MessageCipherModule } from './common/message-cipher';
     CallsModule,
     GiftsModule,
     RoomsModule,
+    PayoutsModule,
     AdminModule,
   ],
 })

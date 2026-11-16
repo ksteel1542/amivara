@@ -432,6 +432,29 @@ The socket registry is in-process for now (one API task). Running several tasks 
 - **Contact details.** Room messages with phone numbers, WhatsApp, handles and the like are held back (`422 CONTACT_SHARING_BLOCKED`) and logged for Safety (`ROOM_CONTACT_SHARING`).
 - **Closing.** A room ends when its Host ends it, leaves, drops out of LiveKit (webhook), stays offline for 30 seconds, or is suspended. Room chat is encrypted at rest.
 
+## Host payouts
+
+*Milestones 7/8 of docs/MONETIZATION_PLAN.md.* Verified Hosts withdraw available earnings to a Nigerian bank account (OPay and other wallets with a NUBAN included) through Paystack Transfers, behind a `PayoutProvider` interface.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/hosts/banks` | 🔑 | `{ banks: [{ code, name }] }` (Paystack's Nigerian bank list, cached for a day). |
+| POST | `/hosts/bank-account/resolve` | 🔑 active Host | Body `{ bank_code, account_number }` (10 digits). The holder's name, without saving: `{ bank_code, bank_name, account_name, account_last4 }`. Unknown account: `422 ACCOUNT_NOT_RESOLVED`. 10 look-ups an hour (`429 RESOLVE_RATE_LIMITED`). |
+| POST | `/hosts/bank-account` | 🔑 active Host | Same body. Resolves again on the server, creates the Paystack transfer recipient and saves the account: `{ account: { bank_code, bank_name, account_last4, account_name } }`. Not while a payout is in flight (`409 PAYOUT_IN_PROGRESS`). |
+| GET | `/hosts/bank-account` | 🔑 Host | `{ account }` or `{ account: null }`. |
+| GET | `/hosts/payouts` | 🔑 Host | Releases matured earnings, then `{ pending_coins, pending_kobo, available_coins, available_kobo, kobo_per_coin, min_withdraw_coins, min_withdraw_kobo, payouts_enabled, account, payouts: [...] }`. |
+| POST | `/hosts/withdraw` | 🔑 Host | Body `{ coins? }` (default: everything available). `201 { payout: { id, coins, amount_kobo, status, bank_name, account_last4, account_name, failure_reason, created_at, completed_at } }`. |
+
+**Rules:**
+- **Who.** NIN-verified members with a Host profile whose account is in good standing. Linking a bank account needs active Host mode; paused Hosts can still withdraw what they earned. Suspended or banned members' earnings are frozen.
+- **Value.** `PAYOUT_KOBO_PER_COIN` (default 100: ₦1 a coin; coins sell for ₦1.07–₦2). Minimum withdrawal `PAYOUT_MIN_NAIRA` (default ₦5,000 = 5,000 coins): `422 BELOW_MINIMUM_WITHDRAWAL`. More than available: `422 INSUFFICIENT_EARNINGS`.
+- **Maturing.** Earnings are held 7 days (`HOST_EARNINGS_HOLD_DAYS`), then move to available: hourly in deployed environments, and on demand before any balance is shown or withdrawn.
+- **Once only.** The withdrawal moves the coins from available earnings to `PAYOUT_CLEARING` in the same database transaction that records the payout, under a lock; the database allows one `pending` payout per Host (`409 PAYOUT_IN_PROGRESS`). The Paystack transfer uses the payout's unique reference (`amvpo_…`).
+- **Outcomes.** `success` settles the coins (clearing → `PLATFORM_PAYOUTS`). `failed` (or Paystack refusing the transfer outright) returns them to available earnings at once. `reversed` after a success returns them too. Timeouts stay `pending` until the webhook or the reconciler (`PAYOUT_RECONCILE_SECONDS`, 600 deployed) checks with Paystack.
+- **Webhooks.** `transfer.success`, `transfer.failed` and `transfer.reversed` arrive at `/payments/paystack/webhook` (signed); each is re-checked with Paystack's verify-transfer before anything changes, and replays change nothing.
+- **Safety switch.** `PAYOUTS_ENABLED` (default `false`, Terraform `payouts_enabled`): withdrawals answer `503 PAYOUTS_DISABLED` until it's on. Paystack transfers also need "OTP for transfers" turned off and a funded Paystack balance.
+- **Privacy.** The account number is encrypted at rest; the app only ever sees the last 4 digits. The resolved account name is shown to the Host to confirm (it's not matched against the NIN name, which we don't store).
+
 ## Safety
 
 Open to every signed-in member, verified or not: anyone must be able to block and report.
@@ -479,6 +502,7 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Discovery and matching:** `LOCATION_REQUIRED`, `DAILY_LIKE_LIMIT`, `PLUS_REQUIRED`
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **Gifts and rooms:** `HOST_ONLY`, `GIFT_RATE_LIMITED`, `ROOM_ALREADY_LIVE`, `ROOM_ENDED` (410), `ROOM_SEATS_FULL`, `NO_SEAT_REQUEST`, `FOLLOWERS_ONLY`, `CONTACT_SHARING_BLOCKED`
+- **Payouts:** `PAYOUTS_UNAVAILABLE`, `PAYOUTS_DISABLED`, `ACCOUNT_NOT_RESOLVED`, `RESOLVE_RATE_LIMITED`, `NO_PAYOUT_ACCOUNT`, `PAYOUT_IN_PROGRESS`, `BELOW_MINIMUM_WITHDRAWAL`, `INSUFFICIENT_EARNINGS`
 - **Calls:** `CALLS_UNAVAILABLE`, `CALLEE_BUSY`, `CALL_NOT_RINGING`, `CALL_RATE_LIMITED`, plus `INSUFFICIENT_COINS` and `VERIFICATION_REQUIRED`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Messaging and safety:** `MESSAGE_RATE_LIMITED`, `REPORT_RATE_LIMITED`

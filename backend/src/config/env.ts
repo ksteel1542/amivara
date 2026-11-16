@@ -74,6 +74,18 @@ const base = z.object({
   FREE_AI_MESSAGES_PER_DAY: z.coerce.number().int().min(0).max(1000).default(3),
   /** Soft daily cap on AI Companion spending in a member's first 7 days. */
   AI_NEW_MEMBER_DAILY_CAP: z.coerce.number().int().min(0).max(100000).default(200),
+  // ── Host payouts (MONETIZATION_PLAN.md M7/M8): Paystack Transfers ──
+  /** Safety switch: withdrawals are refused (503 PAYOUTS_DISABLED) unless 'true'. */
+  PAYOUTS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /** What one earned coin pays out, in kobo. 100 = ₦1 a coin (coins sell for ₦1.07–₦2). */
+  PAYOUT_KOBO_PER_COIN: z.coerce.number().int().min(1).max(100000).default(100),
+  /** Smallest withdrawal, in naira. */
+  PAYOUT_MIN_NAIRA: z.coerce.number().int().min(100).max(10000000).default(5000),
+  /** How often payouts still pending are re-checked with Paystack. 0 disables it (dev, tests). Deployed: 600. */
+  PAYOUT_RECONCILE_SECONDS: z.coerce.number().int().min(0).max(86400).default(0),
   // ── Voice and video calls (MONETIZATION_PLAN.md M4/M5) ──
   /** Media server for 1-on-1 calls. Only 'livekit' today, behind CallMediaProvider. */
   CALLS_PROVIDER: z.enum(['livekit']).default('livekit'),

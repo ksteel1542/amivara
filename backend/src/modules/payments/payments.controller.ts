@@ -87,6 +87,15 @@ export class PaymentsWebhookController {
       const intent = await this.payments.confirm(reference);
       if (!intent) this.logger.warn('Paystack webhook for an unknown reference');
     }
+    // Host payouts (M8): transfer.success / transfer.failed / transfer.reversed.
+    if (
+      typeof body?.event === 'string' &&
+      ['transfer.success', 'transfer.failed', 'transfer.reversed'].includes(body.event) &&
+      reference &&
+      reference.length <= 100
+    ) {
+      await this.payments.transferEvent(reference);
+    }
     return { received: true };
   }
 

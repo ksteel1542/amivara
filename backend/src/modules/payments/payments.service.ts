@@ -42,6 +42,17 @@ export class PaymentsService {
   private readonly enabled: Set<ProviderName>;
   private readonly lastRefresh = new Map<string, number>();
 
+  private readonly transferListeners: Array<(reference: string) => Promise<void>> = [];
+
+  /** Payouts (M8) hear about Paystack transfer webhooks through here. */
+  onTransferEvent(listener: (reference: string) => Promise<void>): void {
+    this.transferListeners.push(listener);
+  }
+
+  async transferEvent(reference: string): Promise<void> {
+    for (const listener of this.transferListeners) await listener(reference);
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,

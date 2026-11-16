@@ -211,7 +211,7 @@ Starter coins: **100** per new member and device. Set 16 Nov 2026: paid messages
 | M4 | Calls ✅ (LiveKit; full-screen notification pending) | LiveKit tokens, WS ringing, incoming-call push and full-screen notification, call screen, in-call report/block, gating | Gating, ring timeouts, decline/busy |
 | M5 | Per-minute billing ✅ (30 voice / 60 video coins a minute to Hosts) | Server ticks, 1-minute warning, in-call top-up, auto-hangup at zero | Dropped connections, mid-minute disconnects, clock edge cases |
 | M6 | Host hub | Opt-in Host role, "Available for calls", call/gift/message history, earnings dashboard | Role gating, availability in discovery |
-| M7 | Payouts | Bank/OPay account (resolve + NIN name match), withdrawal requests, admin approval queue, Paystack transfers and webhooks, reversals | Name mismatch, insufficient available earnings, reversed transfers |
+| M7 | Payouts ✅ (Paystack Transfers; ₦1 a coin, ₦5,000 minimum; name match and admin queue pending) | Bank/OPay account (resolve + NIN name match), withdrawal requests, admin approval queue, Paystack transfers and webhooks, reversals | Name mismatch, insufficient available earnings, reversed transfers |
 | M8b | Chat House rooms ✅ (backend and app) | Follows, rooms, seats, LiveKit permissions, in-room gifts, follower-only rooms, host moderation | Seat permissions, bans, gift splits |
 | M8 | Fraud and operations | Velocity limits, chargebacks, admin finance pages, anomaly alerts | Limits and alerts |
 

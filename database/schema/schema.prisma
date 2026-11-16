@@ -179,7 +179,10 @@ enum LedgerAccountKind {
   /// Source/sink of staff adjustments (goes negative by design)
   PLATFORM_ADJUSTMENTS
   GATEWAY_CLEARING
+  /// Coins on their way to a Host's bank (a payout in flight)
   PAYOUT_CLEARING
+  /// Coins paid out to Hosts' banks (successful payouts)
+  PLATFORM_PAYOUTS
 
   @@map("ledger_account_kind")
 }
@@ -230,6 +233,12 @@ enum LedgerTransactionKind {
   REFUND
   /// Held Host earnings becoming withdrawable after the hold period
   EARNINGS_RELEASE
+  /// Available earnings sent to a Host's bank (Paystack transfer)
+  PAYOUT
+  /// A payout settled (transfer succeeded)
+  PAYOUT_SETTLED
+  /// A failed or reversed payout: the coins go back to available earnings
+  PAYOUT_RETURN
 
   @@map("ledger_transaction_kind")
 }
@@ -287,6 +296,16 @@ enum RoomRole {
   @@map("room_role")
 }
 
+enum PayoutStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  /// Paid, then reversed by the bank: the coins are back in available earnings
+  REVERSED
+
+  @@map("payout_status")
+}
+
 // ───────────────────────────── Models ─────────────────────────────
 
 model User {
@@ -340,6 +359,8 @@ model User {
   spendLimit     SpendLimit?
   giftsSent      GiftSend[]          @relation("GiftSender")
   giftsReceived  GiftSend[]          @relation("GiftRecipient")
+  payoutAccount  PayoutAccount?
+  payouts        Payout[]
   following      HostFollow[]        @relation("FollowFollower")
   followers      HostFollow[]        @relation("FollowHost")
   roomsHosted    ChatRoom[]
@@ -1071,6 +1092,56 @@ model RoomBan {
 
   @@id([roomId, userId])
   @@map("room_bans")
+}
+
+/// A Host's bank account for payouts (MONETIZATION_PLAN.md M7/M8). The account
+/// number is encrypted at rest (MessageCipher); only the last 4 digits are shown.
+model PayoutAccount {
+  userId           String   @id @map("user_id") @db.Uuid
+  bankCode         String   @map("bank_code")
+  bankName         String   @map("bank_name")
+  /// Encrypted (MessageCipher)
+  accountNumberEnc String   @map("account_number_enc")
+  accountLast4     String   @map("account_last4") @db.Char(4)
+  /// The name the bank returned (Paystack resolve), confirmed by the Host
+  accountName      String   @map("account_name")
+  /// Paystack transfer recipient (RCP_…)
+  recipientCode    String   @map("recipient_code")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payout_accounts")
+}
+
+/// One withdrawal of available earnings to a Host's bank (Paystack transfer).
+model Payout {
+  id                  String       @id @default(uuid()) @db.Uuid
+  userId              String?      @map("user_id") @db.Uuid
+  coins               Int
+  amountKobo          BigInt       @map("amount_kobo")
+  status              PayoutStatus @default(PENDING)
+  /// Our transfer reference (idempotency with Paystack)
+  reference           String       @unique
+  transferCode        String?      @map("transfer_code")
+  failureReason       String?      @map("failure_reason")
+  /// Where it went (a snapshot: the account can change later)
+  bankName            String       @map("bank_name")
+  accountLast4        String       @map("account_last4") @db.Char(4)
+  accountName         String       @map("account_name")
+  ledgerTransactionId String       @unique @map("ledger_transaction_id") @db.Uuid
+  settleTransactionId String?      @unique @map("settle_transaction_id") @db.Uuid
+  returnTransactionId String?      @unique @map("return_transaction_id") @db.Uuid
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt         DateTime?    @map("completed_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("payouts")
 }
 
 /// The virtual gift catalogue (MONETIZATION_PLAN.md 3b). Prices are editable here, not in code.

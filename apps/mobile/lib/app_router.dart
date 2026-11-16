@@ -22,6 +22,7 @@ import 'features/onboarding/not_eligible_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/ai/ai_screens.dart';
 import 'features/hosts/host_screen.dart';
+import 'features/hosts/payouts_screens.dart';
 import 'features/preferences/preferences_screen.dart';
 import 'features/profile/profile_editor_screen.dart';
 import 'features/safety/blocked_screen.dart';
@@ -49,6 +50,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         '/settings' ||
         '/preferences' ||
         '/host' ||
+        '/host/bank-account' ||
         '/ai' ||
         '/spend-limits' ||
         '/call' ||
@@ -96,6 +98,7 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(path: '/preferences', builder: (_, _) => const PreferencesScreen()),
       GoRoute(path: '/host', builder: (_, _) => const HostScreen()),
+      GoRoute(path: '/host/bank-account', builder: (_, _) => const BankAccountScreen()),
       GoRoute(path: '/ai', builder: (_, _) => const AiCompanionsScreen()),
       GoRoute(
         path: '/ai/chat/:slug',

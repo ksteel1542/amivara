@@ -111,10 +111,10 @@ export class HostsService {
    * transaction per Host per run. Rows are locked (SKIP LOCKED), so several
    * instances can run it at once without releasing anything twice.
    */
-  async releaseDue(now = new Date(), batch = 500): Promise<{ hosts: number; coins: number }> {
+  async releaseDue(now = new Date(), batch = 500, onlyHostId?: string): Promise<{ hosts: number; coins: number }> {
     const due = await this.prisma.hostEarning.groupBy({
       by: ['hostId'],
-      where: { releaseTransactionId: null, availableAt: { lte: now }, hostId: { not: null } },
+      where: { releaseTransactionId: null, availableAt: { lte: now }, hostId: onlyHostId ?? { not: null } },
       _count: { _all: true },
     });
     const result = { hosts: 0, coins: 0 };

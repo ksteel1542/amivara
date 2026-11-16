@@ -17,6 +17,7 @@ import 'package:amivara/main.dart';
 
 import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
+import 'package:amivara/features/hosts/payouts_repository.dart';
 
 import 'support/fakes.dart';
 
@@ -27,6 +28,7 @@ Future<ProviderContainer> pumpSettings(
   FakeDataSaver? saver,
   FakeSafetyRepository? safety,
   FakeHostRepository? host,
+  FakePayoutsRepository? payouts,
   FakeAiRepository? ai,
   bool verified = true,
 }) async {
@@ -49,6 +51,7 @@ Future<ProviderContainer> pumpSettings(
       dataSaverProvider.overrideWithValue(saver ?? FakeDataSaver()),
       safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
       hostRepositoryProvider.overrideWithValue(host ?? FakeHostRepository()),
+      payoutsRepositoryProvider.overrideWithValue(payouts ?? FakePayoutsRepository()),
       aiRepositoryProvider.overrideWithValue(ai ?? FakeAiRepository()),
     ],
   );

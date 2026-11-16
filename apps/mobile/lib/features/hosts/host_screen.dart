@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
+import 'payouts_screens.dart';
 import '../wallet/wallet_repository.dart' show formatThousands;
 
 /// The member's Host status (GET /me/host). [status] is null when they've never opted in.
@@ -123,6 +124,8 @@ class _HostScreenState extends ConsumerState<HostScreen> {
                   const SizedBox(height: RoseSpacing.s4),
                   _EarningsCard(state: state),
                   const SizedBox(height: RoseSpacing.s4),
+                  const PayoutsSection(),
+                  const SizedBox(height: RoseSpacing.s4),
                   OutlinedButton(
                     key: const Key('host-pause'),
                     onPressed: _busy ? null : () => _run(() => _repo.pause(_token)),
@@ -140,6 +143,9 @@ class _HostScreenState extends ConsumerState<HostScreen> {
                   if (state != null && state.pendingCoins + state.availableCoins > 0) ...<Widget>[
                     const SizedBox(height: RoseSpacing.s4),
                     _EarningsCard(state: state),
+                    const SizedBox(height: RoseSpacing.s4),
+                    // Paused Hosts can still withdraw what they earned.
+                    const PayoutsSection(),
                   ],
                   const SizedBox(height: RoseSpacing.s4),
                   FilledButton(
@@ -186,7 +192,7 @@ class _EarningsCard extends StatelessWidget {
             ),
             const SizedBox(height: RoseSpacing.s2),
             Text(
-              'Earnings are held for ${state.holdDays} days. Withdrawals are coming soon.',
+              'Earnings are held for ${state.holdDays} days, then you can withdraw them to your bank.',
               style: theme.textTheme.bodySmall,
             ),
           ],

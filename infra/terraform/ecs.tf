@@ -41,6 +41,9 @@ locals {
       PAYMENT_RECONCILE_SECONDS = "600"
       # Release Host earnings past their hold, hourly.
       HOST_RELEASE_SECONDS = "3600"
+      # Host payouts (Paystack Transfers): off until var.payouts_enabled; pending ones re-checked every 10 minutes.
+      PAYOUTS_ENABLED          = var.payouts_enabled ? "true" : "false"
+      PAYOUT_RECONCILE_SECONDS = "600"
       # Calls: unanswered rings miss after 45 s; due minutes are charged every second's tick.
       CALL_RING_TIMEOUT_SECONDS = "45"
       CALL_TICK_MS              = "1000"

@@ -7,6 +7,7 @@ import 'package:amivara/features/calls/call_repository.dart';
 import 'package:amivara/features/gifts/gift_repository.dart';
 import 'package:amivara/features/rooms/rooms_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
+import 'package:amivara/features/hosts/payouts_repository.dart';
 import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1204,4 +1205,80 @@ class FakeRoomsRepository implements RoomsRepository {
   @override
   Future<void> report(String accessToken, String roomId, {required String category, String? details}) async =>
       calls.add('report:$roomId:$category');
+}
+
+// ── Host payouts (M8) ──
+
+class FakePayoutsRepository implements PayoutsRepository {
+  FakePayoutsRepository({this.available = 6000, this.pending = 1250, this.enabled = true, this.account});
+
+  int available;
+  int pending;
+  bool enabled;
+  PayoutAccount? account;
+  final List<Payout> history = <Payout>[];
+  final List<String> calls = <String>[];
+  String withdrawStatus = 'pending';
+
+  @override
+  Future<PayoutSummary> summary(String accessToken) async => PayoutSummary(
+    pendingCoins: pending,
+    pendingKobo: pending * 100,
+    availableCoins: available,
+    availableKobo: available * 100,
+    koboPerCoin: 100,
+    minWithdrawCoins: 5000,
+    minWithdrawKobo: 500000,
+    enabled: enabled,
+    account: account,
+    payouts: List<Payout>.of(history),
+  );
+
+  @override
+  Future<List<Bank>> banks(String accessToken) async => const <Bank>[
+    Bank(code: '058', name: 'Guaranty Trust Bank'),
+    Bank(code: '999992', name: 'OPay'),
+  ];
+
+  @override
+  Future<({String accountName, String bankName})> resolve(
+    String accessToken,
+    String bankCode,
+    String accountNumber,
+  ) async {
+    calls.add('resolve:$bankCode:$accountNumber');
+    if (accountNumber != '0123456789') {
+      throw apiError(422, 'ACCOUNT_NOT_RESOLVED');
+    }
+    return (accountName: 'ADA CHIOMA OKAFOR', bankName: bankCode == '058' ? 'Guaranty Trust Bank' : 'OPay');
+  }
+
+  @override
+  Future<PayoutAccount> saveAccount(String accessToken, String bankCode, String accountNumber) async {
+    calls.add('save:$bankCode:$accountNumber');
+    account = PayoutAccount(
+      bankCode: bankCode,
+      bankName: bankCode == '058' ? 'Guaranty Trust Bank' : 'OPay',
+      accountLast4: accountNumber.substring(6),
+      accountName: 'ADA CHIOMA OKAFOR',
+    );
+    return account!;
+  }
+
+  @override
+  Future<Payout> withdraw(String accessToken) async {
+    calls.add('withdraw');
+    final payout = Payout(
+      id: 'p${history.length + 1}',
+      coins: available,
+      amountKobo: available * 100,
+      status: withdrawStatus,
+      bankName: account!.bankName,
+      accountLast4: account!.accountLast4,
+      createdAt: DateTime.utc(2026, 11, 17, 10),
+    );
+    history.insert(0, payout);
+    if (withdrawStatus != 'failed') available = 0;
+    return payout;
+  }
 }

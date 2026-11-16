@@ -238,6 +238,12 @@ variable "payments_enabled" {
   default     = false
 }
 
+variable "payouts_enabled" {
+  description = "Host withdrawals via Paystack Transfers (needs payments_enabled, a funded Paystack balance and OTP for transfers turned off). Off by default."
+  type        = bool
+  default     = false
+}
+
 variable "calls_enabled" {
   description = "Voice and video calls: set true once the livekit secret has a value and livekit_url is set. Without it, calls answer 503."
   type        = bool
