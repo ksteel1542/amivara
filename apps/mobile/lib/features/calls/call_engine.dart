@@ -9,7 +9,11 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 /// so widget tests run without WebRTC.
 abstract interface class CallEngine {
   /// Joins the room and publishes the microphone (and the camera for video).
-  Future<void> connect({required String url, required String token, required bool video});
+  /// `publish: false` joins to listen only (a Chat House audience member).
+  Future<void> connect({required String url, required String token, required bool video, bool publish = true});
+
+  /// Starts or stops publishing (taking or leaving a Chat House seat, a Host mute).
+  Future<void> setPublishing(bool on, {required bool video});
   Future<void> setMicrophone(bool on);
   Future<void> setCamera(bool on);
   Future<void> switchCamera(bool front);
@@ -44,7 +48,7 @@ class LiveKitCallEngine implements CallEngine {
   }
 
   @override
-  Future<void> connect({required String url, required String token, required bool video}) async {
+  Future<void> connect({required String url, required String token, required bool video, bool publish = true}) async {
     final room = lk.Room(
       roomOptions: const lk.RoomOptions(
         adaptiveStream: true,
@@ -61,9 +65,19 @@ class LiveKitCallEngine implements CallEngine {
       ..on<lk.ParticipantConnectedEvent>((_) => _changed())
       ..on<lk.LocalTrackPublishedEvent>((_) => _changed());
     await room.connect(url, token);
-    await room.localParticipant?.setMicrophoneEnabled(true);
-    if (video) await room.localParticipant?.setCameraEnabled(true);
-    await setSpeaker(video); // video calls default to the loudspeaker, voice to the earpiece
+    if (publish) {
+      await room.localParticipant?.setMicrophoneEnabled(true);
+      if (video) await room.localParticipant?.setCameraEnabled(true);
+    }
+    // Video calls and rooms default to the loudspeaker, voice calls to the earpiece.
+    await setSpeaker(video || !publish);
+    _changed();
+  }
+
+  @override
+  Future<void> setPublishing(bool on, {required bool video}) async {
+    await _room?.localParticipant?.setMicrophoneEnabled(on);
+    if (video) await _room?.localParticipant?.setCameraEnabled(on);
     _changed();
   }
 

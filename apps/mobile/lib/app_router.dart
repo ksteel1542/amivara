@@ -4,7 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/email_screen.dart';
 import 'features/auth/otp_screen.dart';
+import 'features/calls/call_repository.dart';
 import 'features/calls/call_screen.dart';
+import 'features/rooms/room_screen.dart';
+import 'features/rooms/rooms_repository.dart';
+import 'features/rooms/rooms_screen.dart';
 import 'features/auth/phone_screen.dart';
 import 'features/chat/chat_screen.dart';
 import 'features/discovery/member_profile_screen.dart';
@@ -48,12 +52,14 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
         '/ai' ||
         '/spend-limits' ||
         '/call' ||
+        '/rooms' ||
         '/blocked' ||
         '/guidelines' when !signedIn => '/',
         final String path
             when (path.startsWith('/verify/') ||
                     path.startsWith('/chat/') ||
                     path.startsWith('/ai/') ||
+                    path.startsWith('/room/') ||
                     path.startsWith('/member/')) &&
                 !signedIn =>
           '/',
@@ -98,6 +104,14 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
       GoRoute(path: '/spend-limits', builder: (_, _) => const SpendLimitsScreen()),
       GoRoute(path: '/blocked', builder: (_, _) => const BlockedScreen()),
       GoRoute(path: '/call', builder: (_, _) => const CallScreen()),
+      GoRoute(path: '/rooms', builder: (_, _) => const RoomsScreen()),
+      GoRoute(
+        path: '/room/:id',
+        builder: (_, state) => RoomScreen(
+          roomId: state.pathParameters['id']!,
+          opened: state.extra is ({Room room, CallMedia media}) ? state.extra! as ({Room room, CallMedia media}) : null,
+        ),
+      ),
       GoRoute(
         path: '/member/:userId',
         builder: (_, state) => MemberProfileScreen(userId: state.pathParameters['userId']!),

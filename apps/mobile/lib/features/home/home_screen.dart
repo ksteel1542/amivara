@@ -57,6 +57,12 @@ class HomeScreen extends ConsumerWidget {
         ),
         actions: <Widget>[
           IconButton(
+            key: const Key('rooms-button'),
+            tooltip: 'Chat House: live rooms',
+            icon: const Icon(Icons.podcasts),
+            onPressed: () => context.push('/rooms'),
+          ),
+          IconButton(
             key: const Key('matches-button'),
             tooltip: 'Matches',
             icon: const Icon(Icons.chat_bubble_outline),

@@ -10,6 +10,8 @@ import '../auth/auth_providers.dart';
 import '../calls/call_controller.dart';
 import '../calls/call_repository.dart';
 import '../calls/call_screen.dart';
+import '../gifts/gift_drawer.dart';
+import '../gifts/gift_repository.dart';
 import '../discovery/profile_card.dart';
 import '../matches/matches_repository.dart';
 import '../safety/report_user_sheet.dart';
@@ -138,6 +140,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
+  }
+
+  /// A gift to a Verified Host (M6/7): appears in the chat as a gift message.
+  Future<void> _gift() async {
+    final balance = await sendGiftFlow(
+      context,
+      ref,
+      toName: _match.firstName,
+      send: (gift, key) async {
+        final sent = await ref.read(giftRepositoryProvider).sendInChat(_token, _match.matchId, gift.id, key);
+        if (mounted) setState(() => _messages = _merge(<ChatMessage>[sent.message], _messages));
+        return sent.balance;
+      },
+    );
+    if (balance != null && mounted) setState(() => _coins = balance);
   }
 
   /// The in-chat top-up (MONETIZATION_PLAN.md M2), also opened by a 402 INSUFFICIENT_COINS.
@@ -290,7 +307,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _countTowardsUnlock(ChatMessage message) {
     final p = _photos;
-    if (p == null || p.unlocked) return;
+    if (p == null || p.unlocked || message.gift != null) return; // only text counts
     _photos = _fromThem(message)
         ? p.copyWith(theirs: (p.theirs + 1).clamp(0, p.threshold))
         : p.copyWith(mine: (p.mine + 1).clamp(0, p.threshold));
@@ -588,6 +605,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       padding: const EdgeInsets.fromLTRB(RoseSpacing.s3, RoseSpacing.s1, RoseSpacing.s2, RoseSpacing.s3),
       child: Row(
         children: <Widget>[
+          if (_billing.paid)
+            IconButton(
+              key: const Key('chat-gift'),
+              tooltip: 'Send a gift',
+              icon: const Icon(Icons.card_giftcard_outlined),
+              onPressed: _gift,
+            ),
           Expanded(
             child: TextField(
               key: const Key('chat-input'),
@@ -685,7 +709,22 @@ class MessageBubble extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 widthFactor: 1,
-                child: Text(message.body, style: theme.textTheme.bodyLarge?.copyWith(color: fg)),
+                child: message.gift == null
+                    ? Text(message.body, style: theme.textTheme.bodyLarge?.copyWith(color: fg))
+                    : Row(
+                        key: Key('gift-bubble-${message.id}'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(message.gift!.emoji, style: const TextStyle(fontSize: 34)),
+                          const SizedBox(width: RoseSpacing.s2),
+                          Flexible(
+                            child: Text(
+                              mine ? 'You sent a ${message.gift!.name}' : 'Sent you a ${message.gift!.name}',
+                              style: theme.textTheme.bodyLarge?.copyWith(color: fg, fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
               const SizedBox(height: 2),
               Row(

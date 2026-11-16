@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/calls/call_engine.dart';
 import 'package:amivara/features/calls/call_repository.dart';
+import 'package:amivara/features/gifts/gift_repository.dart';
+import 'package:amivara/features/rooms/rooms_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
 import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:flutter/material.dart';
@@ -1011,8 +1013,10 @@ class FakeCallEngine implements CallEngine {
   void remoteHungUp() => _ended.add(null);
 
   @override
-  Future<void> connect({required String url, required String token, required bool video}) async =>
-      log.add('connect:${video ? 'video' : 'voice'}');
+  Future<void> connect({required String url, required String token, required bool video, bool publish = true}) async =>
+      log.add('connect:${video ? 'video' : 'voice'}${publish ? '' : ':listen'}');
+  @override
+  Future<void> setPublishing(bool on, {required bool video}) async => log.add('publish:$on');
   @override
   Future<void> setMicrophone(bool on) async => log.add('mic:$on');
   @override
@@ -1033,4 +1037,171 @@ class FakeCallEngine implements CallEngine {
   Widget remoteVideo() => const SizedBox(key: Key('remote-video'));
   @override
   Widget localVideo() => const SizedBox(key: Key('local-video'));
+}
+
+// ── Gifts and Chat House rooms (M6/7) ──
+
+const List<Gift> kGifts = <Gift>[
+  Gift(id: 'g-rose', slug: 'rose', name: 'Rose', emoji: '🌹', priceCoins: 20),
+  Gift(id: 'g-kiss', slug: 'kiss', name: 'Kiss', emoji: '💋', priceCoins: 50),
+  Gift(id: 'g-teddy', slug: 'teddy', name: 'Teddy', emoji: '🧸', priceCoins: 200),
+  Gift(id: 'g-crown', slug: 'crown', name: 'Crown', emoji: '👑', priceCoins: 1000),
+];
+
+class FakeGiftRepository implements GiftRepository {
+  int balance = 500;
+  final List<String> calls = <String>[];
+
+  /// Errors to throw on the next sends, in order.
+  final List<ApiException> errors = <ApiException>[];
+
+  @override
+  Future<List<Gift>> catalogue(String accessToken) async => kGifts;
+
+  Gift _gift(String id) => kGifts.firstWhere((g) => g.id == id);
+
+  void _charge(String giftId) {
+    if (errors.isNotEmpty) throw errors.removeAt(0);
+    balance -= _gift(giftId).priceCoins;
+  }
+
+  @override
+  Future<({ChatMessage message, int balance})> sendInChat(
+    String accessToken,
+    String matchId,
+    String giftId,
+    String idempotencyKey,
+  ) async {
+    calls.add('chat:$matchId:${_gift(giftId).slug}:$idempotencyKey');
+    _charge(giftId);
+    final g = _gift(giftId);
+    return (
+      message: ChatMessage(
+        id: 'gift-msg-${calls.length}',
+        matchId: matchId,
+        senderId: 'me',
+        body: '',
+        createdAt: DateTime.utc(2026, 11, 10, 13),
+        gift: GiftInfo(slug: g.slug, name: g.name, emoji: g.emoji),
+      ),
+      balance: balance,
+    );
+  }
+
+  @override
+  Future<int> sendInRoom(
+    String accessToken,
+    String roomId,
+    String giftId,
+    String idempotencyKey, {
+    String? recipientId,
+  }) async {
+    calls.add('room:$roomId:${_gift(giftId).slug}:${recipientId ?? 'host'}');
+    _charge(giftId);
+    return balance;
+  }
+}
+
+Map<String, dynamic> roomJson({
+  String id = 'r1',
+  String role = 'listener',
+  bool video = false,
+  bool seatRequested = false,
+  bool following = false,
+  bool mutedByHost = false,
+  List<Map<String, dynamic>> guests = const <Map<String, dynamic>>[],
+  List<Map<String, dynamic>> requests = const <Map<String, dynamic>>[],
+  int listeners = 3,
+}) => <String, dynamic>{
+  'id': id,
+  'title': 'Friday vibes',
+  'mode': video ? 'video' : 'audio',
+  'audience': 'open',
+  'status': 'live',
+  'max_seats': 8,
+  'host': <String, dynamic>{'id': 'host-1', 'first_name': 'Ada'},
+  'speakers': <Map<String, dynamic>>[
+    <String, dynamic>{'id': 'host-1', 'first_name': 'Ada', 'role': 'host', 'muted_by_host': false},
+    ...guests,
+  ],
+  'listeners': listeners,
+  if (role == 'host') 'seat_requests': requests,
+  'me': <String, dynamic>{
+    'id': role == 'host' ? 'host-1' : 'me',
+    'role': role,
+    'seat_requested': seatRequested,
+    'muted_by_host': mutedByHost,
+    'following': following,
+  },
+};
+
+class FakeRoomsRepository implements RoomsRepository {
+  FakeRoomsRepository({List<RoomSummary>? rooms, Map<String, dynamic>? joinAs})
+    : rooms = rooms ?? <RoomSummary>[],
+      joinAs = joinAs ?? roomJson();
+
+  List<RoomSummary> rooms;
+  Map<String, dynamic> joinAs;
+  ApiException? openError;
+  ApiException? joinError;
+  final List<String> calls = <String>[];
+  final List<RoomMessage> history = <RoomMessage>[];
+  ApiException? sendError;
+
+  static const CallMedia media = CallMedia(url: 'wss://lk.test', token: 'room-token');
+
+  @override
+  Future<List<RoomSummary>> list(String accessToken) async => rooms;
+
+  @override
+  Future<({Room room, CallMedia media})> open(
+    String accessToken, {
+    required String title,
+    required bool video,
+    required bool followersOnly,
+  }) async {
+    calls.add('open:$title:${video ? 'video' : 'audio'}:${followersOnly ? 'followers' : 'open'}');
+    if (openError != null) throw openError!;
+    return (room: Room.fromJson(roomJson(id: 'r-new', role: 'host', video: video, listeners: 0)), media: media);
+  }
+
+  @override
+  Future<({Room room, CallMedia media})> join(String accessToken, String roomId) async {
+    calls.add('join:$roomId');
+    if (joinError != null) throw joinError!;
+    return (room: Room.fromJson(joinAs), media: media);
+  }
+
+  @override
+  Future<void> leave(String accessToken, String roomId) async => calls.add('leave:$roomId');
+  @override
+  Future<void> end(String accessToken, String roomId) async => calls.add('end:$roomId');
+  @override
+  Future<void> requestSeat(String accessToken, String roomId) async => calls.add('ask:$roomId');
+  @override
+  Future<void> cancelSeatRequest(String accessToken, String roomId) async => calls.add('cancel-ask:$roomId');
+  @override
+  Future<void> seat(String accessToken, String roomId, String userId) async => calls.add('seat:$userId');
+  @override
+  Future<void> unseat(String accessToken, String roomId, String userId) async => calls.add('unseat:$userId');
+  @override
+  Future<void> setMuted(String accessToken, String roomId, String userId, bool muted) async =>
+      calls.add('${muted ? 'mute' : 'unmute'}:$userId');
+  @override
+  Future<void> ban(String accessToken, String roomId, String userId) async => calls.add('ban:$userId');
+  @override
+  Future<List<RoomMessage>> messages(String accessToken, String roomId) async => history;
+  @override
+  Future<RoomMessage> send(String accessToken, String roomId, String body) async {
+    calls.add('say:$body');
+    if (sendError != null) throw sendError!;
+    return RoomMessage(id: 'rm-${calls.length}', senderId: 'me', senderName: 'Me', body: body);
+  }
+
+  @override
+  Future<void> follow(String accessToken, String hostId, bool follow) async =>
+      calls.add('${follow ? 'follow' : 'unfollow'}:$hostId');
+  @override
+  Future<void> report(String accessToken, String roomId, {required String category, String? details}) async =>
+      calls.add('report:$roomId:$category');
 }

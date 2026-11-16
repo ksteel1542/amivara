@@ -391,7 +391,7 @@ The socket registry is in-process for now (one API task). Running several tasks 
 
 ## Gifts
 
-*MONETIZATION_PLAN.md 3b.* Virtual gifts for active Verified Hosts, in a chat or a Chat House room. The catalogue lives in the `gifts` table, so prices change without a release. Placeholder prices (16 Nov 2026, not final): Rose 🌹 20, Kiss 💋 50, Teddy 🧸 200, Crown 👑 1,000 coins.
+*MONETIZATION_PLAN.md 3b.* Virtual gifts for active Verified Hosts, in a chat or a Chat House room. The catalogue lives in the `gifts` table, so prices change without a release. Prices (locked 17 Nov 2026): Rose 🌹 20, Kiss 💋 50, Teddy 🧸 200, Crown 👑 1,000 coins.
 
 | Method | Path | Gate | Description |
 |---|---|---|---|
@@ -413,7 +413,7 @@ The socket registry is in-process for now (one API task). Running several tasks 
 | POST / DELETE | `/hosts/:id/follow` | 🔑 | Follow or unfollow a Host. |
 | GET | `/rooms` | 🔑 | Live rooms this member may join: open rooms, and followers-only rooms of Hosts they follow. Rooms of blocked members and rooms they're banned from are hidden. |
 | POST | `/rooms` | 🔑 Host | Body `{ title, mode: audio\|video, audience: open\|followers, seats? (0–8) }`. Goes live: `201 { room, media }`. One live room per Host (`409 ROOM_ALREADY_LIVE`). |
-| GET | `/rooms/:id` | 🔑 | The room: `host`, `speakers [{ id, first_name, role, muted_by_host }]`, `listeners` (a count), `me { role, seat_requested, muted_by_host, following }`; `seat_requests` for the Host only. |
+| GET | `/rooms/:id` | 🔑 | The room: `host`, `speakers [{ id, first_name, role, muted_by_host }]`, `listeners` (a count), `me { id, role, seat_requested, muted_by_host, following }`; `seat_requests` for the Host only. |
 | POST | `/rooms/:id/join` | 🔑 | Joins as a listener (or rejoins after a drop): `{ room, media }`. Listener tokens can't publish. Followers-only rooms: `403 FOLLOWERS_ONLY`. Ended: `410 ROOM_ENDED`. |
 | POST | `/rooms/:id/leave` · `/rooms/:id/end` | 🔑 | Leave; the Host leaving or ending closes the room for everyone (`room:ended`). |
 | POST / DELETE | `/rooms/:id/seat-request` | 🔑 verified | Ask for (or withdraw) a speaker seat. Unverified: `403 VERIFICATION_REQUIRED`. |

@@ -14,6 +14,8 @@ import 'features/auth/auth_providers.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/calls/call_controller.dart';
 import 'features/calls/call_repository.dart';
+import 'features/gifts/gift_repository.dart';
+import 'features/rooms/rooms_repository.dart';
 import 'features/chat/chat_providers.dart';
 import 'features/chat/chat_repository.dart';
 import 'features/chat/chat_socket.dart';
@@ -59,6 +61,8 @@ Future<void> main() async {
       hostRepositoryProvider.overrideWithValue(HttpHostRepository(api)),
       aiRepositoryProvider.overrideWithValue(HttpAiRepository(api)),
       callRepositoryProvider.overrideWithValue(HttpCallRepository(api)),
+      giftRepositoryProvider.overrideWithValue(HttpGiftRepository(api)),
+      roomsRepositoryProvider.overrideWithValue(HttpRoomsRepository(api)),
       callSocketFactoryProvider.overrideWithValue(IoChatSocket.new),
       identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],

@@ -572,6 +572,7 @@ export class RoomsService implements OnModuleInit {
           }
         : {}),
       me: {
+        id: viewerId,
         role: me ? me.role.toLowerCase() : null,
         seat_requested: Boolean(me?.seatRequestedAt),
         muted_by_host: me?.mutedByHost ?? false,

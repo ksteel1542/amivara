@@ -12,6 +12,7 @@ class ChatMessage {
     this.coinsCharged = 0,
     this.balanceAfter,
     this.freeRemainingToday,
+    this.gift,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -25,6 +26,9 @@ class ChatMessage {
     coinsCharged: (json['coins_charged'] as num?)?.toInt() ?? 0,
     balanceAfter: (json['balance'] as num?)?.toInt(),
     freeRemainingToday: (json['free_remaining_today'] as num?)?.toInt(),
+    gift: json['type'] == 'gift' && json['gift'] is Map<String, dynamic>
+        ? GiftInfo.fromJson(json['gift'] as Map<String, dynamic>)
+        : null,
   );
 
   final String id;
@@ -42,6 +46,9 @@ class ChatMessage {
   final int coinsCharged;
   final int? balanceAfter;
   final int? freeRemainingToday;
+
+  /// A gift message (M6/7): what was sent. Null for text.
+  final GiftInfo? gift;
 
   ChatMessage markRead(DateTime at) =>
       ChatMessage(id: id, matchId: matchId, senderId: senderId, body: body, createdAt: createdAt, readAt: at);
@@ -170,4 +177,16 @@ class HttpChatRepository implements ChatRepository {
         .map((i) => i['text'] as String)
         .toList();
   }
+}
+
+/// The gift in a gift message: never its price.
+class GiftInfo {
+  const GiftInfo({required this.slug, required this.name, required this.emoji});
+
+  factory GiftInfo.fromJson(Map<String, dynamic> json) =>
+      GiftInfo(slug: json['slug'] as String, name: json['name'] as String, emoji: json['emoji'] as String);
+
+  final String slug;
+  final String name;
+  final String emoji;
 }

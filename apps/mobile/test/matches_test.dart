@@ -18,6 +18,8 @@ import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/calls/call_controller.dart';
 import 'package:amivara/features/calls/call_engine.dart';
 import 'package:amivara/features/calls/call_repository.dart';
+import 'package:amivara/features/gifts/gift_repository.dart';
+import 'package:amivara/features/rooms/rooms_repository.dart';
 import 'package:amivara/features/wallet/topup_sheet.dart';
 import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:amivara/main.dart';
@@ -39,6 +41,8 @@ Future<ProviderContainer> pumpMatches(
   FakeCallRepository? calls,
   FakeChatSocket? callSocket,
   FakeCallEngine? engine,
+  FakeGiftRepository? gifts,
+  FakeRoomsRepository? rooms,
   String location = '/matches',
   bool verified = true,
 }) async {
@@ -70,6 +74,8 @@ Future<ProviderContainer> pumpMatches(
       callRepositoryProvider.overrideWithValue(calls ?? FakeCallRepository()),
       callSocketFactoryProvider.overrideWithValue(() => (callSocket ?? FakeChatSocket()) as ChatSocket),
       callEngineFactoryProvider.overrideWithValue(() => (engine ?? FakeCallEngine()) as CallEngine),
+      giftRepositoryProvider.overrideWithValue(gifts ?? FakeGiftRepository()),
+      roomsRepositoryProvider.overrideWithValue(rooms ?? FakeRoomsRepository()),
     ],
   );
   addTearDown(container.dispose);
