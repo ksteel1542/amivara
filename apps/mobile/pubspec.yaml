@@ -39,7 +39,7 @@ dependencies:
   go_router: ^17.5.0
   google_sign_in: ^7.2.0
   http: ^1.6.0
-  image_picker: ^1.2.3
+  image_picker: ^1.2.4
   livekit_client: 2.13.2
   share_plus: ^13.3.1
   smile_id: ^11.2.14
