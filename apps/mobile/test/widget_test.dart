@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:amivara/core/secure_store.dart';
 import 'package:amivara/features/auth/auth_providers.dart';
+import 'package:amivara/features/onboarding/welcome_animation.dart';
 import 'package:amivara/main.dart';
 import 'package:amivara/theme/amivara_theme.dart';
 import 'package:amivara/theme/rose_tokens.g.dart';
@@ -17,10 +18,11 @@ void _usePhoneFrame(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-Widget _app() => ProviderScope(
+Widget _app({bool motion = false}) => ProviderScope(
   overrides: [
     authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
     secureStoreProvider.overrideWithValue(MemoryStore()),
+    welcomeMotionProvider.overrideWithValue(motion),
   ],
   child: const AmivaraApp(),
 );
@@ -39,21 +41,35 @@ void main() {
     expect(find.text('I already have an account'), findsOneWidget);
   });
 
-  testWidgets('Welcome hero shows the bundled couple photo under the wordmark', (tester) async {
+  testWidgets('Welcome hero: a still heart and the first love line when motion is off', (tester) async {
     _usePhoneFrame(tester);
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    final photo = tester.widget<Image>(find.byKey(const Key('welcome-hero-photo')));
-    expect((photo.image as AssetImage).assetName, 'assets/images/welcome_hero.jpg');
-    expect(photo.fit, BoxFit.cover);
-    // The asset really is bundled and decodes (a missing asset throws here).
-    expect(tester.takeException(), isNull);
-    // The wordmark is painted above the photo, in the hero's bottom half.
-    final hero = tester.getRect(find.byKey(const Key('welcome-hero-photo')));
+    expect(find.byKey(const Key('welcome-animation')), findsOneWidget);
+    expect(tester.widget<Text>(find.byKey(const Key('welcome-love-line'))).data, isIn(kWelcomeLines));
+    final hero = tester.getRect(find.byKey(const Key('welcome-animation')));
     final mark = tester.getRect(find.text('AMIVARA'));
     expect(hero.contains(mark.center), isTrue);
-    expect(mark.center.dy, greaterThan(hero.center.dy));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Welcome hero loops: the love lines take turns, birds to heart and back', (tester) async {
+    _usePhoneFrame(tester);
+    await tester.pumpWidget(_app(motion: true));
+    await tester.pump();
+
+    final seen = <String>{};
+    // Two full loops, a frame every 250 ms: every phase paints without errors.
+    for (var ms = 0; ms < kWelcomeLoop.inMilliseconds * 2; ms += 250) {
+      await tester.pump(const Duration(milliseconds: 250));
+      seen.add(tester.widget<Text>(find.byKey(const Key('welcome-love-line'))).data!);
+    }
+    expect(seen, containsAll(kWelcomeLines));
+    expect(tester.takeException(), isNull);
+    // Still running: it never settles.
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pumpWidget(const SizedBox()); // stop the loop before the test ends
   });
 
   testWidgets('Welcome screen reflows at 200% font scale without overflow', (tester) async {

@@ -2,4 +2,5 @@
 <!-- AMIVARA ROSE canvas colours (design/brand/tokens.json: color.core). -->
 <resources>
     <color name="amivara_canvas">#FDFBF7</color> <!-- Warm Ivory -->
+    <color name="ic_launcher_background">#F5F6F0</color> <!-- the icon's ivory -->
 </resources>
