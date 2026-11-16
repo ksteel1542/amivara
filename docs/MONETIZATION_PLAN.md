@@ -138,7 +138,7 @@ Still open: the legal and tax review (section 2, point 2), final prices and reve
 | 10,000 coins | ₦15,000 | +2,000 | |
 | 30,000 coins | ₦40,000 | +7,500 | |
 
-Starter coins: **100** per new member and device. Still to set: the price of a paid message, each gift and a call minute, and the Host revenue share.
+Starter coins: **100** per new member and device. Set 16 Nov 2026: paid messages 10 coins after 3 free a day, calls 30 coins a minute (voice) and 60 (video) to Hosts, Host share 50% with a 7-day hold. Still to set: gift prices.
 
 ### 3d. Host icebreakers (one-tap conversation starters)
 
@@ -208,8 +208,8 @@ Starter coins: **100** per new member and device. Still to set: the price of a p
 | M3 | Spending and earning ✅ (paid messages; gifts pending) | Paid messages, gifts (Rose, Kiss), host revenue split into pending earnings, hold period, basic earnings view | Split arithmetic, refunds |
 | M3a | Host icebreakers ✅ | `GET /v1/matches/:id/icebreakers` (templates from shared profile fields), Flutter starter bar for Hosts | Host-only, no private data used, rate limit |
 | M3b | AI Companion personas ✅ (OpenAI gpt-4o-mini) | `is_ai_companion` flag, badge on every surface, own discovery section, LLM hook (provider TBD) with safety filters, 100% platform revenue, spend caps and self-exclusion | Label always present, no earnings entries, caps enforced, never claims to be human |
-| M4 | Calls without billing | LiveKit tokens, WS ringing, incoming-call push and full-screen notification, call screen, in-call report/block, gating | Gating, ring timeouts, decline/busy |
-| M5 | Per-minute billing | Server ticks, 1-minute warning, in-call top-up, auto-hangup at zero | Dropped connections, mid-minute disconnects, clock edge cases |
+| M4 | Calls ✅ (LiveKit; full-screen notification pending) | LiveKit tokens, WS ringing, incoming-call push and full-screen notification, call screen, in-call report/block, gating | Gating, ring timeouts, decline/busy |
+| M5 | Per-minute billing ✅ (30 voice / 60 video coins a minute to Hosts) | Server ticks, 1-minute warning, in-call top-up, auto-hangup at zero | Dropped connections, mid-minute disconnects, clock edge cases |
 | M6 | Host hub | Opt-in Host role, "Available for calls", call/gift/message history, earnings dashboard | Role gating, availability in discovery |
 | M7 | Payouts | Bank/OPay account (resolve + NIN name match), withdrawal requests, admin approval queue, Paystack transfers and webhooks, reversals | Name mismatch, insufficient available earnings, reversed transfers |
 | M8b | Chat House rooms | Follows, rooms, seats, LiveKit permissions, in-room gifts, follower-only rooms, host moderation | Seat permissions, bans, gift splits |

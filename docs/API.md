@@ -351,6 +351,44 @@ The socket registry is in-process for now (one API task). Running several tasks 
 - **Output filter.** It replaces any reply that claims to be human, mentions coins or top-ups, suggests meeting, or contains contact details.
 - **Storage.** Bodies are encrypted at rest and deleted with the chat or the account.
 
+## Calls
+
+*Milestones 4 and 5 of docs/MONETIZATION_PLAN.md.* 1-on-1 voice and video calls between matched members, with LiveKit carrying the audio and video (`CALLS_PROVIDER=livekit`, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`). The API owns ringing, answering and billing; the media server never decides who may call or what it costs.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/matches/:id/calls/quote` | 🔑 | `{ available, allowed, paid, voice_rate_per_minute, video_rate_per_minute }`. `allowed` needs both members NIN-verified (`capabilities.voice_calls` / `video_calls`). The chat header shows the call buttons only when `available && allowed`. |
+| POST | `/matches/:id/calls` | 🔑 | Body `{ type: "voice" \| "video" }`. Rings the other member: `201 { call }`. |
+| GET | `/calls/current` | 🔑 | The member's live call (`{ call, other: { id, first_name } }` or `{ call: null }`), e.g. after an incoming-call push. |
+| GET | `/calls/:id` | 🔑 | One call (either member). |
+| POST | `/calls/:id/accept` | 🔑 | Callee only, while ringing. Charges the first minute of a paid call. `{ call, media: { url, token } }`. |
+| POST | `/calls/:id/join` | 🔑 | Either member of an active call: a fresh join token (the caller calls it on `call:accept`, and on reconnects). `{ call, media, balance }`. |
+| POST | `/calls/:id/decline` | 🔑 | Callee, while ringing. |
+| POST | `/calls/:id/end` | 🔑 | Hang up or cancel (either member). Idempotent. |
+| POST | `/calls/livekit/webhook` | Signed | LiveKit webhook (`Authorization` signed with the API secret). A member leaving the room ends the call. |
+
+**Call object:** `{ id, match_id, type, status, role: caller|callee, other_user_id, rate_per_minute, paid, ring_expires_at, started_at, ended_at, billed_minutes, total_coins_billed (caller only), end_reason }`. `status` is `ringing`, `active`, `ended`, `declined`, `missed`, `cancelled` or `insufficient_coins`.
+
+**Signalling over `/ws/chat`** (server → client): `call:ring { call, caller: { id, first_name } }`, `call:accept { call }`, `call:decline { call }`, `call:end { call, top_up? }`, `call:billed { call_id, billed_minutes, total_coins_billed, rate_per_minute, balance }` (caller only) and `call:low_balance { call_id, balance, required, seconds_left }` (caller only). The app keeps one socket open app-wide, so calls ring on any screen.
+
+**Rules:**
+- **Who.** Matched members only, both NIN-verified. Unverified callers get `403 VERIFICATION_REQUIRED`; an unverified callee gives `403 FORBIDDEN` (`details.reason: callee_unverified`).
+- **One call at a time.** A member already ringing or in a call gives `409 CALLEE_BUSY` (`details.reason: callee_busy | you_are_in_a_call`). Redialling replaces the caller's own unanswered call.
+- **Ring timeout.** Unanswered calls are `missed` after 45 seconds (`CALL_RING_TIMEOUT_SECONDS`).
+- **Rate limit.** 10 call attempts per caller per 10 minutes (`429 CALL_RATE_LIMITED`).
+- **Ends.** Unmatching, blocking, a suspension or ban, or deleting the account ends live calls at once. So does a member leaving the LiveKit room (webhook), or their app staying offline for 30 seconds.
+- **Not configured.** Without LiveKit settings, `503 CALLS_UNAVAILABLE`.
+
+**Billing (calls to an active Verified Host; other calls are free):**
+- **Rates.** 30 coins per started minute for voice (`CALL_VOICE_RATE_COINS`), 60 for video (`CALL_VIDEO_RATE_COINS`), paid by the caller. The rate is fixed when the call starts.
+- **Before ringing.** The caller needs one minute's coins, or `402 INSUFFICIENT_COINS` with `details: { balance, required }` (the app opens the top-up sheet).
+- **Charging.** The first minute is charged on answer, then one minute every 60 seconds by the server's ticker (`CALL_TICK_MS`; rows locked with `SKIP LOCKED`, idempotent per call and minute). The phone never decides what's charged.
+- **Low balance.** After a charge that leaves less than one minute, the caller gets `call:low_balance` and can top up in the call.
+- **Cut-off.** If the next minute can't be paid, the call ends with status `insufficient_coins`, and the caller's `call:end` carries `top_up: { balance, required }`. If the caller can't pay the first minute when the Host answers, accept answers `409 CALL_NOT_RINGING` (`details.reason: insufficient_coins`).
+- **Earnings.** The Host earns their share (50%) of the bought-coin part of each minute, held 7 days, as with paid messages. Promo coins never become earnings.
+
+**Privacy:** join tokens last 10 minutes and allow one room; voice tokens can publish the microphone only. Incoming-call and missed-call pushes are generic ("Incoming call. Open AMIVARA to answer.") and never name the caller.
+
 ## Safety
 
 Open to every signed-in member, verified or not: anyone must be able to block and report.
@@ -397,6 +435,7 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Email and Google sign-in:** `INVALID_EMAIL`, `INVALID_GOOGLE_TOKEN`, `GOOGLE_SIGNIN_UNAVAILABLE`, `PHONE_SIGNIN_UNAVAILABLE` (production without an SMS provider)
 - **Discovery and matching:** `LOCATION_REQUIRED`, `DAILY_LIKE_LIMIT`, `PLUS_REQUIRED`
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
+- **Calls:** `CALLS_UNAVAILABLE`, `CALLEE_BUSY`, `CALL_NOT_RINGING`, `CALL_RATE_LIMITED`, plus `INSUFFICIENT_COINS` and `VERIFICATION_REQUIRED`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Messaging and safety:** `MESSAGE_RATE_LIMITED`, `REPORT_RATE_LIMITED`
 - **Wallet:** `INSUFFICIENT_COINS` (402, also sent over `/ws/chat` as an `error` event with `details`), `PAYMENTS_UNAVAILABLE` (503), `PAYMENT_PROVIDER_ERROR` (502), `TOPUP_RATE_LIMITED` (429)

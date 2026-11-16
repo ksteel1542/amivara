@@ -238,6 +238,23 @@ variable "payments_enabled" {
   default     = false
 }
 
+variable "calls_enabled" {
+  description = "Voice and video calls: set true once the livekit secret has a value and livekit_url is set. Without it, calls answer 503."
+  type        = bool
+  default     = false
+}
+
+variable "livekit_url" {
+  description = "LiveKit server URL the app connects to (wss://…, LiveKit Cloud or self-hosted). Not secret."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.livekit_url == null || can(regex("^wss://", var.livekit_url))
+    error_message = "livekit_url must start with wss://."
+  }
+}
+
 variable "ai_companions_enabled" {
   description = "Inject the OpenAI key into the API (set true once the openai secret has a value and the DPIA is done). Without it, AI Companions are off."
   type        = bool

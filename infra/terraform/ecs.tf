@@ -41,6 +41,10 @@ locals {
       PAYMENT_RECONCILE_SECONDS = "600"
       # Release Host earnings past their hold, hourly.
       HOST_RELEASE_SECONDS = "3600"
+      # Calls: unanswered rings miss after 45 s; due minutes are charged every second's tick.
+      CALL_RING_TIMEOUT_SECONDS = "45"
+      CALL_TICK_MS              = "1000"
+      LIVEKIT_URL               = var.calls_enabled && var.livekit_url != null ? var.livekit_url : ""
     }
     web = {
       NODE_ENV                = "production"
@@ -96,6 +100,13 @@ locals {
         for k, v in {
           OPENAI_API_KEY = "${aws_secretsmanager_secret.app["openai"].arn}:api_key::"
         } : k => v if var.ai_companions_enabled
+      },
+      # Voice/video calls (LiveKit): only injected once the secret has a value. Without it, calls answer 503.
+      {
+        for k, v in {
+          LIVEKIT_API_KEY    = "${aws_secretsmanager_secret.app["livekit"].arn}:api_key::"
+          LIVEKIT_API_SECRET = "${aws_secretsmanager_secret.app["livekit"].arn}:api_secret::"
+        } : k => v if var.calls_enabled
     })
     web   = {}
     admin = {}

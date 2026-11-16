@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:amivara/features/ai/ai_repository.dart';
+import 'package:amivara/features/calls/call_engine.dart';
+import 'package:amivara/features/calls/call_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
 import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:flutter/material.dart';
@@ -917,4 +919,118 @@ class FakeAiRepository implements AiRepository {
     calls.add('exclude:$days');
     return limitsState = SpendLimits(selfExcludedUntil: DateTime.utc(2026, 12, 15));
   }
+}
+
+// ── Calls (M4/M5) ──
+
+Map<String, dynamic> callJson(
+  String id, {
+  String status = 'ringing',
+  bool caller = true,
+  String type = 'voice',
+  int rate = 0,
+  String matchId = 'm1',
+  int billed = 0,
+  String? startedAt,
+}) => <String, dynamic>{
+  'id': id,
+  'match_id': matchId,
+  'type': type,
+  'status': status,
+  'role': caller ? 'caller' : 'callee',
+  'other_user_id': 'user-$matchId',
+  'rate_per_minute': rate,
+  'paid': rate > 0,
+  'started_at': startedAt,
+  'billed_minutes': billed,
+  'end_reason': null,
+};
+
+class FakeCallRepository implements CallRepository {
+  FakeCallRepository({
+    this.quoteResult = const CallQuote(available: true, allowed: true, paid: false, voiceRate: 0, videoRate: 0),
+  });
+
+  CallQuote quoteResult;
+  ApiException? startError;
+  int rate = 0;
+  int? joinBalance;
+  String _type = 'voice';
+  final List<String> calls = <String>[];
+
+  CallMedia get _media => const CallMedia(url: 'wss://lk.test', token: 'tok');
+
+  @override
+  Future<CallQuote> quote(String accessToken, String matchId) async => quoteResult;
+
+  @override
+  Future<CallInfo> start(String accessToken, String matchId, CallType type) async {
+    calls.add('start:$matchId:${type.name}');
+    if (startError != null) throw startError!;
+    _type = type.name;
+    return CallInfo.fromJson(callJson('c1', type: type.name, rate: rate, matchId: matchId));
+  }
+
+  @override
+  Future<({CallInfo call, CallMedia media})> accept(String accessToken, String callId) async {
+    calls.add('accept:$callId');
+    return (call: CallInfo.fromJson(callJson(callId, status: 'active', caller: false, type: 'video')), media: _media);
+  }
+
+  @override
+  Future<({CallInfo call, CallMedia media, int? balance})> join(String accessToken, String callId) async {
+    calls.add('join:$callId');
+    return (
+      call: CallInfo.fromJson(callJson(callId, status: 'active', rate: rate, type: _type, billed: rate > 0 ? 1 : 0)),
+      media: _media,
+      balance: joinBalance,
+    );
+  }
+
+  @override
+  Future<CallInfo> decline(String accessToken, String callId) async {
+    calls.add('decline:$callId');
+    return CallInfo.fromJson(callJson(callId, status: 'declined', caller: false));
+  }
+
+  @override
+  Future<CallInfo> end(String accessToken, String callId) async {
+    calls.add('end:$callId');
+    return CallInfo.fromJson(callJson(callId, status: 'ended'));
+  }
+
+  @override
+  Future<({CallInfo call, String otherName})?> current(String accessToken) async => null;
+}
+
+class FakeCallEngine implements CallEngine {
+  final List<String> log = <String>[];
+  final StreamController<void> _ended = StreamController<void>.broadcast();
+  final ChangeNotifier _changes = ChangeNotifier();
+
+  void remoteHungUp() => _ended.add(null);
+
+  @override
+  Future<void> connect({required String url, required String token, required bool video}) async =>
+      log.add('connect:${video ? 'video' : 'voice'}');
+  @override
+  Future<void> setMicrophone(bool on) async => log.add('mic:$on');
+  @override
+  Future<void> setCamera(bool on) async => log.add('camera:$on');
+  @override
+  Future<void> switchCamera(bool front) async => log.add('front:$front');
+  @override
+  Future<void> setSpeaker(bool on) async => log.add('speaker:$on');
+  @override
+  Future<void> disconnect() async => log.add('disconnect');
+  @override
+  Stream<void> get ended => _ended.stream;
+  @override
+  Listenable get changes => _changes;
+  @override
+  bool get remoteConnected => true;
+  @override
+  Widget remoteVideo() => const SizedBox(key: Key('remote-video'));
+  @override
+  Widget localVideo() => const SizedBox(key: Key('local-video'));
 }

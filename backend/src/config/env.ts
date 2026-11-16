@@ -74,6 +74,23 @@ const base = z.object({
   FREE_AI_MESSAGES_PER_DAY: z.coerce.number().int().min(0).max(1000).default(3),
   /** Soft daily cap on AI Companion spending in a member's first 7 days. */
   AI_NEW_MEMBER_DAILY_CAP: z.coerce.number().int().min(0).max(100000).default(200),
+  // ── Voice and video calls (MONETIZATION_PLAN.md M4/M5) ──
+  /** Media server for 1-on-1 calls. Only 'livekit' today, behind CallMediaProvider. */
+  CALLS_PROVIDER: z.enum(['livekit']).default('livekit'),
+  /** LiveKit server URL the app connects to (wss://…). Calls answer 503 CALLS_UNAVAILABLE without all three. */
+  // Empty (calls disabled in Terraform) means unset.
+  LIVEKIT_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+  LIVEKIT_API_KEY: z.string().optional(),
+  /** Secret livekit (signs join tokens and verifies LiveKit webhooks). */
+  LIVEKIT_API_SECRET: z.string().optional(),
+  /** Coins per started minute of a voice call to an active Verified Host. Calls to other members are free. */
+  CALL_VOICE_RATE_COINS: z.coerce.number().int().min(1).max(100000).default(30),
+  /** Coins per started minute of a video call to an active Verified Host. */
+  CALL_VIDEO_RATE_COINS: z.coerce.number().int().min(1).max(100000).default(60),
+  /** Unanswered calls are marked missed after this long. */
+  CALL_RING_TIMEOUT_SECONDS: z.coerce.number().int().min(5).max(300).default(45),
+  /** How often the server checks for due minutes and expired rings. 0 disables the ticker (tests drive it). */
+  CALL_TICK_MS: z.coerce.number().int().min(0).max(60000).default(1000),
   /**
    * Checkout providers this API accepts (MONETIZATION_PLAN.md 2a), comma-separated:
    * 'paystack' (direct APK and web) and/or 'google_play' (Play Store build).

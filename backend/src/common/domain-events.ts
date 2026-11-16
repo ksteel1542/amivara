@@ -25,6 +25,17 @@ export interface DomainEventMap {
     /** The recipient had the chat socket open when it was sent: no push needed. */
     recipientOnline: boolean;
   };
+  /** A call is ringing. Never carries names: the push is generic (lock screens are public). */
+  'call.ringing': {
+    callId: string;
+    matchId: string;
+    calleeId: string;
+    type: 'voice' | 'video';
+    /** The callee's app had the chat socket open: it's already showing the incoming call. */
+    calleeOnline: boolean;
+  };
+  /** Nobody answered before the ring timeout. */
+  'call.missed': { callId: string; matchId: string; calleeId: string };
 }
 
 export type DomainEventName = keyof DomainEventMap;

@@ -232,6 +232,28 @@ enum LedgerTransactionKind {
   @@map("ledger_transaction_kind")
 }
 
+enum CallType {
+  VOICE
+  VIDEO
+
+  @@map("call_type")
+}
+
+/// RINGING → ACTIVE → ENDED / INSUFFICIENT_COINS, or RINGING → DECLINED / MISSED / CANCELLED
+enum CallStatus {
+  RINGING
+  ACTIVE
+  ENDED
+  DECLINED
+  MISSED
+  /// The caller hung up before it was answered
+  CANCELLED
+  /// Ended by the server: the caller couldn't pay for the next minute
+  INSUFFICIENT_COINS
+
+  @@map("call_status")
+}
+
 // ───────────────────────────── Models ─────────────────────────────
 
 model User {
@@ -283,6 +305,8 @@ model User {
   hostEarnings   HostEarning[]
   aiChats        AiConversation[]
   spendLimit     SpendLimit?
+  callsMade      CallSession[]       @relation("CallCaller")
+  callsReceived  CallSession[]       @relation("CallCallee")
 
   @@index([status, ageVerified])
   @@index([lastActiveAt])
@@ -420,10 +444,11 @@ model Match {
   unmatchedAt    DateTime? @map("unmatched_at") @db.Timestamptz(6)
   unmatchedById  String?   @map("unmatched_by") @db.Uuid
 
-  userA       User      @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
-  userB       User      @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
-  unmatchedBy User?     @relation("MatchUnmatchedBy", fields: [unmatchedById], references: [id], onDelete: SetNull)
+  userA       User          @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB       User          @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  unmatchedBy User?         @relation("MatchUnmatchedBy", fields: [unmatchedById], references: [id], onDelete: SetNull)
   messages    Message[]
+  calls       CallSession[]
 
   @@unique([userAId, userBId])
   @@index([userBId])
@@ -910,6 +935,42 @@ model SpendLimit {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("spend_limits")
+}
+
+/// 1-on-1 voice/video calls between matched members (MONETIZATION_PLAN.md M4/M5).
+/// Calling an active Verified Host costs rate_per_minute coins per started minute,
+/// charged by the server: the first on accept, then one every 60 seconds.
+model CallSession {
+  id               String     @id @default(uuid()) @db.Uuid
+  matchId          String     @map("match_id") @db.Uuid
+  callerId         String     @map("caller_id") @db.Uuid
+  calleeId         String     @map("callee_id") @db.Uuid
+  type             CallType
+  status           CallStatus @default(RINGING)
+  /// 0 = free (the callee isn't an active Host)
+  ratePerMinute    Int        @map("rate_per_minute")
+  ringExpiresAt    DateTime   @map("ring_expires_at") @db.Timestamptz(6)
+  startedAt        DateTime?  @map("started_at") @db.Timestamptz(6)
+  /// When the next minute is due (ACTIVE paid calls only)
+  nextBillAt       DateTime?  @map("next_bill_at") @db.Timestamptz(6)
+  endedAt          DateTime?  @map("ended_at") @db.Timestamptz(6)
+  billedMinutes    Int        @default(0) @map("billed_minutes")
+  totalCoinsBilled Int        @default(0) @map("total_coins_billed")
+  /// caller_hangup, callee_hangup, declined, no_answer, insufficient_coins, unmatched, disconnected…
+  endReason        String?    @map("end_reason")
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  caller User  @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
+  callee User  @relation("CallCallee", fields: [calleeId], references: [id], onDelete: Cascade)
+
+  @@index([status, ringExpiresAt])
+  @@index([status, nextBillAt])
+  @@index([callerId, createdAt(sort: Desc)])
+  @@index([calleeId, createdAt(sort: Desc)])
+  @@index([matchId, createdAt(sort: Desc)])
+  @@map("call_sessions")
 }
 
 // ─────────────────────── Raw SQL requirements ───────────────────────

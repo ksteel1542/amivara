@@ -22,6 +22,17 @@ export const MESSAGE_NOTIFICATION = {
   body: 'You have a new message.',
 };
 
+/** Incoming call: never who is calling (lock screens are public). */
+export const CALL_NOTIFICATION = {
+  title: 'AMIVARA',
+  body: 'Incoming call. Open AMIVARA to answer.',
+};
+
+export const MISSED_CALL_NOTIFICATION = {
+  title: 'AMIVARA',
+  body: 'You missed a call.',
+};
+
 @Injectable()
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
@@ -52,6 +63,20 @@ export class NotificationsService implements OnModuleInit {
       await this.sendToUser(recipientId, {
         notification: MESSAGE_NOTIFICATION,
         data: { type: 'message.new', match_id: matchId },
+      });
+    });
+    // An app with the socket open already shows the incoming-call screen.
+    this.events.on('call.ringing', async ({ callId, matchId, calleeId, type, calleeOnline }) => {
+      if (calleeOnline) return;
+      await this.sendToUser(calleeId, {
+        notification: CALL_NOTIFICATION,
+        data: { type: 'call.ring', call_id: callId, match_id: matchId, call_type: type },
+      });
+    });
+    this.events.on('call.missed', async ({ callId, matchId, calleeId }) => {
+      await this.sendToUser(calleeId, {
+        notification: MISSED_CALL_NOTIFICATION,
+        data: { type: 'call.missed', call_id: callId, match_id: matchId },
       });
     });
     // Silent: the other member's list refreshes, with no "X unmatched you" notification.

@@ -16,6 +16,7 @@ locals {
     "hash-pepper"   = "HMAC pepper for OTP codes, IPs, device ids and blocked phones. JSON keys: value (64 random hex chars)"
     "message-key"   = "AES-256-GCM key for chat message bodies at rest. JSON keys: value (32 random bytes, base64)"
     "openai"        = "OpenAI API key for AI Companions (model gpt-4o-mini). JSON keys: api_key"
+    "livekit"       = "LiveKit API key and secret for 1-on-1 calls (join tokens, webhook signatures). JSON keys: api_key, api_secret"
     "paystack"      = "Paystack secret key for coin top-ups and webhook signatures (sk_test_ outside prod, sk_live_ in prod). JSON keys: secret_key"
   }
 }

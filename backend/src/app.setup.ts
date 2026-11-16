@@ -23,10 +23,12 @@ export function configureApp(app: INestApplication): INestApplication {
   const hops = app.get<ConfigService<Env, true>>(ConfigService).get('TRUST_PROXY_HOPS', { infer: true });
   (app.getHttpAdapter().getInstance() as Express).set('trust proxy', hops);
 
-  // JSON bodies keep their raw bytes too: payment webhooks are signed over the exact body.
-  // Registered before init, so Nest skips its own JSON parser (same 100kb limit).
+  // JSON bodies keep their raw bytes too: payment and LiveKit webhooks are signed over the
+  // exact body. Registered before init, so Nest skips its own JSON parser (same 100kb limit).
   (app as NestExpressApplication).useBodyParser('json', {
     limit: '100kb',
+    // LiveKit posts its webhooks as application/webhook+json.
+    type: ['application/json', 'application/webhook+json'],
     verify: (req: object, _res: unknown, buf: Buffer) => {
       (req as { rawBody?: Buffer }).rawBody = buf;
     },

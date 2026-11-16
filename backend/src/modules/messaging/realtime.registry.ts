@@ -17,6 +17,11 @@ export type ChatEvent =
       event: 'wallet.updated';
       data: { match_id: string; coins_charged: number; balance: number | null; free_remaining_today: number | null };
     }
+  | {
+      /** Call signalling (MONETIZATION_PLAN.md M4/M5): see CallsService. */
+      event: 'call:ring' | 'call:accept' | 'call:decline' | 'call:end' | 'call:billed' | 'call:low_balance';
+      data: Record<string, unknown>;
+    }
   | { event: 'error'; data: { code: string; message: string } };
 
 /**
@@ -29,6 +34,12 @@ export class RealtimeRegistry {
   private readonly sockets = new Map<string, Set<WebSocket>>();
   /** The device session behind each socket, so signing a device out closes its socket. */
   private readonly sessionOf = new WeakMap<WebSocket, string>();
+  private readonly offlineListeners: Array<(userId: string) => void> = [];
+
+  /** Called when a member's last open socket closes (e.g. a call ends if they don't come back). */
+  onOffline(listener: (userId: string) => void): void {
+    this.offlineListeners.push(listener);
+  }
 
   add(userId: string, socket: WebSocket, sessionId?: string): void {
     if (sessionId) this.sessionOf.set(socket, sessionId);
@@ -40,8 +51,11 @@ export class RealtimeRegistry {
   remove(userId: string, socket: WebSocket): void {
     const set = this.sockets.get(userId);
     if (!set) return;
-    set.delete(socket);
-    if (set.size === 0) this.sockets.delete(userId);
+    if (!set.delete(socket)) return;
+    if (set.size === 0) {
+      this.sockets.delete(userId);
+      for (const listener of this.offlineListeners) listener(userId);
+    }
   }
 
   isOnline(userId: string): boolean {

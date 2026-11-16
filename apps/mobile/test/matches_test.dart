@@ -15,6 +15,9 @@ import 'package:amivara/features/profile/profile_providers.dart';
 import 'package:amivara/features/safety/safety_repository.dart';
 import 'package:amivara/features/verification/verification_providers.dart';
 import 'package:amivara/features/ai/ai_repository.dart';
+import 'package:amivara/features/calls/call_controller.dart';
+import 'package:amivara/features/calls/call_engine.dart';
+import 'package:amivara/features/calls/call_repository.dart';
 import 'package:amivara/features/wallet/topup_sheet.dart';
 import 'package:amivara/features/wallet/wallet_repository.dart';
 import 'package:amivara/main.dart';
@@ -33,6 +36,9 @@ Future<ProviderContainer> pumpMatches(
   FakeWalletRepository? wallet,
   FakeCheckoutLauncher? checkout,
   FakeAiRepository? ai,
+  FakeCallRepository? calls,
+  FakeChatSocket? callSocket,
+  FakeCallEngine? engine,
   String location = '/matches',
   bool verified = true,
 }) async {
@@ -61,6 +67,9 @@ Future<ProviderContainer> pumpMatches(
       topupPollIntervalProvider.overrideWithValue(const Duration(seconds: 3)),
       paymentProviderNameProvider.overrideWithValue('paystack'),
       aiRepositoryProvider.overrideWithValue(ai ?? FakeAiRepository()),
+      callRepositoryProvider.overrideWithValue(calls ?? FakeCallRepository()),
+      callSocketFactoryProvider.overrideWithValue(() => (callSocket ?? FakeChatSocket()) as ChatSocket),
+      callEngineFactoryProvider.overrideWithValue(() => (engine ?? FakeCallEngine()) as CallEngine),
     ],
   );
   addTearDown(container.dispose);

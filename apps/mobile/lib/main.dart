@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,8 +12,11 @@ import 'core/config.dart';
 import 'core/secure_store.dart';
 import 'features/auth/auth_providers.dart';
 import 'features/auth/auth_repository.dart';
+import 'features/calls/call_controller.dart';
+import 'features/calls/call_repository.dart';
 import 'features/chat/chat_providers.dart';
 import 'features/chat/chat_repository.dart';
+import 'features/chat/chat_socket.dart';
 import 'features/discovery/discovery_providers.dart';
 import 'features/matches/matches_providers.dart';
 import 'features/matches/matches_repository.dart';
@@ -53,6 +58,8 @@ Future<void> main() async {
       walletRepositoryProvider.overrideWithValue(HttpWalletRepository(api)),
       hostRepositoryProvider.overrideWithValue(HttpHostRepository(api)),
       aiRepositoryProvider.overrideWithValue(HttpAiRepository(api)),
+      callRepositoryProvider.overrideWithValue(HttpCallRepository(api)),
+      callSocketFactoryProvider.overrideWithValue(IoChatSocket.new),
       identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],
   );
@@ -96,7 +103,10 @@ class _AmivaraAppState extends ConsumerState<AmivaraApp> {
     ref.listenManual(sessionProvider, (previous, next) {
       if (next == null) {
         ref.read(pushRegistrarProvider).stop();
+        unawaited(ref.read(callControllerProvider.notifier).detach());
       } else if (previous == null) {
+        // Calls ring over an app-wide socket, on any screen (MONETIZATION_PLAN.md M4).
+        unawaited(ref.read(callControllerProvider.notifier).attach());
         ref.read(pushRegistrarProvider).start((token) async {
           final session = ref.read(sessionProvider);
           if (session == null) return;
@@ -108,6 +118,12 @@ class _AmivaraAppState extends ConsumerState<AmivaraApp> {
         });
       }
     }, fireImmediately: true);
+    // A call that starts ringing (either way) opens the call screen over whatever is showing.
+    ref.listenManual<CallState?>(callControllerProvider, (previous, next) {
+      final starting = next != null && (next.phase == CallPhase.incoming || next.phase == CallPhase.outgoing);
+      final wasIdle = previous == null || previous.phase == CallPhase.ended;
+      if (starting && wasIdle) unawaited(_router.push('/call'));
+    });
   }
 
   @override

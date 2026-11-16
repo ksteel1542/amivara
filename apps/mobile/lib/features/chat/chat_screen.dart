@@ -7,6 +7,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
+import '../calls/call_controller.dart';
+import '../calls/call_repository.dart';
+import '../calls/call_screen.dart';
 import '../discovery/profile_card.dart';
 import '../matches/matches_repository.dart';
 import '../safety/report_user_sheet.dart';
@@ -62,6 +65,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Paid conversation with a Verified Host (M3): free messages left today, then the price.
   ChatBilling _billing = ChatBilling.free;
 
+  /// Voice/video call buttons (M4): shown when calls are available and both members are verified.
+  CallQuote? _callQuote;
+
   /// The viewer is a Verified Host: one-tap conversation starters above the composer.
   List<String> _icebreakers = <String>[];
 
@@ -78,6 +84,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     unawaited(_socket.connect(_token));
     _loadFirstPage();
     unawaited(_loadCoins());
+    unawaited(_loadCallQuote());
   }
 
   @override
@@ -98,6 +105,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (mounted) setState(() => _coins = wallet.balance);
     } catch (_) {
       // The chip is optional: chat works without the wallet.
+    }
+  }
+
+  Future<void> _loadCallQuote() async {
+    try {
+      final quote = await ref.read(callRepositoryProvider).quote(_token, _match.matchId);
+      if (mounted) setState(() => _callQuote = quote);
+    } on Object {
+      // No call buttons: chat works without them.
+    }
+  }
+
+  /// Rings them. Not enough coins for the first minute opens the top-up sheet.
+  Future<void> _call(CallType type) async {
+    try {
+      await ref
+          .read(callControllerProvider.notifier)
+          .startCall(matchId: _match.matchId, otherName: _match.firstName, type: type);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'INSUFFICIENT_COINS') {
+        await _openTopUp(needed: _shortfall(e.details));
+      } else if (e.code == 'VERIFICATION_REQUIRED') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Verify your identity to make calls.'),
+            action: SnackBarAction(label: 'Verify', onPressed: () => context.push('/verify-intro')),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
     }
   }
 
@@ -394,6 +433,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ),
         actions: <Widget>[
+          if (_callQuote case final quote? when quote.available && quote.allowed)
+            CallButtons(quote: quote, onCall: _call),
           if (_coins != null)
             InkWell(
               key: const Key('chat-coins'),
