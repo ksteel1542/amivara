@@ -22,6 +22,18 @@ export type ChatEvent =
       event: 'call:ring' | 'call:accept' | 'call:decline' | 'call:end' | 'call:billed' | 'call:low_balance';
       data: Record<string, unknown>;
     }
+  | {
+      /** Chat House rooms: see RoomsService. */
+      event:
+        | 'room:updated'
+        | 'room:message'
+        | 'room:gift'
+        | 'room:seat_request'
+        | 'room:ended'
+        | 'room:removed'
+        | 'room:notice';
+      data: Record<string, unknown>;
+    }
   | { event: 'error'; data: { code: string; message: string } };
 
 /**

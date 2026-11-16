@@ -205,14 +205,14 @@ Starter coins: **100** per new member and device. Set 16 Nov 2026: paid messages
 | M0 | Decisions | Section 2 answered; prices and shares set | — |
 | M1 | Coin ledger, starter coins, wallet API (no real money) | Double-entry ledger, coin packages (placeholder prices), promo vs paid coins, starter grant (once per device), `GET /v1/wallet` and transactions, audited admin adjustments, internal spend (promo first) | Entries always balance, no overdraft under concurrency, idempotency, one starter grant per device |
 | M2 | Top-ups ✅ (Paystack; Play Billing pending) | Paystack and/or Play Billing (per M0) in test mode, webhook, verify, reconciliation, in-chat top-up sheet, "Payment successful" dialog | Forged and duplicate webhooks, first-purchase bonus |
-| M3 | Spending and earning ✅ (paid messages; gifts pending) | Paid messages, gifts (Rose, Kiss), host revenue split into pending earnings, hold period, basic earnings view | Split arithmetic, refunds |
+| M3 | Spending and earning ✅ (paid messages; gifts backend ✅, placeholder prices) | Paid messages, gifts (Rose, Kiss), host revenue split into pending earnings, hold period, basic earnings view | Split arithmetic, refunds |
 | M3a | Host icebreakers ✅ | `GET /v1/matches/:id/icebreakers` (templates from shared profile fields), Flutter starter bar for Hosts | Host-only, no private data used, rate limit |
 | M3b | AI Companion personas ✅ (OpenAI gpt-4o-mini) | `is_ai_companion` flag, badge on every surface, own discovery section, LLM hook (provider TBD) with safety filters, 100% platform revenue, spend caps and self-exclusion | Label always present, no earnings entries, caps enforced, never claims to be human |
 | M4 | Calls ✅ (LiveKit; full-screen notification pending) | LiveKit tokens, WS ringing, incoming-call push and full-screen notification, call screen, in-call report/block, gating | Gating, ring timeouts, decline/busy |
 | M5 | Per-minute billing ✅ (30 voice / 60 video coins a minute to Hosts) | Server ticks, 1-minute warning, in-call top-up, auto-hangup at zero | Dropped connections, mid-minute disconnects, clock edge cases |
 | M6 | Host hub | Opt-in Host role, "Available for calls", call/gift/message history, earnings dashboard | Role gating, availability in discovery |
 | M7 | Payouts | Bank/OPay account (resolve + NIN name match), withdrawal requests, admin approval queue, Paystack transfers and webhooks, reversals | Name mismatch, insufficient available earnings, reversed transfers |
-| M8b | Chat House rooms | Follows, rooms, seats, LiveKit permissions, in-room gifts, follower-only rooms, host moderation | Seat permissions, bans, gift splits |
+| M8b | Chat House rooms ✅ backend (app screens next) | Follows, rooms, seats, LiveKit permissions, in-room gifts, follower-only rooms, host moderation | Seat permissions, bans, gift splits |
 | M8 | Fraud and operations | Velocity limits, chargebacks, admin finance pages, anomaly alerts | Limits and alerts |
 
 **M1 doesn't depend on the payment-provider decision**, so it can start as soon as M0's numbers exist (or with placeholders).

@@ -60,6 +60,6 @@ export class CallTicker implements OnApplicationBootstrap, OnApplicationShutdown
     CallsService,
     CallTicker,
   ],
-  exports: [CallsService],
+  exports: [CallsService, CALL_MEDIA],
 })
 export class CallsModule {}

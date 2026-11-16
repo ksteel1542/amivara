@@ -25,10 +25,20 @@ export interface MediaEvent {
  */
 export interface CallMediaProvider {
   readonly configured: boolean;
-  /** Creates the room for an answered call: two participants at most, gone soon after it empties. */
-  openRoom(room: string): Promise<void>;
-  /** A join token: microphone only for voice calls, microphone and camera for video. */
-  joinToken(input: { room: string; identity: string; video: boolean }): Promise<JoinGrant>;
+  /**
+   * Creates a room: by default two participants at most (a 1-on-1 call), gone
+   * soon after it empties. Chat House rooms pass a larger limit.
+   */
+  openRoom(room: string, opts?: { maxParticipants?: number }): Promise<void>;
+  /**
+   * A join token: microphone only for voice, microphone and camera for video.
+   * `canPublish: false` makes a listener (Chat House audience).
+   */
+  joinToken(input: { room: string; identity: string; video: boolean; canPublish?: boolean }): Promise<JoinGrant>;
+  /** Grants or takes away a participant's right to publish (a Chat House seat, a host mute). Never throws. */
+  setPublish(room: string, identity: string, opts: { canPublish: boolean; video: boolean }): Promise<void>;
+  /** Disconnects one participant (removed or banned from a room). Never throws. */
+  removeParticipant(room: string, identity: string): Promise<void>;
   /** Disconnects everyone (the call ended, or ran out of coins). Never throws. */
   closeRoom(room: string): Promise<void>;
   /** Verifies and parses a signed webhook. Throws when the signature is wrong. */
@@ -42,6 +52,8 @@ const TOKEN_TTL_SECONDS = 10 * 60;
 const MAX_CALL_PARTICIPANTS = 2;
 /** Seconds an empty room lingers (a reconnecting phone can rejoin). */
 const EMPTY_TIMEOUT_SECONDS = 60;
+
+const sources = (video: boolean) => (video ? [TrackSource.MICROPHONE, TrackSource.CAMERA] : [TrackSource.MICROPHONE]);
 
 @Injectable()
 export class LiveKitMediaProvider implements CallMediaProvider {
@@ -67,27 +79,52 @@ export class LiveKitMediaProvider implements CallMediaProvider {
     return this.rooms;
   }
 
-  async openRoom(room: string): Promise<void> {
+  async openRoom(room: string, opts: { maxParticipants?: number } = {}): Promise<void> {
     await this.roomService().createRoom({
       name: room,
-      maxParticipants: MAX_CALL_PARTICIPANTS,
+      maxParticipants: opts.maxParticipants ?? MAX_CALL_PARTICIPANTS,
       emptyTimeout: EMPTY_TIMEOUT_SECONDS,
       departureTimeout: EMPTY_TIMEOUT_SECONDS,
     });
   }
 
-  async joinToken(input: { room: string; identity: string; video: boolean }): Promise<JoinGrant> {
+  async joinToken(input: { room: string; identity: string; video: boolean; canPublish?: boolean }): Promise<JoinGrant> {
+    const canPublish = input.canPublish ?? true;
     const at = new AccessToken(this.apiKey, this.apiSecret, { identity: input.identity, ttl: TOKEN_TTL_SECONDS });
     at.addGrant({
       roomJoin: true,
       room: input.room,
-      canPublish: true,
+      canPublish,
       canSubscribe: true,
       canPublishData: false,
       canUpdateOwnMetadata: false,
-      canPublishSources: input.video ? [TrackSource.MICROPHONE, TrackSource.CAMERA] : [TrackSource.MICROPHONE],
+      canPublishSources: canPublish ? sources(input.video) : [],
     });
     return { url: this.url!, token: await at.toJwt() };
+  }
+
+  async setPublish(room: string, identity: string, opts: { canPublish: boolean; video: boolean }): Promise<void> {
+    if (!this.configured) return;
+    try {
+      await this.roomService().updateParticipant(room, identity, undefined, {
+        canPublish: opts.canPublish,
+        canSubscribe: true,
+        canPublishData: false,
+        canPublishSources: opts.canPublish ? sources(opts.video) : [],
+      });
+    } catch (error) {
+      // Not connected right now: their next join token carries the same rights.
+      this.logger.debug(`updateParticipant ${room}: ${(error as Error).message}`);
+    }
+  }
+
+  async removeParticipant(room: string, identity: string): Promise<void> {
+    if (!this.configured) return;
+    try {
+      await this.roomService().removeParticipant(room, identity);
+    } catch (error) {
+      this.logger.debug(`removeParticipant ${room}: ${(error as Error).message}`);
+    }
   }
 
   async closeRoom(room: string): Promise<void> {

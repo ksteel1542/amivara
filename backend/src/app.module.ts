@@ -17,6 +17,8 @@ import { UsersModule } from './modules/users/users.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { AiModule } from './modules/ai/ai.module';
 import { CallsModule } from './modules/calls/calls.module';
+import { GiftsModule } from './modules/gifts/gifts.module';
+import { RoomsModule } from './modules/rooms/rooms.module';
 import { HostsModule } from './modules/hosts/hosts.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { WalletModule } from './modules/wallet/wallet.module';
@@ -50,6 +52,8 @@ import { MessageCipherModule } from './common/message-cipher';
     HostsModule,
     AiModule,
     CallsModule,
+    GiftsModule,
+    RoomsModule,
     AdminModule,
   ],
 })

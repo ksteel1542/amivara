@@ -113,6 +113,8 @@ enum MessageType {
   TEXT
   IMAGE
   SYSTEM
+  /// A virtual gift (gift_sends.message_id points here)
+  GIFT
 
   @@map("message_type")
 }
@@ -254,6 +256,37 @@ enum CallStatus {
   @@map("call_status")
 }
 
+enum RoomMode {
+  AUDIO
+  VIDEO
+
+  @@map("room_mode")
+}
+
+enum RoomAudience {
+  OPEN
+  /// Only the Host's followers can join
+  FOLLOWERS
+
+  @@map("room_audience")
+}
+
+enum RoomStatus {
+  LIVE
+  ENDED
+
+  @@map("room_status")
+}
+
+/// HOST owns the room; SPEAKERs hold a guest seat; LISTENERs can only listen (and chat, gift, request a seat).
+enum RoomRole {
+  HOST
+  SPEAKER
+  LISTENER
+
+  @@map("room_role")
+}
+
 // ───────────────────────────── Models ─────────────────────────────
 
 model User {
@@ -305,6 +338,14 @@ model User {
   hostEarnings   HostEarning[]
   aiChats        AiConversation[]
   spendLimit     SpendLimit?
+  giftsSent      GiftSend[]          @relation("GiftSender")
+  giftsReceived  GiftSend[]          @relation("GiftRecipient")
+  following      HostFollow[]        @relation("FollowFollower")
+  followers      HostFollow[]        @relation("FollowHost")
+  roomsHosted    ChatRoom[]
+  roomSeats      RoomParticipant[]
+  roomMessages   RoomMessage[]
+  roomBans       RoomBan[]           @relation("RoomBanned")
   callsMade      CallSession[]       @relation("CallCaller")
   callsReceived  CallSession[]       @relation("CallCallee")
 
@@ -449,6 +490,7 @@ model Match {
   unmatchedBy User?         @relation("MatchUnmatchedBy", fields: [unmatchedById], references: [id], onDelete: SetNull)
   messages    Message[]
   calls       CallSession[]
+  giftSends   GiftSend[]
 
   @@unique([userAId, userBId])
   @@index([userBId])
@@ -470,8 +512,9 @@ model Message {
   readAt           DateTime?        @map("read_at") @db.Timestamptz(6)
   deletedAt        DateTime?        @map("deleted_at") @db.Timestamptz(6)
 
-  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  sender User  @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  match  Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  gift   GiftSend?
 
   @@index([matchId, createdAt(sort: Desc)])
   @@index([senderId])
@@ -628,6 +671,8 @@ model Report {
   /// The message the reporter pointed at, if any
   messageId    String?        @map("message_id") @db.Uuid
   matchId      String?        @map("match_id") @db.Uuid
+  /// A Chat House room the report came from, if any
+  roomId       String?        @map("room_id") @db.Uuid
   /// Encrypted JSON (MessageCipher): profile snapshot plus the recent conversation
   evidence     String
   status       ReportStatus   @default(OPEN)
@@ -939,6 +984,140 @@ model SpendLimit {
 
 /// 1-on-1 voice/video calls between matched members (MONETIZATION_PLAN.md M4/M5).
 /// Calling an active Verified Host costs rate_per_minute coins per started minute,
+
+/// Members following a Verified Host (MONETIZATION_PLAN.md 3b): followers-only rooms, "live now".
+model HostFollow {
+  followerId String   @map("follower_id") @db.Uuid
+  hostId     String   @map("host_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  follower User @relation("FollowFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  host     User @relation("FollowHost", fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, hostId])
+  @@index([hostId])
+  @@map("host_follows")
+}
+
+/// A live "Chat House" room run by a Verified Host. Live only: never recorded.
+model ChatRoom {
+  id        String       @id @default(uuid()) @db.Uuid
+  hostId    String       @map("host_id") @db.Uuid
+  title     String       @db.VarChar(80)
+  mode      RoomMode
+  audience  RoomAudience @default(OPEN)
+  status    RoomStatus   @default(LIVE)
+  /// Guest speaker seats, not counting the Host
+  maxSeats  Int          @default(8) @map("max_seats")
+  startedAt DateTime     @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt   DateTime?    @map("ended_at") @db.Timestamptz(6)
+  /// host_ended, host_left, host_restricted…
+  endReason String?      @map("end_reason")
+
+  host         User              @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  participants RoomParticipant[]
+  messages     RoomMessage[]
+  bans         RoomBan[]
+  gifts        GiftSend[]
+
+  @@index([status, startedAt(sort: Desc)])
+  @@index([hostId, startedAt(sort: Desc)])
+  @@map("chat_rooms")
+}
+
+/// Who is in a room and on which seat. A row stays after leaving (left_at) for moderation history.
+model RoomParticipant {
+  roomId          String    @map("room_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  role            RoomRole  @default(LISTENER)
+  /// A listener asking for a speaker seat
+  seatRequestedAt DateTime? @map("seat_requested_at") @db.Timestamptz(6)
+  /// Muted by the Host: can't publish until unmuted
+  mutedByHost     Boolean   @default(false) @map("muted_by_host")
+  joinedAt        DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+  leftAt          DateTime? @map("left_at") @db.Timestamptz(6)
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId])
+  @@map("room_participants")
+}
+
+/// Room chat. Bodies are encrypted at rest like 1-on-1 messages.
+model RoomMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @map("room_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  body      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt(sort: Desc)])
+  @@map("room_messages")
+}
+
+/// Removed by the Host and not allowed back into that room.
+model RoomBan {
+  roomId    String   @map("room_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation("RoomBanned", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@map("room_bans")
+}
+
+/// The virtual gift catalogue (MONETIZATION_PLAN.md 3b). Prices are editable here, not in code.
+model Gift {
+  id         String   @id @default(uuid()) @db.Uuid
+  slug       String   @unique
+  name       String
+  /// Shown in the app: an emoji today, an animation asset later
+  emoji      String
+  priceCoins Int      @map("price_coins")
+  active     Boolean  @default(true)
+  sort       Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sends GiftSend[]
+
+  @@map("gifts")
+}
+
+/// One gift sent to an active Verified Host, in a chat (match_id) or, later, a Chat House room.
+model GiftSend {
+  id                  String   @id @default(uuid()) @db.Uuid
+  giftId              String   @map("gift_id") @db.Uuid
+  senderId            String?  @map("sender_id") @db.Uuid
+  recipientId         String?  @map("recipient_id") @db.Uuid
+  matchId             String?  @map("match_id") @db.Uuid
+  roomId              String?  @map("room_id") @db.Uuid
+  messageId           String?  @unique @map("message_id") @db.Uuid
+  /// The price paid (the catalogue price at the time)
+  coins               Int
+  /// The recipient's held share of the bought-coin part
+  hostEarned          Int      @default(0) @map("host_earned")
+  ledgerTransactionId String   @unique @map("ledger_transaction_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  gift      Gift      @relation(fields: [giftId], references: [id], onDelete: Restrict)
+  sender    User?     @relation("GiftSender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipient User?     @relation("GiftRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+  match     Match?    @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  room      ChatRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  message   Message?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId, createdAt(sort: Desc)])
+  @@index([senderId, createdAt(sort: Desc)])
+  @@map("gift_sends")
+}
+
 /// charged by the server: the first on accept, then one every 60 seconds.
 model CallSession {
   id               String     @id @default(uuid()) @db.Uuid

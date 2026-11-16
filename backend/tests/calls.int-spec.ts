@@ -47,6 +47,8 @@ class FakeMedia implements CallMediaProvider {
   async closeRoom(room: string): Promise<void> {
     this.closed.push(room);
   }
+  async setPublish(): Promise<void> {}
+  async removeParticipant(): Promise<void> {}
   async parseWebhook(rawBody: string, authorization: string | undefined): Promise<MediaEvent> {
     if (authorization !== 'good') throw new Error('bad signature');
     return JSON.parse(rawBody) as MediaEvent;

@@ -50,6 +50,8 @@ export interface Evidence {
   matched_at: string | null;
   /** Oldest first. */
   messages: Array<{ id: string; from: 'reporter' | 'reported'; body: string; sent_at: string; deleted: boolean }>;
+  /** Reports from a Chat House room: the room and the reported member's latest room messages. */
+  room?: { id: string; title: string; host_id: string; messages: Array<{ id: string; body: string; sent_at: string }> };
 }
 
 /**
@@ -120,7 +122,7 @@ export class SafetyService {
    */
   async report(
     reporterId: string,
-    input: { user_id: string; category: ReportCategoryInput; details?: string; message_id?: string },
+    input: { user_id: string; category: ReportCategoryInput; details?: string; message_id?: string; room_id?: string },
   ): Promise<{ report_id: string; priority: string }> {
     if (reporterId === input.user_id) {
       throw new ApiError(HttpStatus.BAD_REQUEST, 'VALIDATION_FAILED', "You can't report yourself.");
@@ -161,6 +163,19 @@ export class SafetyService {
           take: EVIDENCE_MESSAGES,
         })
       : [];
+    const room = input.room_id
+      ? await this.prisma.chatRoom.findUnique({
+          where: { id: input.room_id },
+          include: {
+            messages: {
+              where: { senderId: input.user_id },
+              orderBy: { createdAt: 'desc' },
+              take: EVIDENCE_MESSAGES,
+            },
+          },
+        })
+      : null;
+    if (input.room_id && !room) throw new ApiError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Room not found.');
     const dob = reported.dateOfBirth;
     const evidence: Evidence = {
       captured_at: new Date().toISOString(),
@@ -179,10 +194,24 @@ export class SafetyService {
       messages: messages.reverse().map((m) => ({
         id: m.id,
         from: m.senderId === reporterId ? 'reporter' : 'reported',
-        body: m.body ? this.cipher.decrypt(m.body) : m.type === 'IMAGE' ? '[photo]' : '',
+        body: m.body ? this.cipher.decrypt(m.body) : m.type === 'IMAGE' ? '[photo]' : m.type === 'GIFT' ? '[gift]' : '',
         sent_at: m.createdAt.toISOString(),
         deleted: m.deletedAt !== null,
       })),
+      ...(room
+        ? {
+            room: {
+              id: room.id,
+              title: room.title,
+              host_id: room.hostId,
+              messages: room.messages.reverse().map((m) => ({
+                id: m.id,
+                body: this.cipher.decrypt(m.body),
+                sent_at: m.createdAt.toISOString(),
+              })),
+            },
+          }
+        : {}),
     };
 
     const priority = PRIORITY[input.category];
@@ -194,6 +223,7 @@ export class SafetyService {
         details: input.details?.trim() || null,
         messageId: input.message_id,
         matchId: match?.id,
+        roomId: room?.id,
         evidence: this.cipher.encrypt(JSON.stringify(evidence)),
         priority,
       },

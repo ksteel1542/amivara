@@ -389,6 +389,49 @@ The socket registry is in-process for now (one API task). Running several tasks 
 
 **Privacy:** join tokens last 10 minutes and allow one room; voice tokens can publish the microphone only. Incoming-call and missed-call pushes are generic ("Incoming call. Open AMIVARA to answer.") and never name the caller.
 
+## Gifts
+
+*MONETIZATION_PLAN.md 3b.* Virtual gifts for active Verified Hosts, in a chat or a Chat House room. The catalogue lives in the `gifts` table, so prices change without a release. Placeholder prices (16 Nov 2026, not final): Rose 🌹 20, Kiss 💋 50, Teddy 🧸 200, Crown 👑 1,000 coins.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/gifts` | 🔑 | `{ gifts: [{ id, slug, name, emoji, price_coins }] }`, cheapest first. |
+| POST | `/matches/:id/gifts` | 🔑 | Body `{ gift_id, idempotency_key }`. `201 { message, coins_charged, balance }`. The gift is a `type: "gift"` message (`gift: { slug, name, emoji }`) both members see, over `message.new` too. |
+
+**Rules:**
+- **Who.** Only active Verified Hosts receive gifts; anyone else gives `403 HOST_ONLY`.
+- **Paying.** Promo coins first; `402 INSUFFICIENT_COINS` stores nothing. The app sends a fresh `idempotency_key` per tap, so a retry never charges twice.
+- **Earnings.** The Host earns their share (50%) of the bought-coin part, held 7 days. Promo coins never become earnings.
+- **Limits.** 20 gifts per sender per minute (`429 GIFT_RATE_LIMITED`). A gift's price is never shown to the recipient.
+
+## Chat House rooms
+
+*MONETIZATION_PLAN.md 3b.* Live rooms run by Verified Hosts on the same LiveKit setup as calls (room `house_<id>`, up to 500 people). Live only: nothing is recorded.
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| POST / DELETE | `/hosts/:id/follow` | 🔑 | Follow or unfollow a Host. |
+| GET | `/rooms` | 🔑 | Live rooms this member may join: open rooms, and followers-only rooms of Hosts they follow. Rooms of blocked members and rooms they're banned from are hidden. |
+| POST | `/rooms` | 🔑 Host | Body `{ title, mode: audio\|video, audience: open\|followers, seats? (0–8) }`. Goes live: `201 { room, media }`. One live room per Host (`409 ROOM_ALREADY_LIVE`). |
+| GET | `/rooms/:id` | 🔑 | The room: `host`, `speakers [{ id, first_name, role, muted_by_host }]`, `listeners` (a count), `me { role, seat_requested, muted_by_host, following }`; `seat_requests` for the Host only. |
+| POST | `/rooms/:id/join` | 🔑 | Joins as a listener (or rejoins after a drop): `{ room, media }`. Listener tokens can't publish. Followers-only rooms: `403 FOLLOWERS_ONLY`. Ended: `410 ROOM_ENDED`. |
+| POST | `/rooms/:id/leave` · `/rooms/:id/end` | 🔑 | Leave; the Host leaving or ending closes the room for everyone (`room:ended`). |
+| POST / DELETE | `/rooms/:id/seat-request` | 🔑 verified | Ask for (or withdraw) a speaker seat. Unverified: `403 VERIFICATION_REQUIRED`. |
+| POST | `/rooms/:id/speakers/:userId` | 🔑 Host | Seats someone who asked. `409 NO_SEAT_REQUEST`, `409 ROOM_SEATS_FULL`. |
+| POST | `/rooms/:id/speakers/:userId/remove` | 🔑 Host or self | Back to the audience. |
+| POST | `/rooms/:id/mute/:userId` · `/unmute/:userId` | 🔑 Host | Takes away (or gives back) a speaker's right to publish. |
+| POST | `/rooms/:id/ban/:userId` | 🔑 Host | Removes them now (`room:removed`) and for the rest of this room. |
+| GET / POST | `/rooms/:id/messages` | 🔑 in room | Room chat (last 50; body 1–500 characters, 10 a minute). |
+| POST | `/rooms/:id/gifts` | 🔑 in room | Body `{ gift_id, recipient_id?, idempotency_key }`: to the Host (default) or a seated speaker who is an active Host. Everyone sees `room:gift`. |
+| POST | `/rooms/:id/report` | 🔑 | The visible report button. Body `{ category, details?, user_id? }` (default: the Host). The evidence includes the room and the reported member's latest room messages. Reporting blocks, as everywhere. |
+
+**Realtime (over `/ws/chat`):** `room:updated { room }` (to everyone in the room, after any seat, mute or join change), `room:message`, `room:gift`, `room:seat_request` (Host only), `room:removed`, `room:ended { room_id, reason }`.
+
+**Safety:**
+- **Speakers.** Only NIN-verified members can speak; anyone can listen. Seats are LiveKit publish permissions the API grants and revokes; a muted speaker's reconnect doesn't restore them.
+- **Contact details.** Room messages with phone numbers, WhatsApp, handles and the like are held back (`422 CONTACT_SHARING_BLOCKED`) and logged for Safety (`ROOM_CONTACT_SHARING`).
+- **Closing.** A room ends when its Host ends it, leaves, drops out of LiveKit (webhook), stays offline for 30 seconds, or is suspended. Room chat is encrypted at rest.
+
 ## Safety
 
 Open to every signed-in member, verified or not: anyone must be able to block and report.
@@ -435,6 +478,7 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Email and Google sign-in:** `INVALID_EMAIL`, `INVALID_GOOGLE_TOKEN`, `GOOGLE_SIGNIN_UNAVAILABLE`, `PHONE_SIGNIN_UNAVAILABLE` (production without an SMS provider)
 - **Discovery and matching:** `LOCATION_REQUIRED`, `DAILY_LIKE_LIMIT`, `PLUS_REQUIRED`
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
+- **Gifts and rooms:** `HOST_ONLY`, `GIFT_RATE_LIMITED`, `ROOM_ALREADY_LIVE`, `ROOM_ENDED` (410), `ROOM_SEATS_FULL`, `NO_SEAT_REQUEST`, `FOLLOWERS_ONLY`, `CONTACT_SHARING_BLOCKED`
 - **Calls:** `CALLS_UNAVAILABLE`, `CALLEE_BUSY`, `CALL_NOT_RINGING`, `CALL_RATE_LIMITED`, plus `INSUFFICIENT_COINS` and `VERIFICATION_REQUIRED`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Messaging and safety:** `MESSAGE_RATE_LIMITED`, `REPORT_RATE_LIMITED`

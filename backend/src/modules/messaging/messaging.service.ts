@@ -52,8 +52,10 @@ export interface MessageView {
   id: string;
   match_id: string;
   sender_id: string;
-  type: 'text';
+  type: 'text' | 'gift';
   body: string;
+  /** Gift messages only: what was sent (never its price, which only the sender paid). */
+  gift?: { slug: string; name: string; emoji: string };
   created_at: string;
   read_at: string | null;
 }
@@ -118,6 +120,7 @@ export class MessagingService implements OnModuleInit {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: opts.limit + 1,
+      include: { gift: { select: { gift: { select: { slug: true, name: true, emoji: true } } } } },
     });
     const page = rows.slice(0, opts.limit);
     const [photos, quote, meHost] = await Promise.all([
@@ -330,22 +333,26 @@ export class MessagingService implements OnModuleInit {
     };
   }
 
-  private view(m: {
+  view(m: {
     id: string;
     matchId: string;
     senderId: string;
+    type?: string;
     body: string | null;
     createdAt: Date;
     readAt: Date | null;
+    gift?: { gift: { slug: string; name: string; emoji: string } } | null;
   }): MessageView {
+    const gift = m.type === 'GIFT' && m.gift ? m.gift.gift : undefined;
     return {
       id: m.id,
       match_id: m.matchId,
       sender_id: m.senderId,
-      type: 'text',
+      type: gift ? 'gift' : 'text',
       body: m.body ? this.cipher.decrypt(m.body) : '',
       created_at: m.createdAt.toISOString(),
       read_at: m.readAt?.toISOString() ?? null,
+      ...(gift ? { gift: { slug: gift.slug, name: gift.name, emoji: gift.emoji } } : {}),
     };
   }
 }

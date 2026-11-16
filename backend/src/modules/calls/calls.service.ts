@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { HostsService } from '../hosts/hosts.service';
 import { RealtimeRegistry } from '../messaging/realtime.registry';
 import { WalletService } from '../wallet/wallet.service';
-import { CALL_MEDIA, type CallMediaProvider } from './call-media';
+import { CALL_MEDIA, type CallMediaProvider, type MediaEvent } from './call-media';
 
 type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
 
@@ -426,10 +426,21 @@ export class CallsService implements OnModuleInit {
     }
     if (event.kind === 'other') return;
     const callId = callIdFromRoom(event.room);
-    if (!callId) return;
+    if (!callId) {
+      // Not a call: Chat House rooms share the webhook.
+      for (const listener of this.mediaListeners) await listener(event);
+      return;
+    }
     const call = await this.prisma.callSession.findUnique({ where: { id: callId } });
     if (call?.status !== 'ACTIVE') return;
     await this.finish(callId, 'disconnected');
+  }
+
+  private readonly mediaListeners: Array<(event: MediaEvent) => Promise<unknown>> = [];
+
+  /** Other LiveKit rooms (Chat House) receive the webhook events that aren't calls. */
+  onOtherMediaEvent(listener: (event: MediaEvent) => Promise<unknown>): void {
+    this.mediaListeners.push(listener);
   }
 
   // ── internals ──
