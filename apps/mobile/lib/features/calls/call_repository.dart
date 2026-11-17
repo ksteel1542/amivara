@@ -23,6 +23,9 @@ class CallInfo {
     this.billedMinutes = 0,
     this.totalCoinsBilled,
     this.endReason,
+    this.youPay = false,
+    this.previewSeconds = 0,
+    this.invite = false,
   });
 
   factory CallInfo.fromJson(Map<String, dynamic> json) => CallInfo(
@@ -37,6 +40,9 @@ class CallInfo {
     billedMinutes: (json['billed_minutes'] as num?)?.toInt() ?? 0,
     totalCoinsBilled: (json['total_coins_billed'] as num?)?.toInt(),
     endReason: json['end_reason'] as String?,
+    youPay: json['you_pay'] as bool? ?? false,
+    previewSeconds: (json['preview_seconds'] as num?)?.toInt() ?? 0,
+    invite: json['invite'] as bool? ?? false,
   );
 
   final String id;
@@ -54,6 +60,32 @@ class CallInfo {
   final int billedMinutes;
   final int? totalCoinsBilled;
   final String? endReason;
+
+  /// This member pays the minutes (the other is the Verified Host).
+  final bool youPay;
+
+  /// Free seconds before the first minute is charged (a member's first paid call).
+  final int previewSeconds;
+
+  /// A Host rang them from Quick Connect.
+  final bool invite;
+
+  CallInfo copyWith({int? billedMinutes, int? totalCoinsBilled}) => CallInfo(
+    id: id,
+    matchId: matchId,
+    type: type,
+    status: status,
+    isCaller: isCaller,
+    otherUserId: otherUserId,
+    ratePerMinute: ratePerMinute,
+    startedAt: startedAt,
+    billedMinutes: billedMinutes ?? this.billedMinutes,
+    totalCoinsBilled: totalCoinsBilled ?? this.totalCoinsBilled,
+    endReason: endReason,
+    youPay: youPay,
+    previewSeconds: previewSeconds,
+    invite: invite,
+  );
 
   bool get paid => ratePerMinute > 0;
   bool get video => type == CallType.video;
@@ -79,6 +111,8 @@ class CallQuote {
     required this.paid,
     required this.voiceRate,
     required this.videoRate,
+    this.youPay = false,
+    this.freePreviewSeconds = 0,
   });
 
   factory CallQuote.fromJson(Map<String, dynamic> json) => CallQuote(
@@ -87,6 +121,8 @@ class CallQuote {
     paid: json['paid'] as bool? ?? false,
     voiceRate: (json['voice_rate_per_minute'] as num?)?.toInt() ?? 0,
     videoRate: (json['video_rate_per_minute'] as num?)?.toInt() ?? 0,
+    youPay: json['you_pay'] as bool? ?? false,
+    freePreviewSeconds: (json['free_preview_seconds'] as num?)?.toInt() ?? 0,
   );
 
   final bool available;
@@ -96,6 +132,12 @@ class CallQuote {
   final bool paid;
   final int voiceRate;
   final int videoRate;
+
+  /// This member would pay (the other is a Verified Host).
+  final bool youPay;
+
+  /// Their first paid call starts with this many free seconds.
+  final int freePreviewSeconds;
 
   int rateFor(CallType type) => type == CallType.video ? videoRate : voiceRate;
 }

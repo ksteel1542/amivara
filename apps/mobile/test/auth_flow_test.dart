@@ -18,6 +18,7 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 
 /// Email is the front door now; phone is one tap away ("Use phone number instead").
 Future<void> goToPhone(WidgetTester tester) async {
+  await tapVisible(tester, find.byKey(const Key('welcome-consent')));
   await tapVisible(tester, find.text('Create account'));
   await tester.pumpAndSettle();
   await tapVisible(tester, find.byKey(const Key('use-phone')));
@@ -156,6 +157,7 @@ void main() {
     expect(repo.lastDetails!.gender, Gender.woman);
     expect(repo.lastDetails!.interestedIn, <Gender>{Gender.man});
     expect(repo.lastDetails!.dateOfBirth, '1999-03-14');
+    expect(repo.lastDetails!.acceptedTerms, isTrue); // the welcome screen's 18+ and Terms consent
     expect(store.values[StoreKeys.refreshToken], 'refresh-token');
     // Onboarding continues to photos (PRD §5.1 step 4).
     expect(find.text('Add your photos'), findsOneWidget);

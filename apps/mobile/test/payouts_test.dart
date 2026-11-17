@@ -48,6 +48,8 @@ void main() {
     final payouts = FakePayoutsRepository();
     await openHostDashboard(tester, payouts);
     await tester.scrollUntilVisible(find.byKey(const Key('payout-add-account')), 200);
+    await tester.ensureVisible(find.byKey(const Key('payout-add-account')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('payout-add-account')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('bank-account-screen')), findsOneWidget);

@@ -71,6 +71,7 @@ class _BasicsScreenState extends ConsumerState<BasicsScreen> {
               gender: _gender!,
               interestedIn: _interestedIn,
               intent: _intent!,
+              acceptedTerms: ref.read(termsConsentProvider),
             ),
           );
       await ref.read(sessionProvider.notifier).signIn(tokens);

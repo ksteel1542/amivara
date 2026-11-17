@@ -73,9 +73,13 @@ class OnboardingDetails {
     required this.gender,
     required this.interestedIn,
     required this.intent,
+    this.acceptedTerms = false,
   });
 
   final String firstName;
+
+  /// Confirmed 18+ and accepted the Terms of Service and Privacy Policy.
+  final bool acceptedTerms;
 
   /// YYYY-MM-DD
   final String dateOfBirth;
@@ -90,6 +94,7 @@ class MemberSummary {
     required this.ageVerified,
     this.guidelinesAccepted = true,
     this.chatDailyLimit,
+    this.callInvitesEnabled = true,
   });
 
   final String firstName;
@@ -100,6 +105,9 @@ class MemberSummary {
 
   /// Text messages a day while unverified; null once verified (no cap).
   final int? chatDailyLimit;
+
+  /// "Receive live call invites" from online Verified Hosts (on by default).
+  final bool callInvitesEnabled;
 }
 
 /// The auth and onboarding endpoints (docs/API.md "Auth" and "Onboarding").
@@ -180,6 +188,7 @@ class HttpAuthRepository implements AuthRepository {
         'gender': details.gender.api,
         'interested_in': details.interestedIn.map((g) => g.api).toList(),
         'intent': details.intent.api,
+        'accepted_terms': details.acceptedTerms,
       },
     );
     return TokenPair.fromJson(json);
@@ -200,6 +209,7 @@ class HttpAuthRepository implements AuthRepository {
       ageVerified: verification['age_verified'] as bool,
       guidelinesAccepted: json['guidelines_accepted'] as bool? ?? true,
       chatDailyLimit: (capabilities['text_chat_daily_limit'] as num?)?.toInt(),
+      callInvitesEnabled: json['call_invites_enabled'] as bool? ?? true,
     );
   }
 }

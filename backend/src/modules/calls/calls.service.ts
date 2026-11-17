@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { CallSession, CallStatus, CallType } from '../../../generated/prisma';
 import { ApiError } from '../../common/api-error';
 import { DomainEvents } from '../../common/domain-events';
+import { HasherService } from '../../common/hasher.service';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HostsService } from '../hosts/hosts.service';
@@ -18,6 +19,7 @@ export const MINUTE_MS = 60_000;
 export const CALL_ATTEMPTS_PER_10_MIN = 10;
 /** A member whose app lost its connection mid-call has this long to come back before the call ends. */
 export const OFFLINE_GRACE_MS = 30_000;
+const PREVIEW_CLAIM = 'call_preview';
 
 const LIVE: CallStatus[] = ['RINGING', 'ACTIVE'];
 
@@ -37,7 +39,13 @@ export interface CallView {
   started_at: string | null;
   ended_at: string | null;
   billed_minutes: number;
-  /** Only the caller sees what the call cost them. */
+  /** This member pays the minutes (they're not the Host). */
+  you_pay: boolean;
+  /** Free seconds before the first minute is charged (first paid call). */
+  preview_seconds: number;
+  /** Rung by a Host from Quick Connect. */
+  invite: boolean;
+  /** Only the payer sees what the call cost them. */
   total_coins_billed?: number;
   end_reason: string | null;
 }
@@ -64,6 +72,8 @@ export class CallsService implements OnModuleInit {
   readonly voiceRate: number;
   readonly videoRate: number;
   private readonly ringMs: number;
+  /** Free seconds on a member's first paid call (CALL_FREE_PREVIEW_SECONDS). */
+  readonly previewSeconds: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -72,8 +82,10 @@ export class CallsService implements OnModuleInit {
     private readonly realtime: RealtimeRegistry,
     private readonly events: DomainEvents,
     @Inject(CALL_MEDIA) private readonly media: CallMediaProvider,
+    private readonly hasher: HasherService,
     config: ConfigService<Env, true>,
   ) {
+    this.previewSeconds = config.get('CALL_FREE_PREVIEW_SECONDS', { infer: true });
     this.voiceRate = config.get('CALL_VOICE_RATE_COINS', { infer: true });
     this.videoRate = config.get('CALL_VIDEO_RATE_COINS', { infer: true });
     this.ringMs = config.get('CALL_RING_TIMEOUT_SECONDS', { infer: true }) * 1000;
@@ -121,29 +133,51 @@ export class CallsService implements OnModuleInit {
   /** GET /matches/:id/calls/quote: whether the chat header shows call buttons, and their price. */
   async quote(userId: string, matchId: string) {
     const { me, otherId, otherVerified } = await this.activeMatch(userId, matchId);
-    const earner = await this.hosts.activeEarner(otherId);
+    const [meHost, otherHost] = await Promise.all([this.hosts.activeEarner(userId), this.hosts.activeEarner(otherId)]);
+    const paid = Boolean(meHost || otherHost);
+    // The member who isn't the Host pays (both Hosts: the caller pays).
+    const youPay = Boolean(otherHost);
+    const previewUsed = youPay ? await this.previewUsed(userId) : true;
     return {
       available: this.media.configured,
-      /** Both members passed NIN verification (capabilities.voice_calls / video_calls). */
-      allowed: me.ageVerified && otherVerified,
-      paid: earner !== undefined,
-      voice_rate_per_minute: earner ? this.voiceRate : 0,
-      video_rate_per_minute: earner ? this.videoRate : 0,
+      /** Calls with a Verified Host are open to everyone; member-to-member calls need both NIN-verified. */
+      allowed: paid || (me.ageVerified && otherVerified),
+      paid,
+      you_pay: youPay,
+      voice_rate_per_minute: paid ? this.voiceRate : 0,
+      video_rate_per_minute: paid ? this.videoRate : 0,
+      /** A first paid call starts with this many free seconds. */
+      free_preview_seconds: youPay && !previewUsed ? this.previewSeconds : 0,
     };
   }
 
-  /** POST /matches/:id/calls: rings the other member. */
-  async start(callerId: string, matchId: string, type: CallType): Promise<CallView> {
+  /**
+   * POST /matches/:id/calls: rings the other member. Calls with a Verified Host
+   * are open to every member; member-to-member calls need both NIN-verified.
+   * The member who isn't the Host pays the minutes.
+   */
+  async start(
+    callerId: string,
+    matchId: string,
+    type: CallType,
+    opts: { sessionId?: string; invite?: boolean } = {},
+  ): Promise<CallView> {
     const { me, otherId: calleeId, otherVerified } = await this.activeMatch(callerId, matchId);
-    if (!me.ageVerified) {
-      throw new ApiError(HttpStatus.FORBIDDEN, 'VERIFICATION_REQUIRED', 'Verify your identity to make calls.', {
-        reason: 'calls_require_verification',
-      });
-    }
-    if (!otherVerified) {
-      throw new ApiError(HttpStatus.FORBIDDEN, 'FORBIDDEN', "This member can't take calls yet.", {
-        reason: 'callee_unverified',
-      });
+    const [callerHost, calleeHost] = await Promise.all([
+      this.hosts.activeEarner(callerId),
+      this.hosts.activeEarner(calleeId),
+    ]);
+    if (!callerHost && !calleeHost) {
+      if (!me.ageVerified) {
+        throw new ApiError(HttpStatus.FORBIDDEN, 'VERIFICATION_REQUIRED', 'Verify your identity to make calls.', {
+          reason: 'calls_require_verification',
+        });
+      }
+      if (!otherVerified) {
+        throw new ApiError(HttpStatus.FORBIDDEN, 'FORBIDDEN', "This member can't take calls yet.", {
+          reason: 'callee_unverified',
+        });
+      }
     }
     if (!this.media.configured) {
       throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'CALLS_UNAVAILABLE', 'Calls are not available right now.');
@@ -162,23 +196,9 @@ export class CallsService implements OnModuleInit {
       );
     }
 
-    // Calling an active Host costs coins: the caller must be able to pay the first minute.
-    const earner = await this.hosts.activeEarner(calleeId);
-    const rate = earner ? this.rateFor(type) : 0;
-    if (rate > 0) {
-      const { balance } = await this.wallets.balances(callerId);
-      if (balance < rate) {
-        throw new ApiError(
-          HttpStatus.PAYMENT_REQUIRED,
-          'INSUFFICIENT_COINS',
-          `You need ${rate} coins for the first minute.`,
-          {
-            balance,
-            required: rate,
-          },
-        );
-      }
-    }
+    // Calls with a Host cost coins, paid by the member who isn't the Host (both Hosts: the caller).
+    const payerId = calleeHost ? callerId : callerHost ? calleeId : null;
+    const rate = payerId ? this.rateFor(type) : 0;
 
     const now = new Date();
     const { call, expired } = await this.prisma.$transaction(async (tx) => {
@@ -215,6 +235,23 @@ export class CallsService implements OnModuleInit {
           { reason: mine ? 'you_are_in_a_call' : 'callee_busy' },
         );
       }
+      // A caller who pays needs a minute of coins, unless their free first-call preview is unused.
+      let previewSeconds = 0;
+      if (payerId === callerId) {
+        const { balance } = await this.wallets.balances(callerId);
+        if (await this.claimPreview(tx, callerId, opts.sessionId)) previewSeconds = this.previewSeconds;
+        else if (balance < rate) {
+          throw new ApiError(
+            HttpStatus.PAYMENT_REQUIRED,
+            'INSUFFICIENT_COINS',
+            `You need ${rate} coins for the first minute.`,
+            {
+              balance,
+              required: rate,
+            },
+          );
+        }
+      }
       const call = await tx.callSession.create({
         data: {
           matchId,
@@ -222,6 +259,9 @@ export class CallsService implements OnModuleInit {
           calleeId,
           type,
           ratePerMinute: rate,
+          payerId,
+          previewSeconds,
+          isInvite: opts.invite ?? false,
           ringExpiresAt: new Date(now.getTime() + this.ringMs),
         },
       });
@@ -249,7 +289,7 @@ export class CallsService implements OnModuleInit {
    * right away; if the caller can no longer pay it, the call ends with
    * INSUFFICIENT_COINS and the caller is offered a top-up.
    */
-  async accept(userId: string, callId: string) {
+  async accept(userId: string, callId: string, sessionId?: string) {
     const ringing = await this.mine(userId, callId);
     if (ringing.calleeId !== userId) throw this.notFound();
     if (ringing.status !== 'RINGING' || ringing.ringExpiresAt <= new Date()) throw this.notRinging();
@@ -269,13 +309,19 @@ export class CallsService implements OnModuleInit {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const call = await this.lockCall(tx, callId);
       if (call.status !== 'RINGING' || call.ringExpiresAt <= now) throw this.notRinging();
-      if (call.ratePerMinute > 0) {
+      let preview = call.previewSeconds;
+      // A Host rang them (Quick Connect): the answering member pays, after their free preview if unused.
+      if (call.ratePerMinute > 0 && call.payerId === userId && preview === 0) {
+        if (await this.claimPreview(tx, userId, sessionId)) preview = this.previewSeconds;
+      }
+      const chargeNow = call.ratePerMinute > 0 && preview === 0;
+      if (chargeNow) {
         try {
           await this.chargeMinute(tx, call, 1);
         } catch (error) {
           if (!(error instanceof ApiError) || error.code !== 'INSUFFICIENT_COINS') throw error;
           await this.close(tx, call.id, 'insufficient_coins', now, 'INSUFFICIENT_COINS');
-          return { ended: true as const };
+          return { ended: true as const, details: error.details };
         }
       }
       const updated = await tx.callSession.update({
@@ -283,9 +329,12 @@ export class CallsService implements OnModuleInit {
         data: {
           status: 'ACTIVE',
           startedAt: now,
-          billedMinutes: call.ratePerMinute > 0 ? 1 : 0,
-          totalCoinsBilled: call.ratePerMinute,
-          nextBillAt: call.ratePerMinute > 0 ? new Date(now.getTime() + MINUTE_MS) : null,
+          previewSeconds: preview,
+          billedMinutes: chargeNow ? 1 : 0,
+          totalCoinsBilled: chargeNow ? call.ratePerMinute : 0,
+          // The first minute is charged when the preview ends, then one every 60 seconds.
+          nextBillAt:
+            call.ratePerMinute > 0 ? new Date(now.getTime() + (preview > 0 ? preview * 1000 : MINUTE_MS)) : null,
         },
       });
       return { ended: false as const, call: updated };
@@ -293,6 +342,15 @@ export class CallsService implements OnModuleInit {
 
     if (outcome.ended) {
       await this.announceEnd(callId);
+      if (ringing.payerId === userId) {
+        // They'd pay for this call: the app opens the top-up sheet.
+        throw new ApiError(
+          HttpStatus.PAYMENT_REQUIRED,
+          'INSUFFICIENT_COINS',
+          'Top up to take this call.',
+          outcome.details,
+        );
+      }
       throw new ApiError(
         HttpStatus.CONFLICT,
         'CALL_NOT_RINGING',
@@ -317,7 +375,7 @@ export class CallsService implements OnModuleInit {
     if (call.status !== 'ACTIVE') throw this.notRinging('This call is not active.');
     const view = this.view(call, userId);
     const balance =
-      call.callerId === userId && call.ratePerMinute > 0 ? (await this.wallets.balances(userId)).balance : null;
+      call.payerId === userId && call.ratePerMinute > 0 ? (await this.wallets.balances(userId)).balance : null;
     return { call: view, media: await this.grant(call, userId), balance };
   }
 
@@ -447,9 +505,10 @@ export class CallsService implements OnModuleInit {
 
   /** Charges minute `minute` of a paid call: idempotent per call and minute. */
   private async chargeMinute(tx: Tx, call: CallSession, minute: number): Promise<void> {
-    const earner = await this.hosts.activeEarner(call.calleeId, tx);
+    const payerId = call.payerId!;
+    const earner = await this.hosts.activeEarner(payerId === call.callerId ? call.calleeId : call.callerId, tx);
     await this.wallets.spendIn(tx, {
-      userId: call.callerId,
+      userId: payerId,
       coins: call.ratePerMinute,
       idempotencyKey: `call:${call.id}:minute:${minute}`,
       metadata: { reason: 'call_minute', call_id: call.id, minute, call_type: call.type.toLowerCase() },
@@ -459,8 +518,9 @@ export class CallsService implements OnModuleInit {
 
   /** After a minute is charged: the caller's coin indicator, and a warning when the next minute can't be paid. */
   private async afterCharge(call: CallSession): Promise<void> {
-    const { balance } = await this.wallets.balances(call.callerId);
-    this.realtime.send(call.callerId, {
+    if (!call.payerId) return;
+    const { balance } = await this.wallets.balances(call.payerId);
+    this.realtime.send(call.payerId, {
       event: 'call:billed',
       data: {
         call_id: call.id,
@@ -474,7 +534,7 @@ export class CallsService implements OnModuleInit {
       const secondsLeft = call.nextBillAt
         ? Math.max(0, Math.round((call.nextBillAt.getTime() - Date.now()) / 1000))
         : 0;
-      this.realtime.send(call.callerId, {
+      this.realtime.send(call.payerId, {
         event: 'call:low_balance',
         data: { call_id: call.id, balance, required: call.ratePerMinute, seconds_left: secondsLeft },
       });
@@ -508,6 +568,11 @@ export class CallsService implements OnModuleInit {
       where: { id: callId, status: call.status },
       data: { status, endedAt: now, endReason: reason, nextBillAt: null },
     });
+    // Never answered: the free preview wasn't used, so the member keeps it.
+    if (updated.count > 0 && call.status === 'RINGING' && call.previewSeconds > 0 && call.payerId) {
+      await tx.promoClaim.deleteMany({ where: { kind: PREVIEW_CLAIM, userId: call.payerId } });
+      await tx.callSession.update({ where: { id: callId }, data: { previewSeconds: 0 } });
+    }
     return updated.count > 0;
   }
 
@@ -517,7 +582,7 @@ export class CallsService implements OnModuleInit {
     const event = call.status === 'DECLINED' ? 'call:decline' : 'call:end';
     for (const id of [call.callerId, call.calleeId]) {
       const data: Record<string, unknown> = { call: this.view(call, id) };
-      if (call.status === 'INSUFFICIENT_COINS' && id === call.callerId) {
+      if (call.status === 'INSUFFICIENT_COINS' && id === call.payerId) {
         // The caller's app opens the top-up sheet.
         data.top_up = { balance: (await this.wallets.balances(id)).balance, required: call.ratePerMinute };
       }
@@ -527,6 +592,32 @@ export class CallsService implements OnModuleInit {
       this.events.emit('call.missed', { callId: call.id, matchId: call.matchId, calleeId: call.calleeId });
     }
     if (call.startedAt) await this.media.closeRoom(roomName(call.id));
+  }
+
+  /** Whether the member already had their free first-call preview. */
+  private async previewUsed(userId: string, tx: Tx | PrismaService = this.prisma): Promise<boolean> {
+    if (this.previewSeconds <= 0) return true;
+    const used = await tx.callSession.count({
+      where: { payerId: userId, previewSeconds: { gt: 0 }, OR: [{ startedAt: { not: null } }, { status: 'RINGING' }] },
+    });
+    return used > 0;
+  }
+
+  /**
+   * Claims the free first-call preview: once per member and once per device
+   * (so throwaway accounts can't farm free calls). Atomic: ON CONFLICT DO NOTHING.
+   */
+  private async claimPreview(tx: Tx, userId: string, sessionId?: string): Promise<boolean> {
+    if (!sessionId || (await this.previewUsed(userId, tx))) return false;
+    const session = await tx.deviceSession.findUnique({ where: { id: sessionId }, select: { deviceHash: true } });
+    if (!session?.deviceHash) return false;
+    const subject = this.hasher.hash('device', `${PREVIEW_CLAIM}:${session.deviceHash}`);
+    const claimed = await tx.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO promo_claims (id, subject, kind, user_id)
+      VALUES (gen_random_uuid(), ${subject}, ${PREVIEW_CLAIM}, ${userId}::uuid)
+      ON CONFLICT (kind, subject) DO NOTHING
+      RETURNING id`;
+    return claimed.length > 0;
   }
 
   private async grant(call: CallSession, userId: string) {
@@ -587,7 +678,10 @@ export class CallsService implements OnModuleInit {
       started_at: call.startedAt?.toISOString() ?? null,
       ended_at: call.endedAt?.toISOString() ?? null,
       billed_minutes: call.billedMinutes,
-      ...(role === 'caller' ? { total_coins_billed: call.totalCoinsBilled } : {}),
+      you_pay: call.payerId === viewerId,
+      preview_seconds: call.previewSeconds,
+      invite: call.isInvite,
+      ...(call.payerId === viewerId ? { total_coins_billed: call.totalCoinsBilled } : {}),
       end_reason: call.endReason,
     };
   }

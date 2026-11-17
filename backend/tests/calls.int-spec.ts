@@ -141,6 +141,8 @@ describe('Calls (integration, PostgreSQL + WebSocket)', () => {
     media.opened.length = 0;
     media.closed.length = 0;
     media.tokens.length = 0;
+    // The free first-call preview has its own tests (host-connect.int-spec.ts).
+    Object.assign(calls, { previewSeconds: 0 });
     await prisma.$executeRaw`TRUNCATE users, otp_challenges, signup_blocks, audit_log, ledger_accounts, ledger_transactions, ledger_entries, promo_claims, host_profiles, host_earnings, call_sessions RESTART IDENTITY CASCADE`;
   });
 
@@ -237,8 +239,10 @@ describe('Calls (integration, PostgreSQL + WebSocket)', () => {
       available: false,
       allowed: true,
       paid: false,
+      you_pay: false,
       voice_rate_per_minute: 0,
       video_rate_per_minute: 0,
+      free_preview_seconds: 0,
     });
     const stranger = await member();
     await ring(stranger, ab, 'voice').expect(404);
@@ -278,7 +282,8 @@ describe('Calls (integration, PostgreSQL + WebSocket)', () => {
     // Free calls are never billed by the ticker.
     expect((await calls.tick(later(5 * MINUTE_MS))).charged).toBe(0);
     const ended = await http().post(`/v1/calls/${started.body.call.id}/end`).set(a.auth).expect(200);
-    expect(ended.body.call).toMatchObject({ status: 'ended', end_reason: 'caller_hangup', total_coins_billed: 0 });
+    expect(ended.body.call).toMatchObject({ status: 'ended', end_reason: 'caller_hangup', you_pay: false });
+    expect(ended.body.call).not.toHaveProperty('total_coins_billed'); // free: nobody pays
     expect((await bSocket.next('call:end')).data).toMatchObject({ call: { status: 'ended' } });
     expect(media.closed).toEqual([roomName(started.body.call.id)]);
     await http().post(`/v1/calls/${started.body.call.id}/end`).set(b.auth).expect(200); // idempotent

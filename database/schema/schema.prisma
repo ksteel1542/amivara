@@ -306,6 +306,15 @@ enum PayoutStatus {
   @@map("payout_status")
 }
 
+/// MUTUAL: two members liked each other. HOST_DIRECT: a member opened a chat
+/// with a Verified Host (or a Host's Quick Connect call), no mutual like needed.
+enum MatchSource {
+  MUTUAL
+  HOST_DIRECT
+
+  @@map("match_source")
+}
+
 // ───────────────────────────── Models ─────────────────────────────
 
 model User {
@@ -318,6 +327,10 @@ model User {
   emailVerifiedAt      DateTime?  @map("email_verified_at") @db.Timestamptz(6)
   /// When the member accepted the community guidelines (shown once, right after sign-up)
   guidelinesAcceptedAt DateTime?  @map("guidelines_accepted_at") @db.Timestamptz(6)
+  /// When they confirmed 18+ and accepted the Terms of Service and Privacy Policy (welcome screen)
+  acceptedTermsAt      DateTime?  @map("accepted_terms_at") @db.Timestamptz(6)
+  /// Online Verified Hosts may ring them from "Quick Connect" (on by default, Settings toggle)
+  allowCallInvites     Boolean    @default(true) @map("allow_call_invites")
   /// 18+ is enforced by a CHECK constraint in a SQL migration (see the bottom of this file)
   dateOfBirth          DateTime   @map("date_of_birth") @db.Date
   /// Set ONLY by the verification module after Smile ID returns a pass with age >= 18
@@ -496,15 +509,16 @@ model Block {
 /// One row per matched pair. Canonical ordering: userAId < userBId (enforced by a CHECK in SQL).
 /// In this initial schema the match also acts as the conversation container.
 model Match {
-  id             String    @id @default(uuid()) @db.Uuid
-  userAId        String    @map("user_a_id") @db.Uuid
-  userBId        String    @map("user_b_id") @db.Uuid
+  id             String      @id @default(uuid()) @db.Uuid
+  userAId        String      @map("user_a_id") @db.Uuid
+  userBId        String      @map("user_b_id") @db.Uuid
   /// Becomes true once both members have sent at least 3 messages each (PRD §5.5)
-  photosUnlocked Boolean   @default(false) @map("photos_unlocked")
-  lastMessageAt  DateTime? @map("last_message_at") @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  unmatchedAt    DateTime? @map("unmatched_at") @db.Timestamptz(6)
-  unmatchedById  String?   @map("unmatched_by") @db.Uuid
+  photosUnlocked Boolean     @default(false) @map("photos_unlocked")
+  lastMessageAt  DateTime?   @map("last_message_at") @db.Timestamptz(6)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  unmatchedAt    DateTime?   @map("unmatched_at") @db.Timestamptz(6)
+  unmatchedById  String?     @map("unmatched_by") @db.Uuid
+  source         MatchSource @default(MUTUAL)
 
   userA       User          @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
   userB       User          @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
@@ -1197,8 +1211,14 @@ model CallSession {
   calleeId         String     @map("callee_id") @db.Uuid
   type             CallType
   status           CallStatus @default(RINGING)
-  /// 0 = free (the callee isn't an active Host)
+  /// 0 = free (neither member is an active Host)
   ratePerMinute    Int        @map("rate_per_minute")
+  /// Who pays the minutes: the member who isn't the Host (null for free calls)
+  payerId          String?    @map("payer_id") @db.Uuid
+  /// Free seconds before the first minute is charged (a member's first paid call: 15)
+  previewSeconds   Int        @default(0) @map("preview_seconds")
+  /// Rung by a Host from Quick Connect
+  isInvite         Boolean    @default(false) @map("is_invite")
   ringExpiresAt    DateTime   @map("ring_expires_at") @db.Timestamptz(6)
   startedAt        DateTime?  @map("started_at") @db.Timestamptz(6)
   /// When the next minute is due (ACTIVE paid calls only)

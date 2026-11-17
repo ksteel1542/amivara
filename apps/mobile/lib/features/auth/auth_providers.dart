@@ -60,6 +60,17 @@ class SignupFlow extends Notifier<SignupState> {
 
 final signupFlowProvider = NotifierProvider<SignupFlow, SignupState>(SignupFlow.new);
 
+/// The welcome screen's "I confirm I am 18+ and agree to the Terms of Service & Privacy Policy".
+/// Sent with registration (the API records accepted_terms_at and refuses sign-up without it).
+class TermsConsent extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool accepted) => state = accepted;
+}
+
+final termsConsentProvider = NotifierProvider<TermsConsent, bool>(TermsConsent.new);
+
 /// The signed-in session. The access token lives in memory only; the refresh
 /// token is persisted in secure storage so the member stays signed in.
 class Session extends Notifier<TokenPair?> {

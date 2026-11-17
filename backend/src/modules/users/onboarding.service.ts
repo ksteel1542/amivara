@@ -57,6 +57,7 @@ export class OnboardingService {
               ? { email: signup.identity.value, emailVerifiedAt: new Date() }
               : { phoneE164: signup.identity.value, phoneVerifiedAt: new Date() }),
             dateOfBirth: new Date(`${input.date_of_birth}T00:00:00Z`),
+            acceptedTermsAt: new Date(),
             profile: {
               create: {
                 firstName: input.first_name,

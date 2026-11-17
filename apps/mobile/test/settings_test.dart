@@ -17,6 +17,7 @@ import 'package:amivara/main.dart';
 
 import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
+import 'package:amivara/features/hosts/host_connect.dart';
 import 'package:amivara/features/hosts/payouts_repository.dart';
 
 import 'support/fakes.dart';
@@ -29,6 +30,7 @@ Future<ProviderContainer> pumpSettings(
   FakeSafetyRepository? safety,
   FakeHostRepository? host,
   FakePayoutsRepository? payouts,
+  FakeHostConnectRepository? connect,
   FakeAiRepository? ai,
   bool verified = true,
 }) async {
@@ -52,6 +54,7 @@ Future<ProviderContainer> pumpSettings(
       safetyRepositoryProvider.overrideWithValue(safety ?? FakeSafetyRepository()),
       hostRepositoryProvider.overrideWithValue(host ?? FakeHostRepository()),
       payoutsRepositoryProvider.overrideWithValue(payouts ?? FakePayoutsRepository()),
+      hostConnectRepositoryProvider.overrideWithValue(connect ?? FakeHostConnectRepository()),
       aiRepositoryProvider.overrideWithValue(ai ?? FakeAiRepository()),
     ],
   );
@@ -128,6 +131,7 @@ void main() {
     expect(find.text('Tecno Spark 20'), findsOneWidget);
     expect(find.text('This device'), findsOneWidget);
     expect(find.byKey(const Key('revoke-s-me')), findsNothing); // can't revoke the current one here
+    await tester.scrollUntilVisible(find.text('Infinix Hot 40'), 200);
     expect(find.text('Infinix Hot 40'), findsOneWidget);
     expect(find.text('Last active 3 days ago'), findsOneWidget);
 

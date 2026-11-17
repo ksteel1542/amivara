@@ -23,6 +23,7 @@ import 'features/onboarding/welcome_screen.dart';
 import 'features/ai/ai_screens.dart';
 import 'features/hosts/host_screen.dart';
 import 'features/hosts/payouts_screens.dart';
+import 'features/legal/legal_screens.dart';
 import 'features/preferences/preferences_screen.dart';
 import 'features/profile/profile_editor_screen.dart';
 import 'features/safety/blocked_screen.dart';
@@ -66,6 +67,8 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
                 !signedIn =>
           '/',
         '/' || '/email' || '/phone' when signedIn => '/home',
+        // Signing in or up starts with the 18+ and Terms consent on the welcome screen.
+        '/email' || '/phone' when !ref.read(termsConsentProvider) => '/',
         '/otp' when flow.challenge == null => '/phone',
         '/dob' when flow.signupToken == null => '/',
         '/basics' when flow.signupToken == null || flow.dateOfBirth == null => '/',
@@ -75,6 +78,14 @@ GoRouter buildRouter(WidgetRef ref, {String initialLocation = '/'}) {
     routes: <RouteBase>[
       GoRoute(path: '/', builder: (_, _) => const WelcomeScreen()),
       GoRoute(path: '/email', builder: (_, _) => const EmailScreen()),
+      GoRoute(
+        path: '/legal/terms',
+        builder: (_, _) => const LegalScreen(doc: LegalDoc.terms),
+      ),
+      GoRoute(
+        path: '/legal/privacy',
+        builder: (_, _) => const LegalScreen(doc: LegalDoc.privacy),
+      ),
       GoRoute(path: '/phone', builder: (_, _) => const PhoneScreen()),
       GoRoute(path: '/guidelines', builder: (_, _) => const GuidelinesScreen()),
       GoRoute(path: '/otp', builder: (_, _) => const OtpScreen()),

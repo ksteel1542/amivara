@@ -161,7 +161,8 @@ export class MessagingService implements OnModuleInit {
         retry_after: 60,
       });
     }
-    if (!match.meVerified) {
+    // Progressive trust: the daily cap is for member-to-member chats. Chats with Verified Hosts are open (and paid).
+    if (!match.meVerified && !(await this.hosts.activeEarner(match.otherUserId))) {
       const today = await this.prisma.message.count({
         where: { senderId: userId, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
       });

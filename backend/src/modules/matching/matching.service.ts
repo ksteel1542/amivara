@@ -132,6 +132,8 @@ export class MatchingService {
         match_id: m.id,
         matched_at: m.createdAt.toISOString(),
         photos_unlocked: m.photosUnlocked,
+        /** Opened directly with a Verified Host (no mutual like). */
+        direct: m.source === 'HOST_DIRECT',
         user: {
           user_id: other.id,
           first_name: other.profile?.firstName ?? '',
@@ -141,7 +143,12 @@ export class MatchingService {
         },
         last_message: last
           ? {
-              snippet: last.type === 'IMAGE' ? 'Photo' : (last.body ? this.cipher.decrypt(last.body) : '').slice(0, 80),
+              snippet:
+                last.type === 'IMAGE'
+                  ? 'Photo'
+                  : last.type === 'GIFT'
+                    ? 'Gift 🎁'
+                    : (last.body ? this.cipher.decrypt(last.body) : '').slice(0, 80),
               from_me: last.senderId === userId,
               sent_at: last.createdAt.toISOString(),
             }

@@ -101,6 +101,10 @@ const base = z.object({
   CALL_VIDEO_RATE_COINS: z.coerce.number().int().min(1).max(100000).default(60),
   /** Unanswered calls are marked missed after this long. */
   CALL_RING_TIMEOUT_SECONDS: z.coerce.number().int().min(5).max(300).default(45),
+  /** Free seconds on a member's first paid call with a Host (once per member and device). 0 turns it off. */
+  CALL_FREE_PREVIEW_SECONDS: z.coerce.number().int().min(0).max(60).default(15),
+  /** Quick Connect: members who joined in the last this-many days count as newcomers. */
+  NEWCOMER_DAYS: z.coerce.number().int().min(1).max(90).default(7),
   /** How often the server checks for due minutes and expired rings. 0 disables the ticker (tests drive it). */
   CALL_TICK_MS: z.coerce.number().int().min(0).max(60000).default(1000),
   /**

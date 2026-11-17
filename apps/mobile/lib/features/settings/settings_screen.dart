@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
+import '../hosts/host_connect.dart';
 import '../home/home_screen.dart';
 import 'settings_repository.dart';
 
@@ -171,6 +172,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: settings.paused,
             onChanged: _saving ? null : (v) => _update(paused: v),
           ),
+          _CallInvitesSwitch(enabled: ref.watch(currentMemberProvider).value?.callInvitesEnabled ?? true),
           SwitchListTile(
             key: const Key('incognito-switch'),
             title: const Text('Incognito'),
@@ -353,4 +355,47 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
       ],
     );
   }
+}
+
+/// "Receive live call invites": online Verified Hosts may ring this member from Quick Connect.
+class _CallInvitesSwitch extends ConsumerStatefulWidget {
+  const _CallInvitesSwitch({required this.enabled});
+
+  final bool enabled;
+
+  @override
+  ConsumerState<_CallInvitesSwitch> createState() => _CallInvitesSwitchState();
+}
+
+class _CallInvitesSwitchState extends ConsumerState<_CallInvitesSwitch> {
+  bool? _value;
+  bool _saving = false;
+
+  Future<void> _set(bool enabled) async {
+    setState(() => (_value = enabled, _saving = true));
+    try {
+      final saved = await ref
+          .read(hostConnectRepositoryProvider)
+          .setCallInvites(ref.read(sessionProvider)!.accessToken, enabled);
+      if (mounted) setState(() => _value = saved);
+    } on Object {
+      if (mounted) {
+        setState(() => _value = !enabled);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("That didn't save. Please try again.")));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+    key: const Key('call-invites-switch'),
+    title: const Text('Receive live call invites'),
+    subtitle: const Text('Online Verified Hosts can ring you. You see the price before answering.'),
+    value: _value ?? widget.enabled,
+    onChanged: _saving ? null : _set,
+  );
 }

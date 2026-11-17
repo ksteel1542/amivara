@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
+import '../hosts/host_connect.dart';
 import '../auth/auth_repository.dart';
 import '../discovery/discovery_feed.dart';
 import '../discovery/profile_card.dart';
@@ -103,6 +104,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          const OnlineHostsStrip(),
           Expanded(
             child: DiscoveryFeed(verified: verified, imageBuilder: ref.watch(cardImageBuilderProvider)),
           ),

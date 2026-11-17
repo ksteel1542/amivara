@@ -42,6 +42,7 @@ void main() {
         ..then(kEmailChallenge)
         ..then(const SignupRequired('signup-token'));
       await pumpApp(tester, repo: repo);
+      await tapVisible(tester, find.byKey(const Key('welcome-consent')));
       await tapVisible(tester, find.text('Create account'));
       await tester.pumpAndSettle();
 
@@ -70,6 +71,7 @@ void main() {
       final repo = FakeAuthRepository()..then(const SignedIn(kTokens));
       final google = FakeGoogleAuth();
       await pumpApp(tester, repo: repo, extraOverrides: [googleAuthProvider.overrideWithValue(google)]);
+      await tapVisible(tester, find.byKey(const Key('welcome-consent')));
       await tapVisible(tester, find.text('Create account'));
       await tester.pumpAndSettle();
       await tapVisible(tester, find.byKey(const Key('google-signin')));
@@ -86,6 +88,7 @@ void main() {
         repo: repo,
         extraOverrides: [googleAuthProvider.overrideWithValue(FakeGoogleAuth(token: null))],
       );
+      await tapVisible(tester, find.byKey(const Key('welcome-consent')));
       await tapVisible(tester, find.text('Create account'));
       await tester.pumpAndSettle();
       await tapVisible(tester, find.byKey(const Key('google-signin')));
@@ -100,6 +103,7 @@ void main() {
         repo: FakeAuthRepository(),
         extraOverrides: [googleAuthProvider.overrideWithValue(FakeGoogleAuth(available: false))],
       );
+      await tapVisible(tester, find.byKey(const Key('welcome-consent')));
       await tapVisible(tester, find.text('Create account'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('google-signin')), findsNothing);

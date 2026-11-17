@@ -170,6 +170,13 @@ class CallController extends Notifier<CallState?> {
       state = state!.copyWith(call: answered.call, speakerOn: answered.call.video);
       await _connect(answered.media);
     } on ApiException catch (e) {
+      if (e.code == 'INSUFFICIENT_COINS') {
+        // They'd pay for this call (a Host invited them) and have no coins or free preview left.
+        final balance = (e.details['balance'] as num?)?.toInt() ?? 0;
+        final required = (e.details['required'] as num?)?.toInt() ?? current.call.ratePerMinute;
+        _finish(current.call, message: 'Top up to take this call', topUpNeeded: required - balance, balance: balance);
+        return;
+      }
       _finish(current.call, message: e.statusCode == 409 ? 'This call has ended.' : e.message);
     } on Object {
       await hangUp(message: "The call couldn't connect.");
@@ -267,16 +274,8 @@ class CallController extends Notifier<CallState?> {
         state = current.copyWith(
           balance: balance,
           lowBalance: balance != null && balance < current.call.ratePerMinute,
-          call: CallInfo(
-            id: current.call.id,
-            matchId: current.call.matchId,
-            type: current.call.type,
-            status: current.call.status,
-            isCaller: current.call.isCaller,
-            otherUserId: current.call.otherUserId,
-            ratePerMinute: current.call.ratePerMinute,
-            startedAt: current.call.startedAt,
-            billedMinutes: (e.data['billed_minutes'] as num?)?.toInt() ?? current.call.billedMinutes,
+          call: current.call.copyWith(
+            billedMinutes: (e.data['billed_minutes'] as num?)?.toInt(),
             totalCoinsBilled: (e.data['total_coins_billed'] as num?)?.toInt(),
           ),
         );
@@ -297,7 +296,7 @@ class CallController extends Notifier<CallState?> {
     'declined' => call.isCaller ? '${state?.otherName ?? 'They'} declined the call' : 'Call declined',
     'missed' => call.isCaller ? 'No answer' : 'Missed call',
     'cancelled' => 'Call cancelled',
-    'insufficient_coins' => call.isCaller ? 'Call ended: you ran out of coins' : 'Call ended',
+    'insufficient_coins' => call.youPay ? 'Call ended: you ran out of coins' : 'Call ended',
     _ => 'Call ended',
   };
 

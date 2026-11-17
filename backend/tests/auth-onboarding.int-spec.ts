@@ -88,6 +88,7 @@ describe('Auth + onboarding (integration, PostgreSQL)', () => {
     gender: 'woman',
     interested_in: ['man'],
     intent: 'relationship',
+    accepted_terms: true,
   });
 
   async function onboard(phone: string): Promise<{ access_token: string; refresh_token: string }> {
@@ -156,6 +157,21 @@ describe('Auth + onboarding (integration, PostgreSQL)', () => {
       preferences: { interested_in: ['man'], age_min: 20, age_max: 30 },
     });
     expect(JSON.stringify(me.body)).not.toContain('+2348012345678');
+  });
+
+  it('registration needs the 18+ and Terms of Service / Privacy Policy consent', async () => {
+    const token = await signupToken('08035550111');
+    const { accepted_terms: _consent, ...withoutConsent } = profile(yearsAgo(25));
+    for (const body of [withoutConsent, { ...withoutConsent, accepted_terms: false }]) {
+      const res = await http()
+        .post('/v1/onboarding/complete')
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Device-Id', DEVICE_A)
+        .send(body)
+        .expect(400);
+      expect(res.body.error.code).toBe('VALIDATION_FAILED');
+    }
+    expect(await prisma.user.count()).toBe(0);
   });
 
   it('existing number signs straight in', async () => {

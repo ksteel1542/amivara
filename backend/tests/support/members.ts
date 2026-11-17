@@ -94,6 +94,7 @@ export async function createMemberDetailed(
       gender: 'woman',
       interested_in: ['man'],
       intent: 'relationship',
+      accepted_terms: true,
     })
     .expect(201);
   return { token: done.body.access_token as string, phone, device };

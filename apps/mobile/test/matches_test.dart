@@ -18,6 +18,8 @@ import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/calls/call_controller.dart';
 import 'package:amivara/features/calls/call_engine.dart';
 import 'package:amivara/features/calls/call_repository.dart';
+import 'package:amivara/features/calls/ringtone.dart';
+import 'package:amivara/features/hosts/host_connect.dart';
 import 'package:amivara/features/gifts/gift_repository.dart';
 import 'package:amivara/features/rooms/rooms_repository.dart';
 import 'package:amivara/features/wallet/topup_sheet.dart';
@@ -43,6 +45,8 @@ Future<ProviderContainer> pumpMatches(
   FakeCallEngine? engine,
   FakeGiftRepository? gifts,
   FakeRoomsRepository? rooms,
+  FakeHostConnectRepository? connect,
+  FakeRingtone? ringtone,
   String location = '/matches',
   bool verified = true,
 }) async {
@@ -76,6 +80,8 @@ Future<ProviderContainer> pumpMatches(
       callEngineFactoryProvider.overrideWithValue(() => (engine ?? FakeCallEngine()) as CallEngine),
       giftRepositoryProvider.overrideWithValue(gifts ?? FakeGiftRepository()),
       roomsRepositoryProvider.overrideWithValue(rooms ?? FakeRoomsRepository()),
+      hostConnectRepositoryProvider.overrideWithValue(connect ?? FakeHostConnectRepository()),
+      ringtoneProvider.overrideWithValue((ringtone ?? FakeRingtone()) as Ringtone),
     ],
   );
   addTearDown(container.dispose);

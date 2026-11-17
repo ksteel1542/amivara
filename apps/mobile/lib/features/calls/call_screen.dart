@@ -105,7 +105,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 child: Column(
                   children: <Widget>[
                     _Header(state: s, showAvatar: !showVideo),
-                    if (s.lowBalance && s.call.isCaller && s.phase == CallPhase.active)
+                    if (s.lowBalance && s.call.youPay && s.phase == CallPhase.active)
                       _LowBalanceBanner(
                         onTopUp: () => _topUp(s.call.ratePerMinute - (s.balance ?? 0)),
                         rate: s.call.ratePerMinute,
@@ -152,12 +152,20 @@ class _Header extends StatelessWidget {
   final bool showAvatar;
 
   String get _status => switch (state.phase) {
+    CallPhase.incoming when state.call.invite => 'invites you to a live ${state.call.video ? 'video' : 'voice'} call',
     CallPhase.incoming => 'Incoming ${state.call.video ? 'video' : 'voice'} call',
     CallPhase.outgoing => 'Calling…',
     CallPhase.connecting => 'Connecting…',
     CallPhase.active => _elapsed(),
     CallPhase.ended => state.endMessage ?? 'Call ended',
   };
+
+  /// The free preview counting down.
+  String _previewLeft() {
+    final from = state.connectedAt ?? state.call.startedAt ?? DateTime.now();
+    final left = (state.call.previewSeconds - DateTime.now().difference(from).inSeconds).clamp(0, 60);
+    return 'Free preview · 0:${left.toString().padLeft(2, '0')}';
+  }
 
   String _elapsed() {
     final from = state.connectedAt ?? state.call.startedAt;
@@ -200,10 +208,20 @@ class _Header extends StatelessWidget {
           _Pill(
             key: const Key('call-coins'),
             icon: Icons.toll_outlined,
-            text: call.isCaller
-                ? [if (state.balance != null) '${state.balance} coins', '${call.ratePerMinute} coins/min'].join(' · ')
-                : 'Paid call · ${call.ratePerMinute} coins/min',
+            text: !call.youPay
+                ? 'Paid call · ${call.ratePerMinute} coins/min'
+                : state.phase == CallPhase.incoming
+                // Before answering, the member sees exactly what it costs them.
+                ? (call.previewSeconds > 0
+                      ? 'First ${call.previewSeconds} s free, then ${call.ratePerMinute} coins/min'
+                      : 'You pay ${call.ratePerMinute} coins/min')
+                : [if (state.balance != null) '${state.balance} coins', '${call.ratePerMinute} coins/min'].join(' · '),
           ),
+          if (call.youPay && state.phase == CallPhase.active && call.previewSeconds > 0 && call.billedMinutes == 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _Pill(key: const Key('call-preview'), icon: Icons.card_giftcard, text: _previewLeft()),
+            ),
         ],
       ],
     );
@@ -423,7 +441,9 @@ class CallButtons extends StatelessWidget {
   String _tip(CallType type) {
     final what = type == CallType.video ? 'Video call' : 'Voice call';
     final rate = quote.rateFor(type);
-    return rate > 0 ? '$what · $rate coins/min' : '$what · free';
+    if (rate == 0) return '$what · free';
+    if (quote.freePreviewSeconds > 0) return '$what · first ${quote.freePreviewSeconds} s free, then $rate coins/min';
+    return '$what · $rate coins/min';
   }
 
   @override

@@ -14,6 +14,7 @@ import 'features/auth/auth_providers.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/calls/call_controller.dart';
 import 'features/calls/call_repository.dart';
+import 'features/calls/ringtone.dart';
 import 'features/gifts/gift_repository.dart';
 import 'features/rooms/rooms_repository.dart';
 import 'features/chat/chat_providers.dart';
@@ -33,6 +34,7 @@ import 'features/verification/verification_providers.dart';
 import 'features/verification/verification_repository.dart';
 import 'features/ai/ai_repository.dart';
 import 'features/hosts/host_screen.dart';
+import 'features/hosts/host_connect.dart';
 import 'features/hosts/payouts_repository.dart';
 import 'features/wallet/wallet_repository.dart';
 import 'theme/amivara_theme.dart';
@@ -61,11 +63,13 @@ Future<void> main() async {
       walletRepositoryProvider.overrideWithValue(HttpWalletRepository(api)),
       hostRepositoryProvider.overrideWithValue(HttpHostRepository(api)),
       payoutsRepositoryProvider.overrideWithValue(HttpPayoutsRepository(api)),
+      hostConnectRepositoryProvider.overrideWithValue(HttpHostConnectRepository(api)),
       aiRepositoryProvider.overrideWithValue(HttpAiRepository(api)),
       callRepositoryProvider.overrideWithValue(HttpCallRepository(api)),
       giftRepositoryProvider.overrideWithValue(HttpGiftRepository(api)),
       roomsRepositoryProvider.overrideWithValue(HttpRoomsRepository(api)),
       callSocketFactoryProvider.overrideWithValue(IoChatSocket.new),
+      ringtoneProvider.overrideWithValue(AssetRingtone()),
       identityCaptureProvider.overrideWithValue(SmileIdCapture(initialized: smileIdReady)),
     ],
   );
@@ -129,6 +133,10 @@ class _AmivaraAppState extends ConsumerState<AmivaraApp> {
       final starting = next != null && (next.phase == CallPhase.incoming || next.phase == CallPhase.outgoing);
       final wasIdle = previous == null || previous.phase == CallPhase.ended;
       if (starting && wasIdle) unawaited(_router.push('/call'));
+      // The ringtone plays only while a call is ringing for this member.
+      final ringing = next?.phase == CallPhase.incoming;
+      if (ringing && previous?.phase != CallPhase.incoming) unawaited(ref.read(ringtoneProvider).start());
+      if (!ringing && previous?.phase == CallPhase.incoming) unawaited(ref.read(ringtoneProvider).stop());
     });
   }
 

@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import type { AuthenticatedMember } from '../../common/authenticated-member';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
-import { CurrentMember, Public } from '../auth/auth.guards';
+import { CurrentMember, CurrentSessionId, Public } from '../auth/auth.guards';
 import { RequireActiveMember } from '../verification/active-member.guard';
 import { CallsService } from './calls.service';
 
@@ -26,10 +26,13 @@ export class MatchCallsController {
   @HttpCode(HttpStatus.CREATED)
   async start(
     @CurrentMember() member: AuthenticatedMember,
+    @CurrentSessionId() sessionId: string,
     @Param('matchId', new ParseUUIDPipe()) matchId: string,
     @Body(new ZodValidationPipe(startSchema)) body: z.infer<typeof startSchema>,
   ) {
-    return { call: await this.calls.start(member.id, matchId, body.type === 'video' ? 'VIDEO' : 'VOICE') };
+    return {
+      call: await this.calls.start(member.id, matchId, body.type === 'video' ? 'VIDEO' : 'VOICE', { sessionId }),
+    };
   }
 }
 
@@ -51,8 +54,12 @@ export class CallsController {
 
   @Post(':id/accept')
   @HttpCode(HttpStatus.OK)
-  accept(@CurrentMember() member: AuthenticatedMember, @Param('id', new ParseUUIDPipe()) id: string) {
-    return this.calls.accept(member.id, id);
+  accept(
+    @CurrentMember() member: AuthenticatedMember,
+    @CurrentSessionId() sessionId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.calls.accept(member.id, id, sessionId);
   }
 
   @Post(':id/join')

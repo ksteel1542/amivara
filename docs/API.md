@@ -455,6 +455,34 @@ The socket registry is in-process for now (one API task). Running several tasks 
 - **Safety switch.** `PAYOUTS_ENABLED` (default `false`, Terraform `payouts_enabled`): withdrawals answer `503 PAYOUTS_DISABLED` until it's on. Paystack transfers also need "OTP for transfers" turned off and a funded Paystack balance.
 - **Privacy.** The account number is encrypted at rest; the app only ever sees the last 4 digits. The resolved account name is shown to the Host to confirm (it's not matched against the NIN name, which we don't store).
 
+## Lower-friction onboarding (17 Nov 2026)
+
+**Consent.** The welcome screen has a required checkbox: "I confirm I am 18+ and agree to AMIVARA's Terms of Service & Privacy Policy" (both open in the app; the text is a plain-language draft for legal review). Sign-in stays off until it's ticked, and `POST /onboarding/complete` needs `accepted_terms: true` (else `400 VALIDATION_FAILED`); the API records `users.accepted_terms_at`. `GET /me` reports `terms_accepted`.
+
+**Asymmetric verification.**
+- Without NIN verification, members can browse, buy coins, chat and call with Verified Hosts (`capabilities.host_chat`, `host_calls`), send gifts and listen in Chat House rooms. The unverified daily message cap applies only to member-to-member chats.
+- NIN (Smile ID) stays required for: becoming a Verified Host (earning, payouts), member-to-member calls (`capabilities.voice_calls` / `video_calls`, both members verified), and speaking on a Chat House stage.
+
+**Direct chat with Verified Hosts.**
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/hosts/online` | 🔑 | `{ hosts: [{ user_id, first_name, age, city, photo_url, online, voice_rate_per_minute, video_rate_per_minute }] }`: active Verified Hosts with the app open (blocks hidden). |
+| POST | `/hosts/:id/chat` | 🔑 | Opens (or returns) the conversation with that Host: `{ match_id }`. A `HOST_DIRECT` match: no mutual like, no "It's a match" push; messaging, gifts and calls work as in any match. Not a Host, blocked, or unmatched before: `404`. Matches list items carry `direct: true`. Mutual matching stays for member-to-member. |
+
+**Calls with Hosts.**
+- **Who pays.** The member who isn't the Host (both Hosts: the caller). Calls show `you_pay`, and only the payer sees `total_coins_billed`; `call:billed`, `call:low_balance` and the cut-off `top_up` go to the payer.
+- **Free preview.** A member's first paid call starts with `CALL_FREE_PREVIEW_SECONDS` (15) free: it can be placed with 0 coins, the first minute is charged when the preview ends, and if it can't be paid the call ends `insufficient_coins` with a top-up. Once per member and once per device (so new accounts can't farm it); a call that's never answered gives the preview back. Calls show `preview_seconds`; the quote shows `free_preview_seconds` and `you_pay`.
+- **Ringtone.** Incoming calls loop `assets/sounds/amivara_ringtone.mp3` (an original chime made by `scripts/sounds/make_ringtone.py`) on Android's ringtone stream until answered, declined or timed out.
+
+**Quick Connect.**
+
+| Method | Path | Gate | Description |
+|---|---|---|---|
+| GET | `/hosts/newcomers` | 🔑 active Host | Online members who joined in the last `NEWCOMER_DAYS` (7), accepted the guidelines and accept live call invites: `{ newcomers: [{ user_id, first_name, age, city, photo_url, online, invited_today }] }`. |
+| POST | `/hosts/newcomers/:id/call` | 🔑 active Host | Body `{ type }`. Rings the newcomer (`invite: true`); they pay after their free preview and see the price before answering. Answering without coins or preview: `402 INSUFFICIENT_COINS` (top-up). Limits (`429 INVITE_RATE_LIMITED`): one invite per Host and member a day, 3 invites a day per member, 20 an hour per Host. Invites off: `403 INVITES_OFF`. |
+| PUT | `/me/call-invites` | 🔑 | Body `{ enabled }`. "Receive live call invites" (on by default; Settings). `GET /me` reports `call_invites_enabled`. |
+
 ## Safety
 
 Open to every signed-in member, verified or not: anyone must be able to block and report.
@@ -503,6 +531,7 @@ Every error has the shape `{ "error": { "code", "message", "details"? } }`. Clie
 - **Media:** `PHOTO_LIMIT`, `MIN_PHOTOS`, `UPLOAD_NOT_FOUND`, `INVALID_IMAGE`, `MEDIA_UNAVAILABLE`
 - **Gifts and rooms:** `HOST_ONLY`, `GIFT_RATE_LIMITED`, `ROOM_ALREADY_LIVE`, `ROOM_ENDED` (410), `ROOM_SEATS_FULL`, `NO_SEAT_REQUEST`, `FOLLOWERS_ONLY`, `CONTACT_SHARING_BLOCKED`
 - **Payouts:** `PAYOUTS_UNAVAILABLE`, `PAYOUTS_DISABLED`, `ACCOUNT_NOT_RESOLVED`, `RESOLVE_RATE_LIMITED`, `NO_PAYOUT_ACCOUNT`, `PAYOUT_IN_PROGRESS`, `BELOW_MINIMUM_WITHDRAWAL`, `INSUFFICIENT_EARNINGS`
+- **Quick Connect:** `INVITE_RATE_LIMITED`, `INVITES_OFF`
 - **Calls:** `CALLS_UNAVAILABLE`, `CALLEE_BUSY`, `CALL_NOT_RINGING`, `CALL_RATE_LIMITED`, plus `INSUFFICIENT_COINS` and `VERIFICATION_REQUIRED`
 - **General:** `VALIDATION_FAILED` (`details.fields[]`), `NOT_FOUND`, `FORBIDDEN`, `NOT_IMPLEMENTED`, `INTERNAL`
 - **Messaging and safety:** `MESSAGE_RATE_LIMITED`, `REPORT_RATE_LIMITED`

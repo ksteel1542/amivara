@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api_client.dart';
 import '../../theme/rose_tokens.g.dart';
 import '../auth/auth_providers.dart';
+import 'host_connect.dart';
 import 'payouts_screens.dart';
 import '../wallet/wallet_repository.dart' show formatThousands;
 
@@ -123,6 +124,8 @@ class _HostScreenState extends ConsumerState<HostScreen> {
                   ),
                   const SizedBox(height: RoseSpacing.s4),
                   _EarningsCard(state: state),
+                  const SizedBox(height: RoseSpacing.s4),
+                  const NewcomersPanel(),
                   const SizedBox(height: RoseSpacing.s4),
                   const PayoutsSection(),
                   const SizedBox(height: RoseSpacing.s4),

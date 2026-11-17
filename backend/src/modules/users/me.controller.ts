@@ -1,8 +1,10 @@
-import { Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Put } from '@nestjs/common';
+import { z } from 'zod';
 
 import { ApiError } from '../../common/api-error';
 import type { AuthenticatedMember } from '../../common/authenticated-member';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { CurrentMember } from '../auth/auth.guards';
 import { UNVERIFIED_DAILY_MESSAGES } from '../messaging/messaging.service';
 import { currentAge } from './age';
@@ -51,13 +53,19 @@ export class MeController {
         text_chat: true,
         text_chat_daily_limit: user.ageVerified ? null : UNVERIFIED_DAILY_MESSAGES,
         chat_photos: user.ageVerified,
+        // Member-to-member calls need both NIN-verified; calls and chats with Verified Hosts don't (17 Nov 2026).
         voice_calls: user.ageVerified,
         video_calls: user.ageVerified,
+        host_chat: true,
+        host_calls: true,
         // Opt-in Verified Host mode (MONETIZATION_PLAN.md 2a): any NIN-verified member.
         host: user.ageVerified,
       },
       host_status: user.hostProfile ? lower(user.hostProfile.status) : null,
       guidelines_accepted: user.guidelinesAcceptedAt !== null,
+      terms_accepted: user.acceptedTermsAt !== null,
+      /** Online Verified Hosts may ring them from Quick Connect. */
+      call_invites_enabled: user.allowCallInvites,
       profile: {
         first_name: user.profile.firstName,
         gender: lower(user.profile.gender),
@@ -75,6 +83,16 @@ export class MeController {
   }
 
   /** The community guidelines screen right after sign-up: accepted once, idempotent. */
+  /** PUT /me/call-invites: "Receive live call invites" from online Verified Hosts (on by default). */
+  @Put('call-invites')
+  async callInvites(
+    @CurrentMember() member: AuthenticatedMember,
+    @Body(new ZodValidationPipe(z.object({ enabled: z.boolean() }).strict())) body: { enabled: boolean },
+  ) {
+    await this.prisma.user.update({ where: { id: member.id }, data: { allowCallInvites: body.enabled } });
+    return { call_invites_enabled: body.enabled };
+  }
+
   @Post('guidelines/accept')
   @HttpCode(HttpStatus.NO_CONTENT)
   async acceptGuidelines(@CurrentMember() member: AuthenticatedMember): Promise<void> {

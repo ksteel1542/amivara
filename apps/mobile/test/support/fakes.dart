@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:amivara/features/ai/ai_repository.dart';
 import 'package:amivara/features/calls/call_engine.dart';
 import 'package:amivara/features/calls/call_repository.dart';
+import 'package:amivara/features/calls/ringtone.dart';
+import 'package:amivara/features/hosts/host_connect.dart';
 import 'package:amivara/features/gifts/gift_repository.dart';
 import 'package:amivara/features/rooms/rooms_repository.dart';
 import 'package:amivara/features/hosts/host_screen.dart';
@@ -947,6 +949,9 @@ Map<String, dynamic> callJson(
   'started_at': startedAt,
   'billed_minutes': billed,
   'end_reason': null,
+  // As on the server: the caller pays on a paid call (they rang the Host).
+  'you_pay': caller && rate > 0,
+  'preview_seconds': 0,
 };
 
 class FakeCallRepository implements CallRepository {
@@ -1280,5 +1285,53 @@ class FakePayoutsRepository implements PayoutsRepository {
     history.insert(0, payout);
     if (withdrawStatus != 'failed') available = 0;
     return payout;
+  }
+}
+
+// ── Host direct chat, Quick Connect, ringtone (17 Nov 2026) ──
+
+class FakeRingtone implements Ringtone {
+  final List<String> log = <String>[];
+
+  @override
+  Future<void> start() async => log.add('start');
+
+  @override
+  Future<void> stop() async => log.add('stop');
+}
+
+class FakeHostConnectRepository implements HostConnectRepository {
+  FakeHostConnectRepository({List<PersonCard>? hosts, List<PersonCard>? newcomers})
+    : hosts = hosts ?? <PersonCard>[],
+      newcomerList = newcomers ?? <PersonCard>[];
+
+  List<PersonCard> hosts;
+  List<PersonCard> newcomerList;
+  final List<String> calls = <String>[];
+  bool invitesEnabled = true;
+
+  @override
+  Future<List<PersonCard>> onlineHosts(String accessToken) async => hosts;
+
+  @override
+  Future<String> openChat(String accessToken, String hostId) async {
+    calls.add('chat:$hostId');
+    return 'direct-$hostId';
+  }
+
+  @override
+  Future<List<PersonCard>> newcomers(String accessToken) async => newcomerList;
+
+  @override
+  Future<CallInfo> invite(String accessToken, String userId, CallType type) async {
+    calls.add('invite:$userId:${type.name}');
+    return CallInfo.fromJson(callJson('inv-1', type: type.name, rate: 60, matchId: 'direct-$userId'));
+  }
+
+  @override
+  Future<bool> setCallInvites(String accessToken, bool enabled) async {
+    calls.add('invites:$enabled');
+    invitesEnabled = enabled;
+    return enabled;
   }
 }

@@ -44,6 +44,7 @@ const profile = (dob: string) => ({
   gender: 'woman',
   interested_in: ['man'],
   intent: 'relationship',
+  accepted_terms: true,
 });
 
 /**

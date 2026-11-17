@@ -89,6 +89,7 @@ void main() {
     Future<FakeSafetyRepository> openBlocked(WidgetTester tester, List<BlockedMember> blocked) async {
       final safety = FakeSafetyRepository()..blocked = blocked;
       await pumpSettings(tester, safety: safety);
+      await tester.scrollUntilVisible(find.byKey(const Key('blocked-tile')), 200);
       await tester.tap(find.byKey(const Key('blocked-tile')));
       await tester.pumpAndSettle();
       expect(find.byType(BlockedScreen), findsOneWidget);

@@ -213,6 +213,7 @@ Starter coins: **100** per new member and device. Set 16 Nov 2026: paid messages
 | M6 | Host hub | Opt-in Host role, "Available for calls", call/gift/message history, earnings dashboard | Role gating, availability in discovery |
 | M7 | Payouts ✅ (Paystack Transfers; ₦1 a coin, ₦5,000 minimum; name match and admin queue pending) | Bank/OPay account (resolve + NIN name match), withdrawal requests, admin approval queue, Paystack transfers and webhooks, reversals | Name mismatch, insufficient available earnings, reversed transfers |
 | M8b | Chat House rooms ✅ (backend and app) | Follows, rooms, seats, LiveKit permissions, in-room gifts, follower-only rooms, host moderation | Seat permissions, bans, gift splits |
+| M4b | Lower-friction onboarding ✅ (17 Nov 2026) | 18+ / Terms consent, Host chats and calls without NIN, direct Host chat, ringtone, 15 s first-call preview, Quick Connect | Consent required, P2P still gated, preview once per member and device, invite limits |
 | M8 | Fraud and operations | Velocity limits, chargebacks, admin finance pages, anomaly alerts | Limits and alerts |
 
 **M1 doesn't depend on the payment-provider decision**, so it can start as soon as M0's numbers exist (or with placeholders).

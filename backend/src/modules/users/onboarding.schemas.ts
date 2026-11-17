@@ -22,6 +22,8 @@ export const completeOnboardingSchema = z.object({
     .max(3)
     .refine((list) => new Set(list).size === list.length, 'No duplicates'),
   intent: z.enum(['relationship', 'friendship', 'casual', 'not_sure']),
+  /** The welcome screen's "I confirm I am 18+ and agree to the Terms of Service & Privacy Policy". */
+  accepted_terms: z.literal(true, { error: 'Confirm you are 18+ and accept the Terms and Privacy Policy' }),
 });
 
 export type CompleteOnboardingInput = z.infer<typeof completeOnboardingSchema>;
